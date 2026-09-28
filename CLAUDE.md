@@ -5,6 +5,7 @@ CHIMBO is a Swahili-first B2B wholesale marketplace (cosmetics + jewelry) for Ta
 Before doing anything, read:
 1. `docs/PROGRESS.md` — current phase, next step, what we're waiting on
 2. `docs/CHIMBO_BLUEPRINT.md` — the full plan (architecture §7–§14, implementation order §19, decisions §23)
+3. `docs/CODING_STANDARDS.md` — **clean-code rules for PHP, JS, CSS and Flutter. The user cares a lot about clean code; every change must follow them.**
 
 Code locations:
 - This folder (`C:\xampp\htdocs\chimbo\`): PHP backend API (`api/`, `src/`), admin (`admin/`), web storefront (root pages), docs
