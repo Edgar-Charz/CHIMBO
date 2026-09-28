@@ -1,0 +1,33 @@
+# Environment / secrets (never commit)
+/.env
+
+# Composer dependencies
+/vendor/
+
+# Uploaded media (keep folder structure only)
+/media/*
+!/media/.gitkeep
+!/media/.htaccess
+
+# Logs and runtime files
+/storage/logs/*
+!/storage/logs/.gitkeep
+*.log
+
+# Tests / tools cache
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code local settings
+.claude/settings.local.json
