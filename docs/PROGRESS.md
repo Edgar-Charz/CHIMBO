@@ -3,8 +3,8 @@
 Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
-- **Phase:** 0 — Foundation (in progress: steps 1–3 done)
-- **Next step:** Phase 0, step 4 — Core classes (`Database`, `Request`, `Response`, `Router`, `ApiException`, `Logger`), `api/index.php`, `routes/api.php`, `GET /api/v1/health` (see blueprint §19)
+- **Phase:** 0 — Foundation (in progress: steps 1–4 done)
+- **Next step:** Phase 0, step 5 — `Validator` class + PHPUnit set up with first tests (see blueprint §19)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
 - **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
 
@@ -17,6 +17,18 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-28 | **Mobile app first**; web storefront in Phase 7 |
 
 ## Session log
+
+### 2026-09-28 — Phase 0, step 4 (API foundation)
+- `src/Core/Database.php` — PDO helper: `instance()`, `fetchOne/fetchAll/fetchValue/insert/execute`, `transaction()` (nested calls join the outer one), UTC session timezone, real prepared statements.
+- `src/Core/ApiException.php` — one class with factories: `badRequest, unauthenticated, forbidden, notFound, methodNotAllowed, conflict, validation, tooManyRequests` (Swahili default messages).
+- `src/Core/Response.php` — standard JSON envelope: `success, created, paginated, error, fromException`; controllers return it, `api/index.php` sends it.
+- `src/Core/Request.php` — method, path, query, JSON/form body (invalid JSON → 400), headers, Bearer token, files, locale (sw/en), route params, user.
+- `src/Core/Router.php` — `get/post/patch/put/delete`, `group(prefix, fn, middleware)`, `{param}` routes, before-middleware, 404 `ROUTE_NOT_FOUND` / 405 `METHOD_NOT_ALLOWED`.
+- `src/Core/Logger.php` — `storage/logs/app-YYYY-MM-DD.log`, request id on every line (also sent as `X-Request-Id`).
+- `api/.htaccess` (everything → `api/index.php`, passes the Authorization header) and `api/index.php` (JSON for every outcome incl. fatal errors; debug details only when `APP_DEBUG=true`).
+- `routes/api.php` + `HealthController` → **`GET /api/v1/health`** returns `{status, app, version, database, time}`.
+- Tested with curl: health 200, trailing slash, 404, 405, invalid JSON 400, route params, Bearer token, Accept-Language, crash → safe 500 + log line, UTF-8 body, transaction commit/rollback/nesting.
+- Note: when testing with curl on Windows, send non-ASCII JSON from a file (`--data-binary @body.json`), not inline `-d`.
 
 ### 2026-09-28 — Phase 0, step 3
 - Connected GitHub remote `origin` → https://github.com/Edgar-Charz/CHIMBO.git and pushed.
