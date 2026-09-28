@@ -3,9 +3,10 @@
 Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
-- **Phase:** 0 — Foundation (in progress: steps 1–2 done)
-- **Next step:** Phase 0, step 3 — folder skeleton, `.htaccess` blocks, `.env`, `bootstrap.php` (see blueprint §19)
-- **Waiting on the user:** restart Apache once (GD enabled in php.ini) · answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
+- **Phase:** 0 — Foundation (in progress: steps 1–3 done)
+- **Next step:** Phase 0, step 4 — Core classes (`Database`, `Request`, `Response`, `Router`, `ApiException`, `Logger`), `api/index.php`, `routes/api.php`, `GET /api/v1/health` (see blueprint §19)
+- **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
+- **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
 
 ## Decisions made
 | Date | Decision |
@@ -16,6 +17,15 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-28 | **Mobile app first**; web storefront in Phase 7 |
 
 ## Session log
+
+### 2026-09-28 — Phase 0, step 3
+- Connected GitHub remote `origin` → https://github.com/Edgar-Charz/CHIMBO.git and pushed.
+- Created the full folder skeleton (blueprint §9.2) with `.gitkeep` files.
+- Security: root `.htaccess` (no directory listing, blocks private folders, hidden files, `.md/.json/.sql/...`, `bootstrap.php`, security headers) + `Require all denied` in every private folder; `media/.htaccess` blocks scripts. Verified: 19 private URLs → 403, homepage → 200, `media/*.webp` → 200, `media/*.php` → 403.
+- `.env.example` (committed) + `.env` (local, git-ignored).
+- `src/Core/Env.php` (reads `.env`, supports quotes and inline comments, converts true/false/null).
+- `bootstrap.php`: autoloader for `src/` folders (no namespaces), Composer autoload when present, `.env`, UTC timezone, errors → log file (`storage/logs/php-errors.log`), warnings turned into exceptions.
+- Temporary homepage `index.php` (replaced by the storefront in Phase 7).
 
 ### 2026-09-28 — Phase 0, steps 1–2
 - Step 1: `git init` (branch `main`), `.gitignore`, `.gitattributes` (LF line endings), `README.md`, `CLAUDE.md`. First commit.

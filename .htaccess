@@ -1,0 +1,35 @@
+# CHIMBO — root Apache rules
+# Only these are reachable from the browser: root web pages, api/, admin/, assets/, media/.
+
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Block private folders (defence in depth: most also have their own "Require all denied")
+    RewriteRule ^(\.git|\.claude|src|config|database|cron|storage|tests|vendor|docs|routes|includes)(/|$) - [F,L]
+    RewriteRule ^admin/includes(/|$) - [F,L]
+</IfModule>
+
+# Block hidden files (.env, .gitignore, .htaccess …)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Block project files that are not web pages
+<FilesMatch "\.(md|json|lock|sql|log|ini|sh|bak|dist|xml|yml|yaml)$">
+    Require all denied
+</FilesMatch>
+
+# Block PHP files that are included by pages, never opened directly
+<Files "bootstrap.php">
+    Require all denied
+</Files>
+
+# Basic security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
