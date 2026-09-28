@@ -3,9 +3,9 @@
 Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
-- **Phase:** 0 — Foundation (not started)
-- **Next step:** Phase 0, step 1 — create the `htdocs\chimbo` folder skeleton + `git init` (see blueprint §19)
-- **Waiting on the user:** "go" to start Phase 0 · answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
+- **Phase:** 0 — Foundation (in progress: steps 1–2 done)
+- **Next step:** Phase 0, step 3 — folder skeleton, `.htaccess` blocks, `.env`, `bootstrap.php` (see blueprint §19)
+- **Waiting on the user:** restart Apache once (GD enabled in php.ini) · answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
 
 ## Decisions made
 | Date | Decision |
@@ -16,6 +16,13 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-28 | **Mobile app first**; web storefront in Phase 7 |
 
 ## Session log
+
+### 2026-09-28 — Phase 0, steps 1–2
+- Step 1: `git init` (branch `main`), `.gitignore`, `.gitattributes` (LF line endings), `README.md`, `CLAUDE.md`. First commit.
+- Step 2: enabled `extension=gd` in `C:\xampp\php\php.ini` (backup: `php.ini.bak-chimbo-2026-09-28`); GD + WebP verified in CLI. Apache must be restarted to load it.
+- Composer: no install needed — Herd's `composer.phar` works with XAMPP PHP 8.2.12:
+  `C:\xampp\php\php.exe C:\Users\edgar\.config\herd\bin\composer.phar <command>`
+- Created database `chimbo` (utf8mb4_unicode_ci) on local MariaDB 10.4.32.
 
 ### 2026-09-28 — Planning session
 - Studied `CHIMBO.pdf` (12 pages) and wrote `docs/CHIMBO_BLUEPRINT.md` (v2.0).

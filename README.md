@@ -24,4 +24,8 @@ The Flutter mobile app lives in a separate project: `C:\Users\edgar\AndroidStudi
 - Composer
 
 ## Local setup
-Setup instructions will be added in Phase 0 (steps 2–6).
+1. XAMPP: enable `extension=gd` in `C:\xampp\php\php.ini`, restart Apache.
+2. Create the database: `CREATE DATABASE chimbo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+3. Composer (Herd's phar, run with XAMPP's PHP):
+   `C:\xampp\php\php.exe C:\Users\edgar\.config\herd\bin\composer.phar install`
+4. More steps (`.env`, migrations, seeds) will be added in Phase 0 steps 3–6.
