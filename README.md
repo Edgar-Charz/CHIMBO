@@ -28,4 +28,9 @@ The Flutter mobile app lives in a separate project: `C:\Users\edgar\AndroidStudi
 2. Create the database: `CREATE DATABASE chimbo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
 3. Composer (Herd's phar, run with XAMPP's PHP):
    `C:\xampp\php\php.exe C:\Users\edgar\.config\herd\bin\composer.phar install`
-4. More steps (`.env`, migrations, seeds) will be added in Phase 0 steps 3–6.
+4. Copy `.env.example` to `.env`, set `APP_KEY` (64 random hex characters) and adjust the values.
+5. Create the tables and starting data: `C:\xampp\php\php.exe database\migrate.php --seed`
+   (prints the first admin password once — save it). Use `--status` to see applied migrations.
+
+## Tests
+`C:\xampp\php\php.exe vendor\bin\phpunit`  (add `--testdox` for a readable list)

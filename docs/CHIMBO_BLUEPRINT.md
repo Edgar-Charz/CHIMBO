@@ -1,6 +1,7 @@
 # CHIMBO — Development Blueprint
 
-> **Version 2.0** · 2026-09-28 · Status: **Approved structure — ready to start Phase 0**
+> **Version 2.1** · 2026-09-28 · Status: **In progress — Phase 0**
+> v2.1: backend uses SCMRS-style classes + helpers + API files (no MVC layers); clear names, no abbreviations; prefixed DB column names.
 > Source of truth: `CHIMBO.pdf` (12 pages of screens + notes).
 > **[DOC]** = found in the document. **[REC]** = recommended addition for a production-ready product.
 > v2.0 changes: code locations fixed (XAMPP + AndroidStudioProjects), a **PHP + JavaScript/AJAX web storefront** added, the API serves both apps, the backend is simplified (no public/ subfolder, no namespaces, no virtual host).
@@ -72,7 +73,7 @@ C:\Users\edgar\AndroidStudioProjects\chimbo\   ← Flutter project (git repo #2)
 | **Repeat buying** is the core loop | "Agiza Tena", "Uliagiza Hivi Karibuni / Recently Ordered", "Reorder" |
 | **Verified sellers** supply the products | "Muuzaji Aliyethibitishwa" on every product |
 | **Mobile-money-first payments** | M-Pesa, Airtel Money, Mixx by Yas, Benki, Lipa ukipokea |
-| **Phone-number identity** (no password) | Registration = phone → OTP → business info |
+| **Phone-number identity** (no password) | Registration = phone → OTP → business info | 
 
 Brand: tagline **"BIDHAA BORA • BEI NAFUU • BIASHARA IMARA"**, sub-tagline **"Agiza. Amini. Pokea. Kuza Biashara."** (replaces "Jaza stock. Kuza biashara." per p.3 — confirm, D-3), colours deep green + orange on warm cream, truck/cart logo mark. Existing landing page: `https://kachimbo.efolder.fun/`.
 
@@ -199,7 +200,7 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 
 | Role | Where | Description | MVP |
 |---|---|---|---|
-| **Guest** | App / web | Not logged in. App: onboarding only (matches the doc). Web: can browse the catalog (needed for Google) — must log in to add to cart. (D-6) | ✅ |
+| **Guest** | App / web | Not logged in. **App:** onboarding, then registration (PDF flow). **Web:** browses the catalog, sees prices and fills a cart as a guest; logs in (phone + OTP) at checkout — the guest cart then moves into the account. Orders, wishlist and profile ask for login when opened. (D-6) | ✅ |
 | **Customer / Business owner** | App / web | Verified phone; buys, tracks, reorders. Business may be unverified/verified | ✅ |
 | **Super Admin** | Admin | Everything incl. admin users & settings | ✅ |
 | **Catalog Manager** | Admin | Categories, sellers, products, images, stock, banners | ✅ |
@@ -361,76 +362,63 @@ AndroidStudioProjects\chimbo\lib\
 
 Location: **`C:\xampp\htdocs\chimbo\`**.
 
-### 9.1 Style — SCMRS, organised a bit more
-| SCMRS | CHIMBO | Why |
-|---|---|---|
-| Classes receive the DB connection in the constructor, `try/catch` + transactions | **Same** | Familiar, proven |
-| One class does validation + SQL + rules | **Controller → Service → Repository** | Controller = HTTP in/out; Service = business rules (+ transactions); Repository = SQL only. Same code, better sorted — needed for payments and to share rules between API, web and admin |
-| One file per page | **Same for web + admin**; the API uses one entry file `api/index.php` + router | An API needs consistent routing, auth and JSON errors |
-| `require_once` everywhere | One `bootstrap.php` with a **simple autoloader** (no namespaces) | No include chains; nothing new to learn |
-| `mysqli` | **PDO** through a small `Database` helper (`fetchOne`, `fetchAll`, `execute`, `transaction`) | Named parameters and cleaner transactions; the helper hides the difference |
-| Credentials in `Database.php` | **`.env` file**, blocked from the web | Secrets never committed, differ per environment |
+### 9.1 Style — SCMRS classes + helpers + API files (not full MVC)
+Agreed with the user (v2.1): no Controller/Service/Repository layers. Instead:
 
-**Composer** is used only for tools/libraries (PHPUnit for tests, Dompdf for PDF receipts), not for our own classes.
+| Part | Folder | Role |
+|---|---|---|
+| **Domain classes** | `classes/` | One class per part of the shop (`User`, `Otp`, `Product`, `Category`, `Cart`, `Order`, `Payment`, `Notification` …). Like SCMRS: the class holds its SQL, input validation and business rules; the DB connection comes in through the constructor. Used by the API, the website and the admin. |
+| **Helpers** | `classes/core/` and `classes/` | Reusable tools that keep domain classes short: `Database`, `Validator`, `Request`, `Response`, `Router`, `ApiException`, `Logger`, `Env`, `Phone`; later `Money`, `Pricing` (tier maths), `ImageUploader`, `RateLimiter`, `Session`, `Csrf`. |
+| **Payment & SMS providers** | `classes/payments/`, `classes/sms/` | Gateway interface + one class per provider (see §13). |
+| **API files** | `api/endpoints/*.php` | One file per module; each endpoint is a short block: read the request → call a class method → return `Response`. Loaded by `api/index.php`. |
+
+Compared with SCMRS: same class style, plus PDO with named placeholders, an autoloader (no `require_once`), `.env` for secrets, and one API entry point with consistent JSON errors. Composer is used only for tools/libraries (PHPUnit, Dompdf), not for our own classes.
+
+> Wherever later sections mention "Controller", "Service" or "Repository", read it as: the endpoint block in the API file (controller) and the domain class (service + repository).
 
 ### 9.2 Folder structure
 ```
 C:\xampp\htdocs\chimbo\
-├── .htaccess                  # pretty URLs for web pages; blocks .env and private folders
-├── .env                       # secrets (NOT committed)        .env.example (committed)
-├── bootstrap.php              # loads .env, autoloader, error handler, DB, session (web/admin)
-│
-├── index.php  category.php  product.php  search.php  cart.php  checkout.php  …   ← WEB STOREFRONT (§10)
-├── includes\                  # web layout partials: head.php, header.php, footer.php, bottom_nav.php  (blocked)
-├── assets\                    # css\ (theme.css, app.css) · js\ (chimbo.js + per-page files) · img\ · fonts\ · vendor\ (bootstrap)
-│
+├── .htaccess  .env (not committed)  .env.example  bootstrap.php  composer.json  phpunit.xml
+├── index.php  category.php  product.php  cart.php  checkout.php  …   ← WEB STOREFRONT (§10, Phase 7)
+├── includes\          web layout partials (blocked)
+├── assets\            css\ js\ img\ fonts\ vendor\
 ├── api\
-│   ├── .htaccess              # everything under api/ → api/index.php
-│   └── index.php              # API front controller
-├── routes\api.php             # the whole route table in one readable file   (blocked)
-│
-├── admin\                     # ADMIN DASHBOARD pages (§14)
-│   ├── includes\  ajax\  assets\
-│   └── index.php  login.php  products.php  product_edit.php  orders.php  order_view.php  payments.php …
-│
-├── src\                       # SHARED CLASSES (blocked from the web)
-│   ├── Core\          App, Env, Database, Router, Request, Response, Validator, ApiException (+ subclasses),
-│   │                  Logger, RateLimiter, Session, Csrf
-│   ├── Middleware\    AuthMiddleware (Bearer token OR web session), OptionalAuthMiddleware, RateLimitMiddleware
-│   ├── Controllers\   AuthController, LocationController, HomeController, CategoryController, ProductController,
-│   │                  WishlistController, CartController, AddressController, CheckoutController, OrderController,
-│   │                  PaymentController, WebhookController, ProfileController, NotificationController, SupportController
-│   ├── Services\      AuthService, OtpService, TokenService, CatalogService, PricingService, InventoryService,
-│   │                  CartService, CheckoutService, OrderService, NotificationService, AuditService,
-│   │                  MediaService, ReceiptService
-│   ├── Repositories\  UserRepository, ProductRepository, CategoryRepository, CartRepository, OrderRepository,
-│   │                  PaymentRepository, …
-│   ├── Payments\      PaymentGatewayInterface, PaymentGatewayFactory, PaymentService, Dto\…, Gateways\
-│   │                  (SandboxGateway, CashOnDeliveryGateway, <Aggregator>Gateway)
-│   ├── Sms\           SmsGatewayInterface, LogSmsGateway (dev), <Provider>SmsGateway
-│   ├── Admin\         AdminAuth, Permissions
-│   └── Support\       Money, Phone, OrderNumber, View (escaping helpers)
-│
-├── config\            app.php, payments.php, sms.php — read values from .env                       (blocked)
-├── database\          migrations\001_core.sql … · seeds\ · migrate.php                              (blocked)
-├── cron\              reconcile_payments.php, expire_unpaid_orders.php, send_sms_queue.php (CLI only) (blocked)
-├── media\             uploaded images (PHP execution disabled)
-├── storage\logs\                                                                                   (blocked)
-├── tests\             PHPUnit                                                                       (blocked)
-├── vendor\            Composer libraries                                                            (blocked)
-├── docs\              this blueprint, decisions.md, postman\                                       (blocked)
-└── composer.json
+│   ├── .htaccess      everything → api/index.php
+│   ├── index.php      API entry point: loads every file in endpoints/, runs the router, always answers JSON
+│   └── endpoints\     API FILES (blocked from direct access): system.php, auth.php, profile.php, catalog.php,
+│                      cart.php, orders.php, payments.php, webhooks.php …
+├── admin\             ADMIN pages (§14): includes\ ajax\ assets\ + index.php, products.php, orders.php …
+├── classes\           (blocked)
+│   ├── User.php  Otp.php  AuthToken.php  Region.php  Product.php  Category.php  Seller.php  Cart.php
+│   ├── Wishlist.php  Address.php  Order.php  Notification.php  Admin.php  AuditLog.php  Settings.php  Phone.php …
+│   ├── core\          Env, Database, Request, Response, Router, Validator, ApiException, Logger
+│   │                  (+ AuthMiddleware, RateLimiter, Session, Csrf, Money, Pricing, ImageUploader as needed)
+│   ├── payments\      PaymentGateway (interface), PaymentService, SandboxGateway, CashOnDeliveryGateway, <Aggregator>Gateway
+│   └── sms\           SmsGateway (interface), LogSmsGateway, <Provider>SmsGateway
+├── config\            (blocked)
+├── database\          migrations\ seeds\ migrate.php (blocked)
+├── cron\              reconcile_payments.php, expire_unpaid_orders.php, send_sms_queue.php (blocked)
+├── media\             uploaded images (scripts never run)
+├── storage\logs\      (blocked)
+├── tests\             PHPUnit (blocked)
+├── vendor\            Composer libraries (blocked)
+└── docs\              blueprint, progress, standards (blocked)
 ```
-"Blocked" = a one-line `.htaccess` with `Require all denied` in that folder, so only pages, `api/`, `admin/`, `assets/` and `media/` are reachable in the browser. The same layout works on the production server.
 
 ### 9.3 Request lifecycle (API)
 ```
-api/index.php → bootstrap.php → Router (routes/api.php)
-  → RateLimitMiddleware → AuthMiddleware (Bearer token from app, or session cookie + CSRF header from website)
-  → Controller: Validator → Service (business rules, DB transaction) → Repository (prepared statements)
-  → Response::success() JSON
-Any exception → one global handler → consistent JSON error (no stack traces in production)
+api/index.php → bootstrap.php → loads api/endpoints/*.php into the Router (under /v1)
+  → middleware (e.g. AuthMiddleware: Bearer token from app, or session + CSRF from website)
+  → endpoint block → domain class method (Validator::validate, SQL + rules, transaction) → Response::success(...)
+Any exception → one handler → consistent JSON error (no stack traces in production)
 ```
+
+### 9.4 Security in this style
+Security comes from the rules (§15), not from the architecture. Three risks specific to this style and how they are prevented:
+1. **An endpoint without a login check** → protected endpoints are declared inside an authenticated route group, so a new endpoint there is protected by default.
+2. **Reading another user's data** → every class method that touches personal data takes `$userId` and filters with `WHERE user_id = :user_id`.
+3. **Opening a class or API file directly in the browser** → `classes/` and `api/endpoints/` are blocked (tested: 403).
 
 ---
 
@@ -461,10 +449,10 @@ search.php           /search?q=
 cart.php             Kikapu
 checkout.php         Anwani → Usafirishaji → Malipo → Hakiki (one page, JS stepper)
 payment.php          waiting for mobile-money confirmation (polling)
-order-success.php    Oda Imepokelewa!
+order_success.php    Oda Imepokelewa!
 orders.php           Oda Zangu (tabs)          order.php  detail + Fuatilia Oda timeline
 wishlist.php  notifications.php
-account.php          Wasifu   · account-business.php · addresses.php · settings.php (language)
+account.php          Wasifu   · account_business.php · addresses.php · settings.php (language)
 login.php            phone → OTP → business info (AJAX steps)       logout.php
 help.php  terms.php  privacy.php  404.php
 ```
@@ -486,6 +474,7 @@ assets/js/
 Bootstrap 5 + Bootstrap Icons served locally from `assets/vendor/`. Server-rendered HTML fragments are **not** used: the API returns JSON and small JS template functions build cards, so the API stays one format for both clients.
 
 ### 10.4 Web authentication
+- **When:** guests shop freely; login is asked at checkout (and when opening orders, wishlist or profile). The guest cart lives in the browser (`localStorage`) and is sent to `POST /cart/merge` right after login.
 - Same phone + OTP endpoints as the app. When the website calls `/auth/otp/verify` with `"client": "web"`, the server **starts a PHP session** (session id regenerated, cookie `HttpOnly`, `SameSite=Lax`, `Secure` in production) instead of returning a token.
 - `AuthMiddleware` accepts **either** a Bearer token (app) **or** the customer session (website).
 - Every state-changing AJAX request from the website sends the **CSRF token** (printed by PHP in `<meta name="csrf-token">`) in the `X-CSRF-Token` header — the SCMRS approach, adapted to AJAX.
@@ -498,6 +487,8 @@ Mobile-first responsive Bootstrap: on phones the website looks like the app (bot
 ---
 
 ## 11. MySQL database design
+
+**Naming:** see `docs/CODING_STANDARDS.md` §3 — primary keys `<entity>_id`, columns prefixed with the entity (`user_phone`, `product_name`), foreign keys named like their target (`user_id`), plain `created_at`/`updated_at`. The table lists below are shorthand; **the migration files are the source of truth for exact column names.**
 
 Conventions: InnoDB, `utf8mb4_unicode_ci`, `BIGINT UNSIGNED` ids, **money = `INT UNSIGNED` whole TZS**, timestamps stored in **UTC**, foreign keys enforced, soft delete (`deleted_at`) only on users and products. SQL kept compatible with local MariaDB 10.4 and production MySQL 8 / MariaDB 10.6+. Database name: **`chimbo`**.
 
@@ -635,6 +626,7 @@ Enforced in `OrderService::transition()`. Tabs: *Zinazoendelea* = pending_paymen
 - Error: `{ "success": false, "error": { "code": "VALIDATION_ERROR", "message": "…", "fields": { "phone": "…" } } }`
 - Status codes: 200/201 · 401 · 403 · 404 · 409 (price/stock changed, duplicate) · 422 · 429 · 500.
 - Error codes: `VALIDATION_ERROR, UNAUTHENTICATED, CSRF_INVALID, OTP_INVALID, OTP_EXPIRED, OTP_TOO_MANY_ATTEMPTS, RATE_LIMITED, NOT_FOUND, MOQ_NOT_MET, OUT_OF_STOCK, PRICE_CHANGED, ORDER_NOT_PAYABLE, PAYMENT_IN_PROGRESS`.
+- **JSON keys = database column names** (`user_id`, `user_phone`, `product_name`, `order_total` …); computed values use the same style (`product_price_from`). The field names in the tables below are shorthand.
 - Pagination `?page=&per_page=` (max 50). Money = integer TZS. Dates = ISO-8601 UTC. Images = `{thumb, medium, large}` absolute URLs.
 
 ### 12.2 Endpoints
@@ -1020,6 +1012,7 @@ Rule: **every money-related bug gets a regression test before it is fixed.**
 | ✔ | Web storefront = PHP pages + Bootstrap + plain JavaScript/AJAX calling the same API (no Flutter web, no JS frameworks) |
 | ✔ | One API for app and web; app uses Bearer tokens, web uses sessions + CSRF |
 | ✔ | **D-1: mobile app first** (Phases 1–5 client = Flutter); web storefront in Phase 7 |
+| ✔ | **D-6 (2026-09-28): Web** — guests browse, see prices and add to cart; login at checkout; the guest cart (kept in the browser) is merged into the account cart after login via `POST /cart/merge` (backend, Phase 3). **App** — keeps the PDF flow: registration right after onboarding. |
 
 ### Open (default applies if no answer)
 | # | Question | Needed by | Default |
@@ -1029,7 +1022,6 @@ Rule: **every money-related bug gets a regression test before it is fixed.**
 | D-3 | Replace "Jaza stock. Kuza biashara." everywhere with "Agiza. Amini. Pokea. Kuza Biashara."? | Phase 1 | Yes |
 | D-4 | Profile design p.10 or p.11? | Phase 1 | p.11 + p.10's verified badge |
 | D-5 | After registration: straight to Home or a welcome step? | Phase 1 | Home with a one-time welcome card |
-| D-6 | Guests: app requires registration (doc); web catalog public? | Phase 1 / 7 | Yes to both |
 | D-7 | Rule for "Punguzo" and "Ongeza TZS 10,000 upate bei nzuri zaidi" | Phase 3 | No cart discount in MVP; per-item tier nudges |
 | D-8 | MOQ is a hard minimum? | Phase 3 | Yes |
 | D-9 | Delivery fees flat or by region? Regions served? | Phase 4 | Flat 5,000 / 10,000; Haraka only in Dar es Salaam |

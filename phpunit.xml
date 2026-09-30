@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnWarning="true"
+         failOnRisky="true">
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <!-- Tests use their own database, rebuilt on every run (see tests/bootstrap.php) -->
+        <env name="DB_DATABASE" value="chimbo_test" force="true"/>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="SMS_DRIVER" value="log" force="true"/>
+    </php>
+    <source>
+        <include>
+            <directory>classes</directory>
+        </include>
+    </source>
+</phpunit>

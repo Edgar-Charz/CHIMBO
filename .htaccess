@@ -8,8 +8,8 @@ DirectoryIndex index.php
     RewriteEngine On
 
     # Block private folders (defence in depth: most also have their own "Require all denied")
-    RewriteRule ^(\.git|\.claude|src|config|database|cron|storage|tests|vendor|docs|routes|includes)(/|$) - [F,L]
-    RewriteRule ^admin/includes(/|$) - [F,L]
+    RewriteRule ^(\.git|\.claude|classes|config|database|cron|storage|tests|vendor|docs|includes)(/|$) - [F,L]
+    RewriteRule ^(admin/includes|api/endpoints)(/|$) - [F,L]
 </IfModule>
 
 # Block hidden files (.env, .gitignore, .htaccess …)

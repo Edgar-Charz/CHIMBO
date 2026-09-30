@@ -12,11 +12,11 @@ require dirname(__DIR__) . '/bootstrap.php';
 // and to "error.debug" in the response when APP_DEBUG=true.
 ini_set('display_errors', '0');
 
-$requestId = bin2hex(random_bytes(8));
-Logger::setRequestId($requestId);
+$request_id = bin2hex(random_bytes(8));
+Logger::setRequestId($request_id);
 
 // Last safety net: fatal errors (e.g. a syntax error) still return JSON
-register_shutdown_function(function () use ($requestId): void {
+register_shutdown_function(function () use ($request_id): void {
     $error = error_get_last();
     if ($error === null || !in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
         return;
@@ -24,7 +24,7 @@ register_shutdown_function(function () use ($requestId): void {
     Logger::error('Fatal error: ' . $error['message'], ['file' => $error['file'] . ':' . $error['line']]);
     if (!headers_sent()) {
         Response::error('SERVER_ERROR', 'Kuna tatizo upande wetu. Tafadhali jaribu tena baadaye.', 500)
-            ->withHeader('X-Request-Id', $requestId)
+            ->withHeader('X-Request-Id', $request_id)
             ->send();
     }
 });
@@ -32,20 +32,29 @@ register_shutdown_function(function () use ($requestId): void {
 try {
     $request = Request::fromGlobals(rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\'));
 
+    // Load every API file (api/endpoints/*.php); each one adds its routes under /v1
     $router = new Router();
-    require BASE_PATH . '/routes/api.php';
+    $router->group('/v1', function (Router $router) {
+        foreach (glob(__DIR__ . '/endpoints/*.php') as $endpoint_file) {
+            require $endpoint_file;
+        }
+    });
 
     $response = $router->dispatch($request);
-} catch (ApiException $e) {
+} catch (ApiException $exception) {
     // Expected errors: validation, not found, unauthenticated …
-    $response = Response::fromException($e);
-} catch (Throwable $e) {
+    $response = Response::fromException($exception);
+} catch (Throwable $exception) {
     // Unexpected errors: log everything, tell the client only what is safe
-    Logger::exception($e);
+    Logger::exception($exception);
     $debug = Env::get('APP_DEBUG', false)
-        ? ['exception' => get_class($e), 'message' => $e->getMessage(), 'file' => $e->getFile() . ':' . $e->getLine()]
+        ? [
+            'exception' => get_class($exception),
+            'message'   => $exception->getMessage(),
+            'file'      => $exception->getFile() . ':' . $exception->getLine(),
+        ]
         : null;
     $response = Response::error('SERVER_ERROR', 'Kuna tatizo upande wetu. Tafadhali jaribu tena baadaye.', 500, [], $debug);
 }
 
-$response->withHeader('X-Request-Id', $requestId)->send();
+$response->withHeader('X-Request-Id', $request_id)->send();

@@ -11,21 +11,21 @@
 define('BASE_PATH', __DIR__);
 
 // 1. Autoloader: when a class is used for the first time, PHP calls this function,
-//    which looks for "ClassName.php" in the src/ folders below. No require_once needed.
-spl_autoload_register(function (string $class): void {
-    static $folders = [
-        'Core', 'Middleware', 'Controllers', 'Services', 'Repositories',
-        'Payments', 'Payments/Dto', 'Payments/Gateways', 'Sms', 'Admin', 'Support',
-    ];
+//    which looks for "ClassName.php" in the folders below. No require_once needed.
+spl_autoload_register(function (string $class_name): void {
+    static $folders = ['classes', 'classes/core', 'classes/payments', 'classes/sms'];
 
     foreach ($folders as $folder) {
-        $file = BASE_PATH . "/src/{$folder}/{$class}.php";
+        $file = BASE_PATH . "/{$folder}/{$class_name}.php";
         if (is_file($file)) {
             require $file;
             return;
         }
-    }
+    } 
 });
+
+// Small global functions: e(), url(), redirect() …
+require BASE_PATH . '/classes/core/helpers.php';
 
 // 2. Composer libraries (PHPUnit, Dompdf …), once they are installed
 if (is_file(BASE_PATH . '/vendor/autoload.php')) {
