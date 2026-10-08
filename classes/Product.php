@@ -5,6 +5,7 @@
  *
  * Prices come from product_price_tiers: the highest tier price is the normal price
  * ("product_price"), the lowest is the best wholesale price ("kuanzia", product_price_from).
+ * Both are also stored on the product (ProductEditor::refreshStoredPrices) so lists can use an index.
  *
  * How to use it:
  *   $product_model = new Product(Database::instance());
@@ -15,12 +16,15 @@ class Product
 {
     private const DEFAULT_PER_PAGE = 20;
 
+    // A product is in the shop when it is active, not deleted and has at least one price tier
+    private const IN_SHOP_SQL = 'p.product_is_active = 1 AND p.deleted_at IS NULL AND p.product_price IS NOT NULL';
+
     // How each "sort" choice orders the list. Only these fixed strings ever reach the SQL.
     private const SORT_ORDERS = [
         'popular'    => 'p.product_is_bestseller DESC, p.product_sold_count DESC, p.product_id DESC',
         'newest'     => 'p.created_at DESC, p.product_id DESC',
-        'price_asc'  => 'prices.product_price ASC, p.product_id DESC',
-        'price_desc' => 'prices.product_price DESC, p.product_id DESC',
+        'price_asc'  => 'p.product_price ASC, p.product_id DESC',
+        'price_desc' => 'p.product_price DESC, p.product_id DESC',
     ];
 
     public function __construct(private Database $db)
@@ -49,32 +53,25 @@ class Product
 
         $page     = $filters['page'] ?? 1;
         $per_page = $filters['per_page'] ?? self::DEFAULT_PER_PAGE;
-        $offset   = ($page - 1) * $per_page;
 
         [$where_sql, $params] = $this->buildFilters($filters);
-        $order_sql = self::SORT_ORDERS[$this->chooseSort($filters)];
-
         $total = (int) $this->db->fetchValue('SELECT COUNT(*) ' . $this->productFromSql() . " WHERE {$where_sql}", $params);
 
-        // $per_page and $offset are validated whole numbers, so they can be written into the SQL
-        $rows = $this->db->fetchAll(
-            $this->productSelectSql() . ' ' . $this->productFromSql()
-            . " WHERE {$where_sql} ORDER BY {$order_sql} LIMIT {$per_page} OFFSET {$offset}",
-            $params
-        );
-
         return [
-            'items'    => array_map(fn (array $row) => $this->formatProductCard($row), $rows),
+            'items'    => $this->fetchCards($where_sql, $params, $this->chooseSort($filters), $per_page, ($page - 1) * $per_page),
             'total'    => $total,
             'page'     => $page,
             'per_page' => $per_page,
         ];
     }
 
-    /** A short list for a Home rail, e.g. getCollection('deals', 10). */
+    /** A short list for a Home rail, e.g. getCollection('deals', 10). No counting — a rail has no pages. */
     public function getCollection(string $collection, int $limit): array
     {
-        return $this->getProducts(['collection' => $collection, 'per_page' => $limit])['items'];
+        $filters = ['collection' => $collection];
+        [$where_sql, $params] = $this->buildFilters($filters);
+
+        return $this->fetchCards($where_sql, $params, $this->chooseSort($filters), $limit, 0);
     }
 
     /**
@@ -98,7 +95,7 @@ class Product
 
         $rows = $this->db->fetchAll(
             $this->productSelectSql() . ' ' . $this->productFromSql()
-            . ' WHERE p.product_is_active = 1 AND p.deleted_at IS NULL AND p.product_id IN (' . implode(', ', $placeholders) . ')',
+            . ' WHERE ' . self::IN_SHOP_SQL . ' AND p.product_id IN (' . implode(', ', $placeholders) . ')',
             $params
         );
 
@@ -123,7 +120,7 @@ class Product
                     c.category_name, parent.category_name AS parent_category_name
              ' . $this->productFromSql() . '
              LEFT JOIN categories parent ON parent.category_id = c.parent_category_id
-             WHERE p.product_id = :product_id AND p.product_is_active = 1 AND p.deleted_at IS NULL',
+             WHERE p.product_id = :product_id AND ' . self::IN_SHOP_SQL,
             ['product_id' => $product_id]
         );
 
@@ -202,10 +199,25 @@ class Product
         ], $rows);
     }
 
+    /**
+     * One page of cards. $sort is a SORT_ORDERS key; $limit and $offset are whole numbers
+     * (validated or set by this class), so they can be written into the SQL.
+     */
+    private function fetchCards(string $where_sql, array $params, string $sort, int $limit, int $offset): array
+    {
+        $rows = $this->db->fetchAll(
+            $this->productSelectSql() . ' ' . $this->productFromSql()
+            . " WHERE {$where_sql} ORDER BY " . self::SORT_ORDERS[$sort] . " LIMIT {$limit} OFFSET {$offset}",
+            $params
+        );
+
+        return array_map(fn (array $row) => $this->formatProductCard($row), $rows);
+    }
+
     /** Turns the WHERE conditions into SQL + values. Each value is a named placeholder, never pasted in. */
     private function buildFilters(array $filters): array
     {
-        $conditions = ['p.product_is_active = 1', 'p.deleted_at IS NULL'];
+        $conditions = [self::IN_SHOP_SQL];
         $params     = [];
 
         if (isset($filters['category_id'])) {
@@ -224,18 +236,18 @@ class Product
         }
 
         $conditions[] = match ($filters['collection'] ?? null) {
-            'deals'        => 'p.product_compare_at_price > prices.product_price',
+            'deals'        => 'p.product_compare_at_price > p.product_price',
             'new'          => 'p.product_new_until >= UTC_DATE()',
             'best_sellers' => 'p.product_sold_count > 0',
             default        => '1 = 1',
         };
 
         if (isset($filters['min_price'])) {
-            $conditions[] = 'prices.product_price >= :min_price';
+            $conditions[] = 'p.product_price >= :min_price';
             $params['min_price'] = $filters['min_price'];
         }
         if (isset($filters['max_price'])) {
-            $conditions[] = 'prices.product_price <= :max_price';
+            $conditions[] = 'p.product_price <= :max_price';
             $params['max_price'] = $filters['max_price'];
         }
         if (isset($filters['max_moq'])) {
@@ -260,27 +272,17 @@ class Product
     {
         return 'SELECT p.product_id, p.product_name, p.product_slug, p.category_id, p.product_moq, p.product_unit_label,
                        p.product_stock_quantity, p.product_compare_at_price, p.product_is_bestseller, p.product_new_until,
-                       prices.product_price, prices.product_price_from,
+                       p.product_price, p.product_price_from,
                        s.seller_name, s.seller_is_verified,
                        image.product_image_thumb_path';
     }
 
-    /**
-     * The tables a product card is built from. Only products with at least one price tier,
-     * an active seller and an active category appear in the shop.
-     */
+    /** The tables a product card is built from. Only products of an active seller and an active category appear in the shop. */
     private function productFromSql(): string
     {
         return "FROM products p
                 JOIN sellers s    ON s.seller_id = p.seller_id AND s.seller_status = 'active'
                 JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
-                JOIN (
-                    SELECT product_id,
-                           MAX(tier_unit_price) AS product_price,
-                           MIN(tier_unit_price) AS product_price_from
-                    FROM product_price_tiers
-                    GROUP BY product_id
-                ) prices ON prices.product_id = p.product_id
                 LEFT JOIN product_images image
                        ON image.product_id = p.product_id AND image.product_image_is_primary = 1";
     }

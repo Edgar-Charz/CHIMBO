@@ -115,6 +115,16 @@ function isoDate(?string $database_date): ?string
     return (new DateTimeImmutable($database_date, new DateTimeZone('UTC')))->format(DATE_ATOM);
 }
 
+/** A database time (UTC) shown in Tanzania time, e.g. localDateTime('2026-09-29 13:10:00') → "29/09/2026 16:10". */
+function localDateTime(?string $utc_time, string $format = 'd/m/Y H:i'): string
+{
+    if ($utc_time === null) {
+        return '';
+    }
+    $timezone = new DateTimeZone((string) Env::get('APP_TIMEZONE', 'Africa/Dar_es_Salaam'));
+    return (new DateTimeImmutable($utc_time, new DateTimeZone('UTC')))->setTimezone($timezone)->format($format);
+}
+
 /** A time typed by staff in Tanzania time ("2026-10-01 08:30:00") → UTC for the database. */
 function localTimeToUtc(?string $local_time): ?string
 {

@@ -24,4 +24,7 @@ adminDataTablesJson($pagination, fn(array $customer): array => [
     'status'       => adminStatusBadge($customer['user_status']),
     'joined'       => e(adminDate($customer['created_at'])),
     'last_login'   => e(adminDateTime($customer['user_last_login_at'])),
+    'actions'      => adminRowActions(
+        adminActionLink('bi-eye', 'View customer', url('admin/customer_details.php?id=' . $customer['user_id'])),
+    ),
 ]);

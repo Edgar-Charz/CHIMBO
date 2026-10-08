@@ -6,11 +6,31 @@ $current_admin   = AdminSession::requireLogin('products.manage');
 $database        = Database::instance();
 $category_groups = adminCategoryGroups((new Category($database))->getAllCategoriesForAdmin());
 $sellers         = (new Seller($database))->getAllSellersForAdmin();
+$admin_id        = (int) $current_admin['admin_id'];
+$product_editor  = new ProductEditor($database);
+
+// Row actions: hide/show (one-click switch) and delete. The row is loaded for the product's name in the message.
+$form_error = adminHandleForm(function (string $form_action) use ($product_editor, $admin_id): void {
+    $product_id = adminActionRecordId();
+    $product    = $product_editor->getProductForAdmin($product_id);
+
+    if ($form_action === 'toggle_active') {
+        $is_active = !$product['product_is_active'];
+        $product_editor->setProductActive($product_id, $is_active, $admin_id);
+        Session::flash('success', $product['product_name'] . ($is_active ? ' is visible in the shop again.' : ' is now hidden from the shop.'));
+    } elseif ($form_action === 'delete') {
+        $product_editor->deleteProduct($product_id, $admin_id);
+        Session::flash('success', $product['product_name'] . ' was deleted.');
+    }
+    redirect(url('admin/products.php'));
+});
 
 $page_title  = 'Products';
 $active_menu = 'products';
 require __DIR__ . '/includes/header.php';
 ?>
+
+<?php require __DIR__ . '/includes/form_alert.php'; ?>
 
 <div class="admin-page-actions">
     <p class="text-muted mb-0">Everything CHIMBO sells. Click a product to edit its prices, photos and details.</p>
@@ -78,6 +98,7 @@ require __DIR__ . '/includes/header.php';
                 <th data-column="stock" data-sort="product_stock_quantity" data-cell-class="text-end" class="text-end">Stock</th>
                 <th data-column="status" data-cell-class="text-nowrap">Status</th>
                 <th data-column="added" data-sort="created_at" data-cell-class="text-nowrap">Added</th>
+                <th data-column="actions" data-cell-class="text-end" class="text-end">Actions</th>
             </tr>
         </thead>
     </table>

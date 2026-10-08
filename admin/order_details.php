@@ -1,19 +1,47 @@
 <?php
 require __DIR__ . '/includes/admin_bootstrap.php';
 
-$current_admin     = AdminSession::requireLogin('orders.view');
-$admin_id          = (int) $current_admin['admin_id'];
-$database          = Database::instance();
-$order_manager     = new OrderManager($database);
-$can_change_status = Admin::can($current_admin, 'orders.manage');
-$can_confirm_cash  = Admin::can($current_admin, 'payments.confirm_cash');
+$current_admin       = AdminSession::requireLogin('orders.view');
+$admin_id            = (int) $current_admin['admin_id'];
+$database            = Database::instance();
+$order_manager       = new OrderManager($database);
+$can_change_status   = Admin::can($current_admin, 'orders.manage');
+$can_confirm_cash    = Admin::can($current_admin, 'payments.confirm_cash');
+$can_manage_payments = Admin::can($current_admin, 'payments.manage');   // review, record, refunds
 
 $order_id = (int) ($_GET['id'] ?? 0);
 $order    = adminLoadOrRedirect(fn () => $order_manager->getOrderForAdmin($order_id), 'orders.php');
 
 // Each action checks its own permission: Finance may view orders but not move them
-$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash): void {
-    if ($form_action === 'change_status' && $can_change_status) {
+$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database): void {
+    $order_page = url("admin/order_details.php?id={$order_id}");
+
+    // Payment actions (the classes notify the customer). Reject and refund come from dialogs, so their errors are flashed.
+    if ($can_manage_payments && in_array($form_action, ['confirm_payment', 'reject_payment', 'mark_refunded'], true)) {
+        $payment_model = new Payment($database);
+        try {
+            if ($form_action === 'confirm_payment') {
+                $payment_model->confirmPayment(adminActionRecordId(), $admin_id);
+                $message = 'Payment confirmed — the order is paid and the customer has been told.';
+            } elseif ($form_action === 'reject_payment') {
+                $payment_model->rejectPayment(adminActionRecordId(), $_POST, $admin_id);
+                $message = 'Payment rejected — the customer sees your reason.';
+            } else {
+                $payment_model->markRefunded($order_id, $_POST, $admin_id);
+                $message = 'Marked as refunded — the customer has been told.';
+            }
+        } catch (ApiException $e) {
+            Session::flash('error', adminErrorText($e));
+            redirect($order_page);
+        }
+        Session::flash('success', $message);
+        redirect($order_page);
+    }
+
+    if ($form_action === 'record_payment' && $can_manage_payments) {
+        (new Payment($database))->recordPaymentByStaff($order_id, $_POST, $admin_id);
+        Session::flash('success', 'Payment recorded and confirmed — the order is paid.');
+    } elseif ($form_action === 'change_status' && $can_change_status) {
         $order_manager->changeStatus($order_id, $_POST, $admin_id);
         Session::flash('success', 'The order is now "' . adminStatusName((string) $_POST['order_status']) . '". The customer has been notified.');
     } elseif ($form_action === 'confirm_cash' && $can_confirm_cash) {
@@ -22,7 +50,7 @@ $form_error = adminHandleForm(function (string $form_action) use ($order_manager
     } else {
         throw ApiException::forbidden('Your role cannot do this.');
     }
-    redirect(url("admin/order_details.php?id={$order_id}"));
+    redirect($order_page);
 });
 
 $errors = $form_error?->fields() ?? [];
@@ -32,6 +60,8 @@ $next_statuses   = $can_change_status ? $order['allowed_next_statuses'] : [];
 $delivery_agents = in_array('dispatched', $next_statuses, true) ? (new DeliveryAgent($database))->getActiveAgents() : [];
 $address         = $order['address'];
 $customer        = $order['customer'];
+$refund_is_due   = $can_manage_payments && in_array($order['order_status'], ['cancelled', 'expired'], true)
+    && $order['order_payment_status'] === 'paid';
 
 $page_title  = 'Order ' . $order['order_number'];
 $active_menu = 'orders';
@@ -55,6 +85,8 @@ require __DIR__ . '/includes/header.php';
             <?= adminStatusBadge($order['order_status']) ?>
             <?= adminStatusBadge($order['order_payment_status']) ?>
             <strong class="fs-5 ms-2"><?= e(adminMoney($order['order_total'])) ?></strong>
+            <a class="btn btn-outline-secondary ms-2" href="<?= e(url('admin/order_receipt.php?id=' . $order['order_id'])) ?>"
+               target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print receipt</a>
         </div>
     </div>
 </div>
@@ -248,6 +280,71 @@ require __DIR__ . '/includes/header.php';
                     <?php endif; ?>
                 </dl>
             </div>
+
+            <?php if ($order['payments']): ?>
+                <ul class="order-payments">
+                    <?php foreach ($order['payments'] as $payment): ?>
+                        <li>
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold"><?= e(adminMoney((int) $payment['payment_amount'])) ?> · <?= e(adminPaymentMethodName($payment['payment_method_code'])) ?></div>
+                                    <div class="small">
+                                        From <?= e(adminPayerAccount($payment['payment_payer_account'])) ?>
+                                        · code <code class="payment-code"><?= e($payment['payment_reference']) ?></code>
+                                    </div>
+                                    <div class="small text-muted">
+                                        Sent <?= e(adminDateTime($payment['created_at'])) ?>
+                                        <?php if ($payment['reviewed_by_admin_name']): ?>
+                                            · checked by <?= e($payment['reviewed_by_admin_name']) ?>, <?= e(adminDateTime($payment['payment_reviewed_at'])) ?>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if ($payment['payment_review_note']): ?>
+                                        <div class="small text-muted">"<?= e($payment['payment_review_note']) ?>"</div>
+                                    <?php endif; ?>
+                                </div>
+                                <?= adminPaymentReviewBadge($payment['payment_status']) ?>
+                            </div>
+                            <?php if ($payment['payment_status'] === 'submitted' && $can_manage_payments): ?>
+                                <div class="mt-2"><?= adminRowActions(adminPaymentReviewButtons($payment, $order['order_number'])) ?></div>
+                            <?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+
+            <?php if ($order['can_record_payment'] && $can_manage_payments): ?>
+                <form class="admin-panel-body border-top" method="post" novalidate>
+                    <?= Csrf::field() ?>
+                    <h3 class="h6 mb-1">Record payment</h3>
+                    <p class="small text-muted">For phone orders: once you see the money on the statement, record it here. It is confirmed at once.</p>
+                    <div class="mb-2">
+                        <label class="form-label" for="payment_payer_account">Paid from (phone or account)</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'payment_payer_account') ?>" id="payment_payer_account" name="payment_payer_account"
+                               value="<?= e($posted['payment_payer_account'] ?? '') ?>" maxlength="40" placeholder="0712 345 678">
+                        <?= adminFieldError($errors, 'payment_payer_account') ?>
+                    </div>
+                    <div>
+                        <label class="form-label" for="payment_reference">Confirmation code</label>
+                        <input class="form-control payment-code<?= adminInvalidClass($errors, 'payment_reference') ?>" id="payment_reference" name="payment_reference"
+                               value="<?= e($posted['payment_reference'] ?? '') ?>" maxlength="40" placeholder="e.g. QJK7XY12AB" autocomplete="off">
+                        <?= adminFieldError($errors, 'payment_reference') ?>
+                    </div>
+                    <button class="btn btn-outline-success w-100 mt-3" type="submit" name="form_action" value="record_payment"
+                            data-confirm="Record <?= e(adminMoney($order['order_total'])) ?> as paid? Only do this when you see it on the statement.">
+                        <i class="bi bi-check2-circle"></i> Record payment
+                    </button>
+                </form>
+            <?php endif; ?>
+
+            <?php if ($refund_is_due): ?>
+                <div class="admin-panel-body border-top">
+                    <p class="small text-muted mb-2">This paid order was cancelled: send <?= e(adminMoney($order['order_total'])) ?> back, then mark it refunded.</p>
+                    <button class="btn btn-outline-secondary w-100" type="button" data-open-modal="#refund-modal"
+                            data-record-id="<?= e($order['order_id']) ?>" data-record-label="<?= e($order['order_number'] . ' · ' . adminMoney($order['order_total'])) ?>">
+                        <i class="bi bi-arrow-counterclockwise"></i> Mark refunded
+                    </button>
+                </div>
+            <?php endif; ?>
             <?php if ($order['can_confirm_cash'] && $can_confirm_cash): ?>
                 <form class="admin-panel-body border-top" method="post" novalidate>
                     <?= Csrf::field() ?>
@@ -265,5 +362,10 @@ require __DIR__ . '/includes/header.php';
         </section>
     </div>
 </div>
+
+<?php if ($can_manage_payments): ?>
+    <?php require __DIR__ . '/includes/payment_reject_modal.php'; ?>
+    <?php require __DIR__ . '/includes/refund_modal.php'; ?>
+<?php endif; ?>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

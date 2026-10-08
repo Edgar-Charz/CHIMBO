@@ -168,6 +168,13 @@ class Order
      */
     public function moveToStatus(array $order, string $new_status, string $actor_type, ?int $actor_id, ?string $note): void
     {
+        // A payment the customer sent must be confirmed or rejected first, or money could be lost track of
+        if (in_array($new_status, ['cancelled', 'expired'], true) && $order['order_payment_status'] === 'pending') {
+            throw ApiException::conflict('PAYMENT_UNDER_REVIEW', $actor_type === 'customer'
+                ? 'Malipo yako yanakaguliwa. Wasiliana na msaada ili kusitisha oda hii.'
+                : "Confirm or reject the customer's payment (Payments page) before stopping this order.");
+        }
+
         $this->db->execute(
             'UPDATE orders
              SET order_status        = :order_status,
@@ -236,8 +243,14 @@ class Order
             "SELECT order_id, order_status, status_note, created_at FROM order_status_history
              WHERE order_id IN ({$order_ids}) ORDER BY status_history_id"
         ));
+        $payments_by_id = (new Payment($this->db))->getLatestPaymentsForOrders(array_column($rows, 'order_id'));
 
-        return array_map(fn (array $row) => $this->formatOrder($row, $items_by_id[$row['order_id']] ?? [], $events_by_id[$row['order_id']] ?? []), $rows);
+        return array_map(fn (array $row) => $this->formatOrder(
+            $row,
+            $items_by_id[$row['order_id']] ?? [],
+            $events_by_id[$row['order_id']] ?? [],
+            $payments_by_id[$row['order_id']] ?? null
+        ), $rows);
     }
 
     // ------------------------------------------------------------------ private
@@ -470,8 +483,8 @@ class Order
         return $grouped;
     }
 
-    /** One order row + its items + its timeline → JSON (keys follow the column names). */
-    private function formatOrder(array $row, array $items, array $events): array
+    /** One order row + its items + its timeline + its newest payment → JSON (keys follow the column names). */
+    private function formatOrder(array $row, array $items, array $events, ?array $latest_payment): array
     {
         $has_agent = $row['delivery_agent_full_name'] !== null;
 
@@ -493,7 +506,7 @@ class Order
             'order_cancel_reason'           => $row['order_cancel_reason'],
             'order_customer_note'           => $row['order_customer_note'],
             'order_expires_at'              => isoDate($row['order_expires_at']),
-            'can_cancel'                    => in_array($row['order_status'], self::CANCELLABLE_STATUSES, true),
+            'can_cancel'                    => in_array($row['order_status'], self::CANCELLABLE_STATUSES, true) && $row['order_payment_status'] !== 'pending',
             'item_count'                    => count($items),
             'piece_count'                   => array_sum(array_column($items, 'order_item_quantity')),
             'delivery_method'               => [
@@ -533,6 +546,36 @@ class Order
                 'delivery_agent_phone'     => $row['delivery_agent_phone'],
                 'delivery_agent_photo_url' => $row['delivery_agent_photo_path'] ? url($row['delivery_agent_photo_path']) : null,
             ] : null,
+            'payment'                       => $this->formatPayment($row, $latest_payment),
+        ];
+    }
+
+    /**
+     * The order's payment box: where to pay (the method's "pay to" details), the newest payment the customer
+     * sent and its review, and whether the "Nimelipa" form should be shown.
+     */
+    private function formatPayment(array $row, ?array $latest_payment): array
+    {
+        $can_submit = $row['order_status'] === 'pending_payment'
+            && $row['order_payment_status'] === 'unpaid'
+            && $row['order_payment_method'] !== 'cod'
+            && ($row['order_expires_at'] === null || $row['order_expires_at'] > gmdate('Y-m-d H:i:s'));
+
+        return [
+            'payment_method'     => (new PaymentMethod($this->db))->getDetailsByCode($row['order_payment_method']),
+            'payment_amount'     => (int) $row['order_total'],
+            'payment_note_hint'  => $row['order_number'],   // ask the customer to write this as the payment's reference/description
+            'can_submit_payment' => $can_submit,
+            // "Badilisha njia ya malipo": the same moment, when there is another method to switch to
+            'can_change_payment_method' => $can_submit && count((new PaymentMethod($this->db))->getActiveCodes()) > 1,
+            'latest_payment'     => $latest_payment === null ? null : [
+                'payment_id'            => (int) $latest_payment['payment_id'],
+                'payment_payer_account' => $latest_payment['payment_payer_account'],
+                'payment_reference'     => $latest_payment['payment_reference'],
+                'payment_status'        => $latest_payment['payment_status'],        // submitted | confirmed | rejected
+                'payment_review_note'   => $latest_payment['payment_review_note'],   // why it was rejected
+                'created_at'            => isoDate($latest_payment['created_at']),
+            ],
         ];
     }
 }

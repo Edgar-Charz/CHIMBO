@@ -18,12 +18,28 @@ $default_settings = [
     'otp_max_requests_per_hour'   => '5',     // per phone number
 
     // Orders and payments
-    'unpaid_order_expiry_minutes' => '30',    // unpaid mobile-money orders are cancelled after this
+    'unpaid_order_expiry_minutes' => '1440',  // unpaid orders may be cancelled after this (24 hours: payments are checked by hand)
     'cod_max_order_total'         => '300000', // largest order allowed with "Lipa ukipokea" (TZS)
 
-    // Payment methods shown at checkout (comma-separated): mpesa, airtel_money, mixx, bank, cod.
-    // Only cash on delivery until mobile money is connected (Phase 5).
-    'enabled_payment_methods'     => 'cod',
+    // Payment methods and their "pay to" details live in the payment_methods table (admin → Payments)
+
+    // Legal pages (plain text, paragraphs separated by an empty line). DRAFT ONLY — a lawyer must
+    // review them before launch; staff replace them in the admin under Settings → Legal texts.
+    'legal_terms'                 => "RASIMU — maandishi haya yatakaguliwa kabla ya kuzinduliwa.\n\n"
+        . "CHIMBO ni soko la jumla kwa wenye maduka Tanzania. Kwa kutumia programu au tovuti ya CHIMBO unakubali vigezo hivi.\n\n"
+        . "Bei: bei zote ni za Shilingi za Kitanzania. Bei ya oda ni ile iliyoonyeshwa ulipothibitisha oda.\n\n"
+        . "Kiwango cha chini (MOQ): kila bidhaa ina idadi ya chini ya kuagiza iliyoonyeshwa kwenye ukurasa wake.\n\n"
+        . "Malipo: unaweza kulipa kwa simu (M-Pesa, Airtel Money, Mixx), kwa benki au wakati wa kupokea mzigo. Malipo kwa simu na benki huthibitishwa na CHIMBO kabla oda haijaandaliwa. Oda ya kulipa ukipokea ina kiasi cha juu.\n\n"
+        . "Kughairi: unaweza kughairi oda kabla haijafungwa kwa ajili ya kusafirishwa.\n\n"
+        . "Akaunti: linda PIN yako. Usimpe mtu yeyote PIN au namba ya uthibitisho.\n\n"
+        . "Msaada: wasiliana nasi kupitia namba ya msaada iliyo kwenye ukurasa wa Msaada.",
+    'legal_privacy'               => "RASIMU — maandishi haya yatakaguliwa kabla ya kuzinduliwa.\n\n"
+        . "Tunakusanya: namba yako ya simu, jina, taarifa za biashara yako, anwani za kufikishia mzigo na historia ya oda zako.\n\n"
+        . "Tunazitumia: kukuwezesha kuingia, kushughulikia na kufikisha oda zako, na kukutumia taarifa za oda.\n\n"
+        . "Hatuuzi taarifa zako. Tunawapa wasafirishaji tu kile wanachohitaji kukufikishia mzigo.\n\n"
+        . "PIN yako huhifadhiwa kwa njia ambayo hata wafanyakazi wa CHIMBO hawawezi kuisoma.\n\n"
+        . "Unaweza kufuta akaunti yako wakati wowote kwenye Wasifu.\n\n"
+        . "Maswali: wasiliana nasi kupitia namba ya msaada.",
 ];
 
 return function (Database $db) use ($default_settings): void {

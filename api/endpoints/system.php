@@ -28,3 +28,23 @@ $router->get('/health', function (Request $request) {
     ], $is_healthy ? 200 : 503);
 });
  
+// GET /api/v1/support — "Msaada": support phone, WhatsApp (with a ready wa.me link) and hours
+$router->get('/support', function (Request $request) {
+    return Response::success((new Settings(Database::instance()))->getSupportContacts());
+});
+
+// GET /api/v1/pages/{page_name} — legal texts: "terms" (Vigezo na Masharti) or "privacy" (Sera ya Faragha)
+$router->get('/pages/{page_name}', function (Request $request) {
+    return Response::success((new Settings(Database::instance()))->getLegalPage((string) $request->param('page_name')));
+});
+
+// GET /api/v1/payment-methods — the switched-on payment methods with their "pay to" details (Lipa Namba, account name …)
+$router->get('/payment-methods', function (Request $request) {
+    return Response::success((new PaymentMethod(Database::instance()))->getActiveMethods());
+});
+
+// GET /api/v1/app-images — pictures staff uploaded for the app's fixed screens (onboarding, login, order success):
+// [{app_image_slot, app_image_url, updated_at}]. Slots without an upload are left out → the app uses its built-in picture.
+$router->get('/app-images', function (Request $request) {
+    return Response::success((new AppImage(Database::instance()))->getImagesForApps());
+});

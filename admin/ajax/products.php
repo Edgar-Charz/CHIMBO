@@ -4,7 +4,9 @@
 
 require dirname(__DIR__) . '/includes/admin_bootstrap.php';
 
-AdminSession::requireAjaxLogin('products.manage');
+$current_admin    = AdminSession::requireAjaxLogin('products.manage');
+$can_adjust_stock = Admin::can($current_admin, 'inventory.manage');
+$list_page        = url('admin/products.php');   // where the row action forms are handled
 
 try {
     $pagination = (new ProductEditor(Database::instance()))->getProductsForAdmin(adminDataTablesInput($_GET, 'q'));
@@ -12,7 +14,8 @@ try {
     adminDataTablesError($e);
 }
 
-adminDataTablesJson($pagination, function (array $product): array {
+adminDataTablesJson($pagination, function (array $product) use ($can_adjust_stock, $list_page): array {
+    $product_id = (int) $product['product_id'];
     $price_from = $product['product_price_from'] !== $product['product_price']
         ? '<div class="small text-muted">from ' . e(adminMoney($product['product_price_from'])) . '</div>'
         : '';
@@ -32,5 +35,13 @@ adminDataTablesJson($pagination, function (array $product): array {
             . ($product['product_is_bestseller'] ? ' <i class="bi bi-star-fill product-flag" title="Bestseller" aria-label="Bestseller"></i>' : '')
             . ($product['product_compare_at_price'] ? ' <i class="bi bi-tag-fill product-flag" title="On deal" aria-label="On deal"></i>' : ''),
         'added'    => e(adminDate($product['created_at'])),
+        'actions'  => adminRowActions(
+            adminActionLink('bi-pencil', 'Edit', url("admin/product_edit.php?id={$product_id}")),
+            $can_adjust_stock ? adminActionLink('bi-boxes', 'Adjust stock', url("admin/product_stock.php?id={$product_id}")) : '',
+            $product['product_is_active']
+                ? adminActionButton('bi-eye-slash', 'Hide from the shop', 'toggle_active', $product_id, null, $list_page)
+                : adminActionButton('bi-eye', 'Show in the shop', 'toggle_active', $product_id, null, $list_page),
+            adminActionButton('bi-trash', 'Delete', 'delete', $product_id, 'Delete ' . $product['product_name'] . '? It disappears from the shop and this list.', $list_page, true),
+        ),
     ];
 });

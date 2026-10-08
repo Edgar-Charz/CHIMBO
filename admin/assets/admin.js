@@ -4,14 +4,17 @@
  *   <form data-confirm="Delete this banner?">   asks before submitting (also works on a submit button)
  *   [data-tier-editor]                          the product price levels (add / remove rows)
  *   <div data-show-when="order_status=dispatched">   shown only while that field of its form has that value
+ *   <button data-open-modal="#reject-modal" data-record-id="12" data-record-label="CHB123 · TZS 5,000">
+ *                                               opens that dialog with its form's record_id and [data-record-label] filled in
  *
  * Tables (DataTables — search, sorting, pages):
  *   <table data-datatable>                      all rows are in the page; DataTables searches/sorts/pages them
  *   <table data-datatable-source="ajax/x.php">  rows come page by page from the server as JSON
  *     data-filter-form="#id"                    a form of filters (the filter card) sent along; changing one reloads the table
  *   data-title="All products" data-icon="bi-box-seam"   the card title shown left of the search box
- *     data-order='[[5,"desc"]]'                 first sort · data-ordering="false" no sorting
- *     data-page-length="10" (default) · data-search-placeholder · data-empty-message
+ *     data-order='[[5,"desc"]]'                 first sort · data-ordering="false" no sorting · data-searching="false" no search box
+ *     data-page-length="10" (default) · data-length-menu="[25,50,100]" (when the server allows other sizes)
+ *     data-search-placeholder · data-empty-message
  *   <th data-column="price">                    (server) the JSON key shown in this column
  *   <th data-sort="created_at">                 (server) sortable, sent as the column name · data-cell-class="text-end"
  *   <th data-orderable="false">                 (in-page) not sortable
@@ -59,6 +62,23 @@
     update();
   });
 
+  // A dialog form for one row (e.g. Reject with a reason): fill in which record, then open it.
+  // Listening on the document also covers buttons in table rows loaded later by DataTables.
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-open-modal]');
+    if (!button || typeof bootstrap === 'undefined') {
+      return;
+    }
+    const dialog = document.querySelector(button.dataset.openModal);
+    const form = dialog.querySelector('form');
+    form.reset();
+    form.elements.record_id.value = button.dataset.recordId;
+    dialog.querySelectorAll('[data-record-label]').forEach((label) => {
+      label.textContent = button.dataset.recordLabel ?? '';
+    });
+    bootstrap.Modal.getOrCreateInstance(dialog).show();
+  });
+
   // ---------------------------------------------------------------- Tables
 
   if (typeof DataTable === 'undefined') {
@@ -99,13 +119,14 @@
     const settings = table.dataset;
     return {
       pageLength: Number(settings.pageLength ?? 10),
-      lengthMenu: [10, 25, 50, 100],
+      lengthMenu: settings.lengthMenu ? JSON.parse(settings.lengthMenu) : [10, 25, 50, 100],
       ordering: settings.ordering !== 'false',
+      searching: settings.searching !== 'false',
       order: settings.order ? JSON.parse(settings.order) : [],
       autoWidth: false,
       layout: {
         topStart: tableTitle(table),
-        topEnd: 'search',
+        topEnd: settings.searching === 'false' ? null : 'search',
         bottomStart: 'pageLength',
         bottomEnd: ['info', 'paging'],
       },

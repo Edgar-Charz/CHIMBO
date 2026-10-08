@@ -89,4 +89,20 @@ class Seller
             'seller_status'      => $data['seller_status'],
         ];
     }
+
+
+    /** The "Verified" button: changes only seller_is_verified. Returns false when nothing changed. */
+    public function setSellerVerified(int $seller_id, bool $is_verified, int $admin_id): bool
+    {
+        return (new RecordSwitch($this->db))->set('sellers', 'seller_id', $seller_id, 'seller_is_verified', (int) $is_verified, $admin_id, 'seller');
+    }
+
+    /** "Activate / Deactivate" ($seller_status 'active' or 'inactive' — inactive hides their products). */
+    public function setSellerStatus(int $seller_id, string $seller_status, int $admin_id): bool
+    {
+        if (!in_array($seller_status, ['active', 'inactive'], true)) {
+            throw ApiException::validation(['seller_status' => 'Choose active or inactive.']);
+        }
+        return (new RecordSwitch($this->db))->set('sellers', 'seller_id', $seller_id, 'seller_status', $seller_status, $admin_id, 'seller');
+    }
 }

@@ -1,0 +1,130 @@
+/*
+ * CHIMBO design tokens — the only place brand colours, fonts, radii, spacing, shadows and motion are defined.
+ * Components (app.css) use these variables; never hard-code a hex value anywhere else.
+ * Rule of the brand: green = navigate / confirm, orange = buy.
+ */
+
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/poppins-regular.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url("../fonts/poppins-medium.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url("../fonts/poppins-semibold.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Poppins";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/poppins-bold.woff2") format("woff2");
+}
+
+:root {
+    /* Brand */
+    --chimbo-green: #0E3B2A;
+    --chimbo-green-dark: #082619;
+    --chimbo-green-soft: #E4EEE8;
+    --chimbo-orange: #F39200;
+    --chimbo-orange-dark: #D67F00;
+    --chimbo-orange-soft: #FDF0DB;
+    --chimbo-cream: #FBF6EE;
+    --chimbo-cream-dark: #F3EADB;
+
+    /* Neutrals and states */
+    --chimbo-surface: #FFFFFF;
+    --chimbo-ink: #15201B;
+    --chimbo-muted: #66706B;
+    --chimbo-line: #E9E1D3;
+    --chimbo-skeleton: #EEE6D8;
+    --chimbo-skeleton-shine: #F8F3EA;
+    --chimbo-danger: #C8372D;
+    --chimbo-danger-soft: #FBE9E7;
+    --chimbo-success: #1D7F45;
+    --chimbo-success-soft: #E3F3E9;
+    --chimbo-overlay: rgba(8, 38, 25, 0.45);
+    --chimbo-line-on-dark: rgba(251, 246, 238, 0.15);
+    --chimbo-image-shade: rgba(8, 38, 25, 0.72); /* dark green over photos so white text stays readable */
+
+    /* Type */
+    --chimbo-font: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --chimbo-text-xs: 0.75rem;
+    --chimbo-text-sm: 0.875rem;
+    --chimbo-text-md: 1rem;
+    --chimbo-text-lg: 1.125rem;
+    --chimbo-text-xl: 1.375rem;
+    --chimbo-text-2xl: clamp(1.5rem, 1.2rem + 1.2vw, 2.25rem);
+    --chimbo-text-hero: clamp(1.75rem, 1.2rem + 2.4vw, 3.25rem);
+
+    /* Spacing (4 px steps) */
+    --chimbo-space-1: 0.25rem;
+    --chimbo-space-2: 0.5rem;
+    --chimbo-space-3: 0.75rem;
+    --chimbo-space-4: 1rem;
+    --chimbo-space-5: 1.5rem;
+    --chimbo-space-6: 2rem;
+    --chimbo-space-7: 3rem;
+    --chimbo-space-8: 4rem;
+
+    /* Shape and depth */
+    --chimbo-radius-sm: 8px;
+    --chimbo-radius: 12px;
+    --chimbo-radius-lg: 16px;
+    --chimbo-radius-xl: 24px;
+    --chimbo-radius-pill: 999px;
+    --chimbo-shadow-sm: 0 1px 2px rgba(21, 32, 27, 0.06);
+    --chimbo-shadow: 0 4px 16px rgba(21, 32, 27, 0.08);
+    --chimbo-shadow-lg: 0 16px 40px rgba(21, 32, 27, 0.16);
+    --chimbo-shadow-up: 0 -6px 20px rgba(21, 32, 27, 0.06);
+    --chimbo-focus-ring: 0 0 0 3px rgba(243, 146, 0, 0.45);
+
+    /* Layout */
+    --chimbo-header-height: 64px;
+    --chimbo-bottom-nav-height: 64px;
+    --chimbo-tap-size: 44px;
+
+    /* Motion */
+    --chimbo-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --chimbo-duration-fast: 150ms;
+    --chimbo-duration: 250ms;
+    --chimbo-duration-slow: 400ms;
+
+    /* Bootstrap uses the brand too */
+    --bs-body-font-family: var(--chimbo-font);
+    --bs-body-color: var(--chimbo-ink);
+    --bs-body-bg: var(--chimbo-cream);
+    --bs-border-color: var(--chimbo-line);
+    --bs-border-radius: var(--chimbo-radius);
+    --bs-link-color: var(--chimbo-green);
+    --bs-link-color-rgb: 14, 59, 42;
+    --bs-link-hover-color: var(--chimbo-orange-dark);
+    --bs-link-hover-color-rgb: 214, 127, 0;
+    --bs-secondary-color: var(--chimbo-muted);
+    --bs-emphasis-color: var(--chimbo-ink);
+    --bs-danger: var(--chimbo-danger);
+    --bs-success: var(--chimbo-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --chimbo-duration-fast: 0ms;
+        --chimbo-duration: 0ms;
+        --chimbo-duration-slow: 0ms;
+    }
+}

@@ -81,7 +81,7 @@ require __DIR__ . '/includes/header.php';
                 <div class="admin-panel-header"><h2 class="admin-panel-title">Photo</h2></div>
                 <div class="admin-panel-body">
                     <?php if ($agent['delivery_agent_photo_path']): ?>
-                        <img class="admin-preview-image mb-3" src="<?= e(url($agent['delivery_agent_photo_path'])) ?>" alt="">
+                        <img class="admin-preview-image admin-content-image-preview mb-3" src="<?= e(url($agent['delivery_agent_photo_path'])) ?>" alt="">
                     <?php else: ?>
                         <p class="text-muted small">No photo yet. Customers see it on the order tracking screen.</p>
                     <?php endif; ?>

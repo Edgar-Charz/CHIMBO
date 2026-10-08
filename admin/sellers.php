@@ -4,16 +4,24 @@ require __DIR__ . '/includes/admin_bootstrap.php';
 $current_admin = AdminSession::requireLogin('sellers.manage');
 $seller_model  = new Seller(Database::instance());
 
-// The "Verified" switch in each row saves the seller with only that value changed
+// Row actions: the "Verified" button and activate/deactivate (one-click switches)
 $form_error = adminHandleForm(function (string $form_action) use ($seller_model, $current_admin): void {
-    if ($form_action !== 'toggle_verified') {
+    $admin_id  = (int) $current_admin['admin_id'];
+    $seller_id = adminActionRecordId();
+    $seller    = $seller_model->getSellerForAdmin($seller_id);   // for the name in the message
+
+    if ($form_action === 'toggle_verified') {
+        $is_verified = !$seller['seller_is_verified'];
+        $seller_model->setSellerVerified($seller_id, $is_verified, $admin_id);
+        $message = $is_verified ? ' is now verified.' : ' is no longer verified.';
+    } elseif ($form_action === 'toggle_status') {
+        $new_status = $seller['seller_status'] === 'active' ? 'inactive' : 'active';
+        $seller_model->setSellerStatus($seller_id, $new_status, $admin_id);
+        $message = $new_status === 'active' ? ' is active again.' : ' is now inactive — their products are hidden.';
+    } else {
         return;
     }
-    $seller = $seller_model->getSellerForAdmin((int) ($_POST['seller_id'] ?? 0));
-    $seller['seller_is_verified'] = $seller['seller_is_verified'] ? 0 : 1;
-    $seller_model->updateSeller((int) $seller['seller_id'], $seller, (int) $current_admin['admin_id']);
-
-    Session::flash('success', $seller['seller_name'] . ($seller['seller_is_verified'] ? ' is now verified.' : ' is no longer verified.'));
+    Session::flash('success', $seller['seller_name'] . $message);
     redirect(url('admin/sellers.php'));
 });
 
@@ -47,6 +55,7 @@ require __DIR__ . '/includes/header.php';
                         <th class="text-end">Products</th>
                         <th>Status</th>
                         <th>Verified</th>
+                        <th class="text-end" data-orderable="false">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -66,7 +75,7 @@ require __DIR__ . '/includes/header.php';
                             <td>
                                 <form class="row-action" method="post">
                                     <?= Csrf::field() ?>
-                                    <input type="hidden" name="seller_id" value="<?= e($seller['seller_id']) ?>">
+                                    <input type="hidden" name="record_id" value="<?= e($seller['seller_id']) ?>">
                                     <button class="btn btn-sm <?= $seller['seller_is_verified'] ? 'btn-verified' : 'btn-outline-secondary' ?>"
                                             type="submit" name="form_action" value="toggle_verified"
                                             title="<?= $seller['seller_is_verified'] ? 'Click to remove the verified mark' : 'Click to mark as verified' ?>">
@@ -74,6 +83,15 @@ require __DIR__ . '/includes/header.php';
                                         <?= $seller['seller_is_verified'] ? 'Verified' : 'Not verified' ?>
                                     </button>
                                 </form>
+                            </td>
+                            <td class="text-end">
+                                <?= adminRowActions(
+                                    adminActionLink('bi-pencil', 'Edit', url('admin/seller_edit.php?id=' . $seller['seller_id'])),
+                                    $seller['seller_status'] === 'active'
+                                        ? adminActionButton('bi-pause-circle', 'Deactivate (hides their products)', 'toggle_status', (int) $seller['seller_id'],
+                                            'Deactivate ' . $seller['seller_name'] . '? All their products are hidden from the shop.')
+                                        : adminActionButton('bi-play-circle', 'Activate', 'toggle_status', (int) $seller['seller_id']),
+                                ) ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>

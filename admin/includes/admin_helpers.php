@@ -42,14 +42,15 @@ function adminDataTablesInput(array $request, string $search_key): array
 /**
  * Answers a server-side DataTables request with one page of rows and stops.
  * $render_row turns a database row into its cells: ['column name' => escaped HTML, …].
+ * $row_class 'row-link' makes the whole row clickable (its first link covers the row); '' for plain rows.
  */
-function adminDataTablesJson(array $pagination, callable $render_row): never
+function adminDataTablesJson(array $pagination, callable $render_row, string $row_class = 'row-link'): never
 {
     adminSendJson([
         'draw'            => (int) ($_GET['draw'] ?? 0),
         'recordsTotal'    => $pagination['total'],
         'recordsFiltered' => $pagination['total'],
-        'data'            => array_map(fn (array $row): array => $render_row($row) + ['DT_RowClass' => 'row-link'], $pagination['items']),
+        'data'            => array_map(fn (array $row): array => $render_row($row) + ['DT_RowClass' => $row_class], $pagination['items']),
     ]);
 }
 
@@ -58,6 +59,39 @@ function adminDataTablesError(ApiException $e): never
 {
     $fields = $e->fields();
     adminSendJson(['draw' => (int) ($_GET['draw'] ?? 0), 'error' => $fields ? reset($fields) : $e->getMessage()]);
+}
+
+/**
+ * Sends a generated file (PDF, CSV …) to the browser and stops. $inline shows it in the browser tab
+ * (e.g. a receipt to print) instead of saving it. Never cached: these files hold business or customer data.
+ */
+function adminSendFile(string $content, string $content_type, string $file_name, bool $inline = false): never
+{
+    $safe_file_name = preg_replace('/[^A-Za-z0-9._-]/', '', $file_name);
+    header('Content-Type: ' . $content_type);
+    header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $safe_file_name . '"');
+    header('Content-Length: ' . strlen($content));
+    header('Cache-Control: private, no-store');
+    echo $content;
+    exit;
+}
+
+/**
+ * HTML → PDF with Dompdf, using the same safe settings as the receipts (Receipt::renderPdf()):
+ * nothing is downloaded from the internet and only files inside the project can be read.
+ */
+function adminPdfFromHtml(string $html, string $orientation = 'portrait'): string
+{
+    $options = new \Dompdf\Options();
+    $options->set('defaultFont', 'DejaVu Sans');   // has every character used (TZS, –, •)
+    $options->set('isRemoteEnabled', false);
+    $options->set('chroot', BASE_PATH);
+
+    $dompdf = new \Dompdf\Dompdf($options);
+    $dompdf->loadHtml($html, 'UTF-8');
+    $dompdf->setPaper('A4', $orientation);
+    $dompdf->render();
+    return (string) $dompdf->output();
 }
 
 /** Sends $data as JSON and stops (used by the admin/ajax/ files). */
@@ -195,6 +229,133 @@ function adminMoveItem(array $ids, int $id, int $step): array
     return $ids;
 }
 
+/**
+ * An audit-log entry's changes as a short list: "field: old → new" (or just the value when only one side exists);
+ * fields whose value stayed the same are left out.
+ * Long values (e.g. the legal texts) are shortened; at most $max_fields fields are shown.
+ */
+function adminAuditChanges(?array $old_values, ?array $new_values, int $max_fields = 8): string
+{
+    $fields = array_unique(array_merge(array_keys($old_values ?? []), array_keys($new_values ?? [])));
+    // Fields saved with the same value are not changes (forms send every field)
+    $fields = array_values(array_filter($fields, fn (string $field): bool => !(
+        $old_values !== null && $new_values !== null
+        && array_key_exists($field, $old_values) && array_key_exists($field, $new_values)
+        && adminAuditValue($old_values[$field]) === adminAuditValue($new_values[$field])
+    )));
+    if ($fields === []) {
+        return '<span class="text-muted">—</span>';
+    }
+
+    $lines = [];
+    foreach (array_slice($fields, 0, $max_fields) as $field) {
+        $has_old = $old_values !== null && array_key_exists($field, $old_values);
+        $has_new = $new_values !== null && array_key_exists($field, $new_values);
+        $change  = match (true) {
+            $has_old && $has_new => adminAuditValue($old_values[$field]) . ' → ' . adminAuditValue($new_values[$field]),
+            $has_new             => adminAuditValue($new_values[$field]),
+            default              => adminAuditValue($old_values[$field]) . ' (before)',
+        };
+        $lines[] = '<li><span class="text-muted">' . e($field) . ':</span> ' . e($change) . '</li>';
+    }
+    if (count($fields) > $max_fields) {
+        $lines[] = '<li class="text-muted">+ ' . e(count($fields) - $max_fields) . ' more</li>';
+    }
+    return '<ul class="audit-changes">' . implode('', $lines) . '</ul>';
+}
+
+/** One logged value as short text: lists/objects as JSON, empty as "—", long text cut to 60 characters. */
+function adminAuditValue(mixed $value): string
+{
+    $text = match (true) {
+        $value === null, $value === '' => '—',
+        is_bool($value)                => $value ? 'yes' : 'no',
+        is_array($value)               => (string) json_encode($value, JSON_UNESCAPED_UNICODE),
+        default                        => (string) $value,
+    };
+    return mb_strlen($text) > 60 ? mb_substr($text, 0, 57) . '…' : $text;
+}
+
+/**
+ * What an audit entry changed, linked to that record's admin page when there is one, e.g. "order #12".
+ * Pages per entity type are in ADMIN_ENTITY_PAGES.
+ */
+function adminAuditEntity(string $entity_type, ?int $entity_id): string
+{
+    $label = str_replace('_', ' ', $entity_type) . ($entity_id ? " #{$entity_id}" : '');
+    $page  = ADMIN_ENTITY_PAGES[$entity_type] ?? null;
+    if ($page === null || ($entity_id === null && str_contains($page, '?'))) {
+        return e($label);
+    }
+    $link = str_contains($page, '?') ? $page . $entity_id : $page;
+    return '<a href="' . e(url('admin/' . $link)) . '">' . e($label) . '</a>';
+}
+
+/**
+ * The "Actions" cell of a table row: small icon buttons made with adminActionLink() / adminActionButton().
+ * It sits above the row's stretched link, so its buttons stay clickable.
+ */
+function adminRowActions(string ...$buttons): string
+{
+    return '<div class="row-actions">' . implode('', $buttons) . '</div>';
+}
+
+/** An icon button that opens a page (edit, view …); $new_tab for files such as a receipt. */
+function adminActionLink(string $icon, string $label, string $url, bool $new_tab = false): string
+{
+    return '<a class="btn btn-sm btn-light" href="' . e($url) . '" title="' . e($label) . '" aria-label="' . e($label) . '"'
+        . ($new_tab ? ' target="_blank" rel="noopener"' : '') . '><i class="bi ' . e($icon) . '"></i></a>';
+}
+
+/**
+ * An icon button that changes something: a tiny POST form (with the CSRF token) sending form_action + record_id
+ * to $form_url (the list page; empty = the current page). $confirm asks first, e.g. before deleting.
+ */
+function adminActionButton(string $icon, string $label, string $form_action, int $record_id, ?string $confirm = null,
+                           string $form_url = '', bool $is_danger = false): string
+{
+    return '<form method="post"' . ($form_url !== '' ? ' action="' . e($form_url) . '"' : '')
+        . ($confirm !== null ? ' data-confirm="' . e($confirm) . '"' : '') . '>'
+        . Csrf::field()
+        . '<input type="hidden" name="record_id" value="' . e($record_id) . '">'
+        . '<button class="btn btn-sm btn-light' . ($is_danger ? ' text-danger' : '') . '" type="submit" name="form_action" value="' . e($form_action) . '"'
+        . ' title="' . e($label) . '" aria-label="' . e($label) . '"><i class="bi ' . e($icon) . '"></i></button>'
+        . '</form>';
+}
+
+/** An ApiException as one line for a flash message: its field messages, or its message when it has none. */
+function adminErrorText(ApiException $e): string
+{
+    return implode(' ', $e->fields() ?: [$e->getMessage()]);
+}
+
+/**
+ * The buttons for one payment waiting for review: Confirm (asks "did you see it on the statement?") and Reject
+ * (opens the reason dialog, includes/payment_reject_modal.php). $form_url = the page that handles them.
+ */
+function adminPaymentReviewButtons(array $payment, string $order_number, string $form_url = ''): string
+{
+    $amount = adminMoney((int) $payment['payment_amount']);
+    $payer  = adminPayerAccount($payment['payment_payer_account']);
+    return adminActionButton('bi-check-lg', 'Confirm payment', 'confirm_payment', (int) $payment['payment_id'],
+            "Did you see {$amount} from {$payer} with code {$payment['payment_reference']} on the statement?", $form_url)
+        . '<button class="btn btn-sm btn-light text-danger" type="button" title="Reject payment" aria-label="Reject payment"'
+        . ' data-open-modal="#reject-payment-modal" data-record-id="' . e($payment['payment_id']) . '"'
+        . ' data-record-label="' . e($order_number . ' · ' . $amount) . '"><i class="bi bi-x-lg"></i></button>';
+}
+
+/** The number or account a payment came from, as shown to staff: phones as "+255 712 345 678", bank accounts unchanged. */
+function adminPayerAccount(string $payer_account): string
+{
+    return str_starts_with($payer_account, '+255') ? Phone::format($payer_account) : $payer_account;
+}
+
+/** The record a row action is about (the hidden record_id of adminActionButton()). */
+function adminActionRecordId(): int
+{
+    return (int) ($_POST['record_id'] ?? 0);
+}
+
 /** 5500 → "TZS 5,500"; "—" when there is no price. */
 function adminMoney(?int $amount): string
 {
@@ -210,6 +371,12 @@ function adminDateTime(?string $utc_date_time, string $format = 'j M Y, H:i'): s
 
     $date = new DateTimeImmutable($utc_date_time, new DateTimeZone('UTC'));
     return $date->setTimezone(new DateTimeZone((string) Env::get('APP_TIMEZONE', 'UTC')))->format($format);
+}
+
+/** A calendar day that is already in Tanzania time ("2026-09-30", e.g. report days) → "30 Sep 2026", no time-zone shift. */
+function adminCalendarDate(string $date): string
+{
+    return (new DateTimeImmutable($date))->format('j M Y');
 }
 
 /** Only the date part, e.g. "28 Sep 2026". */
@@ -232,6 +399,35 @@ function adminStatusBadge(string $status): string
 function adminStatusName(string $status): string
 {
     return ADMIN_STATUS_NAMES[$status] ?? ucfirst(str_replace('_', ' ', $status));
+}
+
+/**
+ * A payment's review state as a pill: Waiting for review (orange) / Confirmed (green) / Rejected (red).
+ * Separate from adminStatusBadge() because "confirmed" means something else (blue) for orders.
+ */
+function adminPaymentReviewBadge(string $payment_status): string
+{
+    [$tone, $name] = ADMIN_PAYMENT_REVIEW_STATUSES[$payment_status] ?? ['neutral', ucfirst($payment_status)];
+    return '<span class="status-badge status-' . e($tone) . '">' . e($name) . '</span>';
+}
+
+/**
+ * How long a customer still has to pay, from a UTC deadline: "5 h 20 min left", "12 min left" or "Expired"
+ * (orange when less than an hour is left). "—" when there is no deadline.
+ */
+function adminTimeLeft(?string $utc_deadline): string
+{
+    if ($utc_deadline === null || $utc_deadline === '') {
+        return '<span class="text-muted">—</span>';
+    }
+    $seconds_left = (new DateTimeImmutable($utc_deadline, new DateTimeZone('UTC')))->getTimestamp() - time();
+    if ($seconds_left <= 0) {
+        return '<span class="text-danger">Expired</span>';
+    }
+    $hours   = intdiv($seconds_left, 3600);
+    $minutes = intdiv($seconds_left % 3600, 60);
+    $text    = ($hours > 0 ? "{$hours} h " : '') . "{$minutes} min left";
+    return '<span class="' . ($hours === 0 ? 'text-warning-emphasis fw-semibold' : '') . '">' . e($text) . '</span>';
 }
 
 /** 'airtel_money' → "Airtel Money". */
@@ -316,6 +512,7 @@ const ADMIN_STATUS_TONES = [
     'deleted'    => 'danger',
     'unverified' => 'neutral',
     'disabled'   => 'neutral',
+    'locked'     => 'danger',
     'inactive'   => 'neutral',
     'hidden'     => 'neutral',
     'scheduled'  => 'warning',
@@ -345,6 +542,7 @@ const ADMIN_STATUS_TONES = [
 /** Statuses whose readable name is not simply the status with spaces. */
 const ADMIN_STATUS_NAMES = [
     'pending_payment' => 'Awaiting payment',
+    'pending'         => 'Payment sent',
     'in_transit'      => 'On the way',
     'cod_pending'     => 'Awaiting cash',
 ];
@@ -353,6 +551,30 @@ const ADMIN_STATUS_NAMES = [
 const ADMIN_ORDER_STATUSES = ['pending_payment', 'confirmed', 'packed', 'dispatched', 'in_transit', 'delivered', 'cancelled', 'expired'];
 
 const ADMIN_PAYMENT_STATUSES = ['unpaid', 'pending', 'cod_pending', 'paid', 'failed', 'refunded', 'cancelled'];
+
+/** The admin page that shows each kind of record ("?id=" pages get the record id added). */
+const ADMIN_ENTITY_PAGES = [
+    'admin'           => 'admin_user_edit.php?id=',
+    'banner'          => 'banner_edit.php?id=',
+    'category'        => 'category_edit.php?id=',
+    'delivery_agent'  => 'delivery_agent_edit.php?id=',
+    'delivery_method' => 'delivery_method_edit.php?id=',
+    'order'           => 'order_details.php?id=',
+    'product'         => 'product_edit.php?id=',
+    'seller'          => 'seller_edit.php?id=',
+    'settings'        => 'settings.php',
+    'user'            => 'customer_details.php?id=',
+];
+
+/** Payment review states: status => [tone, name]. */
+const ADMIN_PAYMENT_REVIEW_STATUSES = [
+    'submitted' => ['warning', 'Waiting for review'],
+    'confirmed' => ['success', 'Confirmed'],
+    'rejected'  => ['danger', 'Rejected'],
+];
+
+/** Payment method types (payment_methods.payment_method_type). */
+const ADMIN_PAYMENT_METHOD_TYPES = ['mobile_money' => 'Mobile money', 'bank' => 'Bank', 'cash' => 'Cash'];
 
 const ADMIN_PAYMENT_METHOD_NAMES = [
     'mpesa'        => 'M-Pesa',

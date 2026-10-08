@@ -148,7 +148,7 @@ require __DIR__ . '/includes/header.php';
                 <div class="admin-panel-header"><h2 class="admin-panel-title">Picture</h2></div>
                 <div class="admin-panel-body">
                     <?php if ($banner['banner_image_path']): ?>
-                        <img class="admin-preview-image mb-3" src="<?= e(url($banner['banner_image_path'])) ?>" alt="">
+                        <img class="admin-preview-image admin-content-image-preview mb-3" src="<?= e(url($banner['banner_image_path'])) ?>" alt="">
                     <?php else: ?>
                         <p class="text-muted small">No picture yet. A wide picture works best (about 2:1).</p>
                     <?php endif; ?>

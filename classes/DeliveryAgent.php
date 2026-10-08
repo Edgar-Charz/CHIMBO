@@ -100,4 +100,11 @@ class DeliveryAgent
 
         (new AuditLog($this->db))->record('admin', $admin_id, 'delivery_agent.photo_changed', 'delivery_agent', $delivery_agent_id);
     }
+
+
+    /** "Activate / Deactivate": changes only delivery_agent_is_active. Returns false when nothing changed. */
+    public function setDeliveryAgentActive(int $delivery_agent_id, bool $is_active, int $admin_id): bool
+    {
+        return (new RecordSwitch($this->db))->set('delivery_agents', 'delivery_agent_id', $delivery_agent_id, 'delivery_agent_is_active', (int) $is_active, $admin_id, 'delivery_agent');
+    }
 }

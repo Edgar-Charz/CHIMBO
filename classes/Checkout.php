@@ -7,16 +7,14 @@
  */
 class Checkout
 {
-    // Every payment method the apps know. Which ones are switched on is the "enabled_payment_methods" setting.
-    private const ALL_PAYMENT_METHODS = ['mpesa', 'airtel_money', 'mixx', 'bank', 'cod'];
-
     public function __construct(private Database $db)
     {
     }
 
     /**
      * Delivery methods (optionally only those available for one of the customer's addresses)
-     * and the payment methods that are switched on.
+     * and the payment methods that are switched on: "payment_methods" = their codes,
+     * "payment_method_details" = name, type and "pay to" details for each.
      */
     public function getOptions(int $user_id, array $input): array
     {
@@ -27,7 +25,8 @@ class Checkout
 
         return [
             'delivery_methods' => $this->getDeliveryMethods($region_id),
-            'payment_methods'  => $this->getEnabledPaymentMethods(),
+            'payment_methods'        => $this->getEnabledPaymentMethods(),
+            'payment_method_details' => (new PaymentMethod($this->db))->getActiveMethods(),
         ];
     }
 
@@ -109,11 +108,10 @@ class Checkout
         ], $rows);
     }
 
-    /** Payment methods switched on in the "enabled_payment_methods" setting (comma-separated). */
+    /** The codes of the payment methods staff switched on (admin → Payments → Payment methods). */
     public function getEnabledPaymentMethods(): array
     {
-        $enabled = array_map('trim', explode(',', (string) (new Settings($this->db))->get('enabled_payment_methods', 'cod')));
-        return array_values(array_intersect(self::ALL_PAYMENT_METHODS, $enabled));
+        return (new PaymentMethod($this->db))->getActiveCodes();
     }
 
     private function requireDeliveryMethod(int $delivery_method_id, ?int $region_id): array

@@ -1,11 +1,20 @@
 <?php
 
 /**
- * The cart ("Kikapu"). All endpoints need a login and return the whole priced cart.
+ * The cart ("Kikapu"). Every endpoint returns the whole priced cart.
+ * All need a login except POST /cart/preview (website guests; nothing is saved).
  * Rules (tier prices, MOQ, stock) live in the Cart class and Pricing.
  *
  * @var Router $router
  */
+
+// POST /api/v1/cart/preview — PUBLIC: prices a website guest's cart (kept in the browser) without saving it.
+// Body: { "items": [ { "product_id": 1, "quantity": 8 }, … ] } → the same shape as GET /cart.
+// Read-only, so no login and no CSRF check are needed (sending X-CSRF-Token is harmless).
+$router->post('/cart/preview', function (Request $request) {
+    (new RateLimiter(Database::instance()))->hit('cart-preview:ip:' . $request->ip(), 600, 3600);
+    return Response::success((new Cart(Database::instance()))->previewGuestCart($request->all()));
+});
 
 $router->group('/cart', function (Router $router) {
 

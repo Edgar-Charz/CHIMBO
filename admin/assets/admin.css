@@ -142,6 +142,19 @@ body {
   padding: 1.5rem;
 }
 
+/* Count on a menu item, e.g. payments waiting for review */
+.menu-badge {
+  float: right;
+  min-width: 1.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--chimbo-green);
+  background: var(--chimbo-orange);
+}
+
 /* ---------- Dashboard cards ---------- */
 
 .stat-card {
@@ -164,6 +177,11 @@ body {
 .stat-card .stat-value {
   font-size: 1.6rem;
   font-weight: 700;
+}
+
+/* A card that links to work waiting (e.g. payments to check) is outlined while there is something to do */
+.stat-card-attention {
+  box-shadow: inset 0 0 0 2px var(--chimbo-orange), 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 /* ---------- Panels (white cards that hold a table, a form or details) ---------- */
@@ -420,6 +438,12 @@ body {
   border: 1px solid var(--chimbo-border);
 }
 
+.admin-content-image-preview {
+  height: 220px;
+  object-fit: contain;
+  background: var(--chimbo-muted-bg);
+}
+
 /* ---------- List pieces ---------- */
 
 .list-thumb {
@@ -462,9 +486,37 @@ body {
 }
 
 /* A button inside a clickable row stays clickable (above the row's stretched link) */
-.row-action {
+.row-action,
+.row-actions {
   position: relative;
   z-index: 2;
+}
+
+/* The "Actions" column: icon buttons side by side, each a link or a tiny form */
+.row-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.row-actions form {
+  margin: 0;
+}
+
+.row-actions .btn {
+  --bs-btn-padding-x: 0.45rem;
+  --bs-btn-padding-y: 0.2rem;
+  border: 1px solid var(--chimbo-border);
+}
+
+.row-actions .btn:hover {
+  border-color: var(--chimbo-green);
+  color: var(--chimbo-green);
+}
+
+.row-actions .btn.text-danger:hover {
+  border-color: var(--status-danger);
+  color: var(--status-danger) !important;
 }
 
 .btn-verified {
@@ -587,6 +639,18 @@ body {
   color: var(--table-header-text);
 }
 
+/* Payments sent for an order, newest first */
+.order-payments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.order-payments li {
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--chimbo-border);
+}
+
 /* Status history, newest on top, joined by a line */
 .order-timeline {
   list-style: none;
@@ -620,6 +684,125 @@ body {
 
 .order-timeline li:first-child::before {
   background: var(--chimbo-green);
+}
+
+/* ---------- Reports ---------- */
+
+.report-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+/* Money values are longer than counts: a slightly smaller number keeps them on one line */
+.stat-card .report-stat-value {
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+
+/* ---------- Settings ---------- */
+
+/* Legal texts: tall enough to read several paragraphs while editing */
+.settings-long-text {
+  min-height: 18rem;
+  line-height: 1.5;
+}
+
+/* ---------- Tabs between the sections of one page (Payments) ---------- */
+
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--chimbo-border);
+}
+
+.page-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  color: var(--status-neutral);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.page-tab:hover {
+  color: var(--chimbo-green);
+}
+
+.page-tab.active {
+  color: var(--chimbo-green);
+  font-weight: 600;
+  border-bottom-color: var(--chimbo-green);
+}
+
+.page-tab-count {
+  min-width: 1.3rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background: var(--chimbo-orange);
+}
+
+/* A payment confirmation code: easy to compare letter by letter with the statement */
+.payment-code {
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  color: var(--table-header-text);
+}
+
+/* App pictures: the current picture, whole (portrait or landscape) on a light background */
+.app-image-card {
+  overflow: hidden;
+}
+
+.app-image-preview {
+  display: grid;
+  place-items: center;
+  flex: 0 0 220px;
+  height: 220px;
+  min-width: 0;
+  padding: 0.75rem;
+  overflow: hidden;
+  background: var(--chimbo-muted-bg);
+  border-bottom: 1px solid var(--chimbo-border);
+  border-radius: var(--chimbo-radius) var(--chimbo-radius) 0 0;
+}
+
+.app-image-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 6px;
+}
+
+/* ---------- Audit log ---------- */
+
+.audit-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  max-width: 460px;
+}
+
+.audit-changes li {
+  overflow-wrap: anywhere;
+}
+
+.audit-action {
+  font-size: 0.8rem;
+  color: var(--chimbo-green);
+  white-space: nowrap;
 }
 
 /* ---------- Stock page ---------- */
@@ -769,8 +952,8 @@ body {
 }
 
 .admin-table-panel .page-item.active .page-link {
-  background: var(--chimbo-orange);
-  border-color: var(--chimbo-orange);
+  background: var(--chimbo-green-light);
+  border-color: var(--chimbo-green);
   color: #fff;
 }
 
@@ -910,5 +1093,3 @@ body {
   padding-bottom: 0;
   border-bottom: 0;
 }
-
-

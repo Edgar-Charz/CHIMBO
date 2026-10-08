@@ -28,4 +28,8 @@ adminDataTablesJson($pagination, fn (array $order): array => [
     'items'    => e(number_format((int) $order['item_count'])),
     'total'    => e(adminMoney((int) $order['order_total'])),
     'placed'   => e(adminDateTime($order['order_placed_at'])),
+    'actions'  => adminRowActions(
+        adminActionLink('bi-eye', 'View order', url('admin/order_details.php?id=' . $order['order_id'])),
+        adminActionLink('bi-printer', 'Print receipt', url('admin/order_receipt.php?id=' . $order['order_id']), new_tab: true),
+    ),
 ]);

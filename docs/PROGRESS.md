@@ -3,12 +3,12 @@
 Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
-- **Phase:** 0 — Foundation (steps 1–7 done; step 8 = Flutter app setup, started in a separate session)
-- **Next step (mobile session):** notifications (bell unread count on Home, list, mark read → open the order), then a global 401 handler. **Live on the API:** catalog, login, profile, regions, wishlist, cart, addresses, checkout, orders (Oda). No dev repositories left in the app.
-- **Next step (backend session):** Oda backend is DONE (cash on delivery). Next: payments (mobile money via an aggregator — needs the provider choice D-10) + expire-unpaid-orders cron, receipt PDF, staging deployment. The MVP can already run end to end with cash on delivery.
-- **Uncommitted work:** steps 5 onward (user commits when they choose)
+- **Stage:** MVP features built on backend, admin, website and app (catalog, PIN login, cart, checkout, orders, cash on delivery + mobile money / bank checked by staff, notifications, receipts, admin tools, app pictures). Preparing for the first beta.
+- **Next (backend session):** time-limited offers "Ofa" (blueprint §12.4) → staging server + scheduled jobs (cancel unpaid orders after the time to pay, send queued SMS) → real SMS provider for login codes.
+- **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
+- **Uncommitted work:** everything since commit 6a9c091 (user commits when they choose)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
-- **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · start payment aggregator + SMS provider applications (D-10)
+- **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice · for push notifications: Firebase project + `google-services.json` + service-account key
 
 ## Decisions made
 | Date | Decision | 
@@ -22,8 +22,288 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-28 | App count badges (cart) are orange as in the design, not red (§6.3 red stays for errors/logout) |
 | 2026-09-28 | D-4: Wasifu follows **PDF p.11** (the more modern design) |
 | 2026-09-28 | App language: Kiswahili only for now; English kept as a placeholder (shown as "Inakuja" in Mipangilio) |
+| 2026-09-30 | **Push notifications (FCM, R-11) moved forward from v1.1**, to be built in a later session — plan in the 2026-09-30 mobile entry ("Planned: push notifications") |
 
 ## Session log
+
+### 2026-10-08 — Onboarding / login pictures appear at once (mobile session)
+- The admin-managed pictures (`features/app_images`) were fetched without waiting and only the next screen's picture was preloaded as the splash left, so the screens showed the fallback icons for a few seconds. Now the splash refreshes the picture list and downloads + decodes every picture shown before Home (`AppImageSlot.beforeHome`: 3 onboarding + 3 auth) while the logo shows, and waits for them (at most 5 s from start) unless the customer goes straight to Home.
+- `ReplaceableImageSlot.precache` is the one place that preloads, with the same sizes as the widget, so the picture is found in memory and drawn in the first frame. While a picture still loads the slot shows the plain background (`AppNetworkImage.iconsWhileLoading: false`); icons only when there is no picture.
+- Verified: format + analyze clean, **113 tests pass**. Device test by the user.
+
+### 2026-10-06 — Mobile: speed up onboarding and auth illustrations
+- The splash now preloads the illustration for the next screen while it is still visible. Replaceable screen images cap memory/disk cached dimensions at 1200px and skip the default 500ms fade, reducing decode work and showing downloaded replacements immediately; the bundled image remains the offline/loading fallback.
+- Home category cards and category banners now push the category page, so Back returns to Nyumbani instead of switching to Gundua.
+- Verified with `flutter analyze` and focused app-image, onboarding and back-navigation tests.
+
+### 2026-10-06 — Web storefront: product-photo headers for collections
+- Ofa, Bidhaa mpya and Zinazouzwa zaidi now use a fixed-height collage of up to four product photos from the collection results, with a shaded Kiswahili heading. The brand-color header remains as the fallback when products have no photos.
+- Reuses the initial catalog results, so the collage adds no query and follows the active collection filters. PHP syntax and whitespace checks pass.
+
+### 2026-10-06 — Admin: upload multiple product photos together
+- Product photo input now supports selecting several files in one action (Ctrl+click on Windows), then uploading them together. Every image continues through the existing per-file validation and resizing pipeline; selected files are added in selection order, and the first photo in an empty gallery becomes the main photo.
+- The admin checks available gallery slots before accepting the batch and reports how many photos were added. Verified PHP syntax and browser form attributes; no uploads made during verification.
+- Customer-facing banner frames now have fixed heights on mobile and desktop; uploaded images are cropped with `object-fit: cover` and cannot expand the banner frame.
+
+### 2026-10-06 — Admin: fixed-height previews for uploaded images
+- App picture cards, category images, banner images and delivery-agent photos now use fixed-height preview areas so portrait or landscape upload dimensions cannot expand the card. Images are contained to show the full upload; category, banner and agent previews use 220px, matching the App pictures preview.
+- Verified in the browser on category and banner edit pages; PHP syntax and diff whitespace checks pass.
+
+### 2026-10-06 — Mobile: app image slots and home banner/category image wiring validated
+- Confirmed the app-side implementation for the new public `GET /app-images` flow: splash startup refreshes and caches the slot list, each slot falls back to its bundled asset when there is no uploaded URL or the network is unavailable, and the URL cache is keyed by URL so a new upload produces a fresh image. Home uses `top_categories[].category_image_url` for the Cosmetics/Jewelry cards and `banner_image_url` for the banner, each with the bundled asset fallback when there is no server image.
+- Verified with `flutter analyze` and the focused app-image/home tests: the app-image repository/controller tests and the catalog/home image URL tests all pass. No additional code changes were required beyond confirming the implementation is complete.
+
+### 2026-10-06 — Admin: keep app picture previews inside their cards
+- Settings → App pictures now clips previews to the card and gives uploaded images explicit width/height with `object-fit: contain`, preserving the complete picture without covering the slot description or upload controls.
+- Superseded by the fixed-height App pictures, category, banner and delivery-agent preview update above.
+
+### 2026-10-06 — Web storefront: change the payment method on an unpaid order; "Agiza Tena" only when finished (web session)
+- `includes/payment_box.php` + `assets/js/payment.js`: under the pay-to box, while `payment.can_change_payment_method` — "Badilisha njia ya malipo" opens the methods from `GET /payment-methods` (current one tagged "Sasa hivi"; "Tumia njia hii" enabled only for a different one) → `POST /orders/{id}/payment-method` → the page reloads with the server's order (switching to "Lipa ukipokea" confirms the order, so the pay-to box goes away). `VALIDATION_ERROR` (e.g. cash above the limit) shows under the list; `PAYMENT_UNDER_REVIEW` / `PAYMENT_METHOD_LOCKED` / `PAYMENT_TIME_OVER` show the message, then reload.
+- `chimbo.js` now holds the shared `choiceCard()` and `paymentChoiceCard()` (moved out of `checkout.js`, used by checkout and the change list).
+- "Agiza Tena" only for `delivered` / `cancelled` orders (`ORDER_REORDER_STATUSES`) on Oda Zangu cards and the order page.
+- Checked once in headless Chrome with M-Pesa/Benki switched on for the test (and switched back off afterwards): list + "Sasa hivi", cash refused above TZS 300,000 with the server message, M-Pesa → Benki (bank details shown), M-Pesa → Lipa ukipokea (confirmed, no pay box), Agiza Tena hidden on unpaid/confirmed, shown on cancelled. Test orders cancelled, test account deleted. Note: "Mixx by Yas" is switched on in the local database (not by this session). Lint clean, 195 tests pass.
+- **From now on (user decision): the web session only makes and lint-checks changes; the user tests in the browser.**
+
+### 2026-10-06 — App pictures replaceable from the admin (backend session)
+- Migration `009_app_images.sql` + class `AppImage`: 7 fixed slots (3 onboarding, 3 login/registration, order success) matching the app's built-in pictures. Upload / replace / remove in the admin (Settings → App pictures); public `GET /app-images`.
+- The app keeps its built-in pictures as the fallback (first start offline, slot never uploaded).
+- Tests: 195 passing (4 new in `AppImageTest`).
+- **Admin session:** "App pictures" section on settings.php (ADMIN_CLASSES.md). **Mobile session:** fetch `/app-images`, cache by URL, fall back to the assets; Home cards should use the category pictures from `/home` instead of bundled ones.
+
+### 2026-10-06 — Change the payment method on an unpaid order (backend session)
+- `POST /orders/{id}/payment-method` (`Payment::changePaymentMethod`) + `payment.can_change_payment_method` in the order JSON. Allowed while waiting for payment with nothing under review (also after a rejection); not for cash orders. To cash: cash limit applies and the order is confirmed at once. The time to pay does not restart. Logged in the audit log (`order.payment_method_changed`, by the customer).
+- Tests: 191 passing (3 new).
+- **Web / mobile sessions:** a "Badilisha njia ya malipo" link under the pay-to box when `can_change_payment_method`; show "Agiza Tena" only for delivered or cancelled orders.
+
+### 2026-10-06 — Mobile money / bank payments with staff checking (mobile session)
+- **Checkout:** payment choices come from `payment_method_details` (`PaymentMethod` class: code, name, type, pay-to details — replaces the fixed enum); icons by type; Hakiki says where to pay is shown after ordering. `POST /orders` sends the method's code.
+- **Order:** `payment` block → `OrderPayment` (method, amount, `payment_note_hint`, `can_submit_payment`, `latest_payment`), plus `order_expires_at`.
+- **`OrderPaymentSection`** on "Oda Imepokelewa!" and Fuatilia Oda: while `can_submit_payment` → pay-to card (amount, number with copy, account name, bank, instructions, the order number to write as description with copy, "Lipa kabla ya …") + **Nimelipa** sheet (`POST /orders/{id}/payment`; payer number pre-filled with the customer's phone for mobile money; field errors under their field, `PAYMENT_UNDER_REVIEW` / `PAYMENT_TIME_OVER` / `PAYMENT_NOT_EXPECTED` shown as the server's message). `submitted` → "Tunakagua malipo yako"; `rejected` → staff's note, then the form again. Payment notifications already open `data.order_id`.
+- **Badilisha njia ya malipo:** link under the pay-to box while `payment.can_change_payment_method` → sheet listing `GET /payment-methods` (current one marked) → `POST /orders/{id}/payment-method`; the answer is shown directly (`orderProvider` is now an `OrderController` with `show(order)`, also used by cancel and Nimelipa). Cash on delivery confirms the order (pay-to box gone). Errors show the server's message (`VALIDATION_ERROR` field, `PAYMENT_UNDER_REVIEW`, `PAYMENT_METHOD_LOCKED`, `PAYMENT_TIME_OVER`).
+- **Agiza Tena** only for delivered or cancelled orders (`OrderStatus.canReorder`), in Oda Zangu and Fuatilia Oda.
+- **Login screens fit the screen:** `AuthStepLayout` fills the viewport; the picture takes the space left (min 72 px, `_ShrinkToFit` reports a small intrinsic height) and the page scrolls only on very small screens. PIN keys 56 px.
+- Verified: format + analyze clean, **107 tests pass** (payment and payment-method-change cases in `api_orders_repository_test.dart`, checkout options with details, PIN screen fits 360×800 / scrolls when tiny). Device test by the user.
+
+### 2026-10-06 — Admin: payments (manual checking) (admin session)
+- `payments.php` (replaces "coming soon"), tabs: **Waiting for review** (Payment::searchPayments status submitted: order, customer, method, amount — red note when it differs from the order total —, paid from, code, sent, time left to pay; Confirm with "Did you see TZS X from … with code … on the statement?", Reject with a Kiswahili reason in a dialog), **All payments** (status / method filters + search, 25/50/100 per page), **Refunds due** (Mark refunded with a refund note in a dialog), **Payment methods** (super admin only: list, on/off switch, `payment_method_edit.php`). Shared `ajax/payments.php`, dialogs `includes/payment_reject_modal.php` and `includes/refund_modal.php` (opened by the reusable `data-open-modal` in admin.js).
+- Order page: Payments list (with Confirm / Reject on a waiting payment), "Record payment" form when `can_record_payment`, "Mark refunded" when a paid order was cancelled. All need `payments.manage`.
+- Menu badge (payments waiting) on Payments; dashboard cards "Payments to check" and "Refunds due" link to their tab and are outlined orange while not zero.
+- Helpers: `adminPaymentReviewBadge()` (payment "confirmed" is green, unlike the blue order status), `adminTimeLeft()`, `adminPaymentReviewButtons()`, `adminPayerAccount()`, `adminErrorText()`.
+- Settings → **App pictures** (`AppImage`, migration 009): a card per slot (where it shows, best size, current picture or "App's own picture"), Upload (multipart `app_image`) and "Use the app's picture" (confirm). Upload errors come back as an alert; page jumps back to `#app-pictures`. Tested: upload, replace (old file deleted), fake file / no file / unknown slot refused, remove (file deleted), Finance 403.
+- Tested end to end as Finance and Super Admin with a test customer and 3 test orders (all removed): reject (too-short reason refused), confirm (order → confirmed / paid; confirming twice refused), record payment (field errors, then recorded + confirmed), refund, method switch refused without an account, Finance gets 403 on payment methods. 188 tests pass.
+- **Found during testing (backend):** `Payment::searchPayments()` search by code or order number also matches every payer number containing its digits (e.g. "TESTREFA1" → digits "1" → `LIKE '%1%'`), so it returns too many rows; phone searches are fine. **Also:** payment methods M-Pesa and Bank were cleared and switched off by a direct database change (not in the audit log) at 06:26 UTC while I was testing — not by the admin pages. My test save briefly put the old M-Pesa details back; I restored M-Pesa to the cleared state found before it.
+
+### 2026-10-06 — Web storefront: mobile money / bank payments checked by staff (web session)
+- **Checkout:** payment choices come from `payment_method_details` (server names; a short line + icon per type: cash / mobile_money / bank); the note under "Thibitisha Oda" says "Baada ya kuthibitisha utaona jinsi ya kulipa TZS … kwa M-Pesa" for non-cash methods.
+- **New `includes/payment_box.php` + `assets/js/payment.js`, on `order.php` and `order_success.php`:** while `payment.can_submit_payment` — pay-to box (amount, method, account number and the reference `payment_note_hint` with "Nakili" copy buttons, account name, bank name, instructions, "Lipa kabla ya …" from `order_expires_at`) and the "Nimelipa" form (mobile money: the +255 phone box; bank: free text; reference upper-cased) → `POST /orders/{id}/payment`, then the page reloads. Rejected → the review note above the form. Submitted → "Tunakagua malipo yako" (with the reference). Paid / refunded / time over → a one-line result. `PAYMENT_UNDER_REVIEW`, `PAYMENT_TIME_OVER`, `PAYMENT_NOT_EXPECTED` → the message, then the page reloads to the current state; `VALIDATION_ERROR` fields under the inputs. Cash on delivery shows nothing new.
+- Payment names now come from `order.payment.payment_method` (`PAYMENT_METHOD_NAMES` removed); `PAYMENT_STATUS_LABELS`: pending "Inakaguliwa", refunded "Imerudishwa". Arifa shows a wallet icon for `payment` notifications.
+- Verified end to end (M-Pesa and Benki switched on with test details for the test, then switched back off): checkout lists M-Pesa / Benki / Lipa ukipokea → order → pay-to box → bad reference message → "Nimelipa" → Tunakagua → staff reject (via `Payment::rejectPayment`) → reason + form → resend → second send refused (`PAYMENT_UNDER_REVIEW`), cancel hidden → staff confirm → "Imelipwa" → cancel → refund → "Imerudishwa". Test order CHB460310 cancelled/refunded, test account deleted. Lint clean, tests pass.
+
+### 2026-10-04 — Payments checked by staff (backend session)
+- Decision: until a payment provider is connected, customers pay mobile money / bank by hand and send the payer number + confirmation code ("Nimelipa"); staff confirm or reject on the Payments page. Later the provider fills the same `payments` rows automatically.
+- Migration `008_manual_payments.sql`: `payment_methods` (5 fixed methods with "pay to" details, replaces the `enabled_payment_methods` setting) and `payments`; unpaid orders now wait 24 hours (`unpaid_order_expiry_minutes` = 1440); the draft terms' payment sentence updated.
+- New classes `PaymentMethod` and `Payment`. Orders gained a `payment` block (pay-to details, `can_submit_payment`, `latest_payment`). Orders can't be cancelled while a payment is being checked. Checkout options gained `payment_method_details`.
+- Endpoints: `POST /orders/{id}/payment`, `GET /payment-methods`.
+- Permissions: `payments.manage` (finance) reviews; `payment_methods.manage` (super admin only) edits the pay-to accounts.
+- Tests: 188 passing (13 new in `PaymentTest`).
+- Not yet: cancelling unpaid orders automatically after the time to pay (cron, blocked on hosting) — staff cancel them for now.
+- **Admin session:** Payments page + payment methods + "Record payment" on the order page (ADMIN_CLASSES.md "Payments page").
+- **Mobile / web sessions:** payment choice at checkout from `payment_method_details`; on the order: pay-to box, "Nimelipa" form, "Tunakagua malipo yako", rejection reason (API_REFERENCE "Paying by mobile money or bank").
+
+### 2026-10-04 — One-click switches for the admin lists (backend session, suggested by the admin session)
+- New `RecordSwitch` (classes/core): changes one on/off column of one record in a locked transaction and logs only that change; does nothing when the value is already set.
+- New methods: `ProductEditor::setProductActive`, `Category::setCategoryActive`, `Banner::setBannerActive`, `Seller::setSellerVerified`, `Seller::setSellerStatus`, `DeliveryAgent::setDeliveryAgentActive`, `DeliveryMethod::setDeliveryMethodActive` (ADMIN_CLASSES.md "One-click switches").
+- Tests: 175 passing (4 new in `RecordSwitchTest`).
+- **Admin session:** switch the list toggles (and the record-page switches if they post alone) to these methods; the banner time conversion in banners.php is then no longer needed.
+
+### 2026-10-01 — Admin: staff accounts, audit log, reports, settings (admin session)
+- `admin_users.php` (in-page table: role, status, "locked", last login) + `admin_user_edit.php` (create with password; edit name/email/role/status; separate "Reset password" form; "what each role can open" built from the menu + `Admin::ROLE_PERMISSIONS`); shared `includes/admin_password_fields.php`. Uses `AdminUser` (refuses disabling/demoting yourself — shown under the field).
+- `audit_log.php`: filter card (staff member, done by, action, what changed, record number, from/to) + server-side table from `ajax/audit_log.php` (25/50/100 per page, newest first). Changes shown as "field: old → new" (unchanged fields hidden, long values shortened); the record links to its admin page (`ADMIN_ENTITY_PAGES`).
+- `reports.php`: date range (default last 30 days, quick ranges 7/30/90 days and this month; wrong range shown under the dates), 6 summary cards, 5 sortable section tables, "Download CSV" per section (`?export=section`, file sent with no-store).
+- `settings.php`: form built from `Settings::getEditableSettings()` (input type from the class's own rules: tel / number / text; legal texts as large textareas), one save; delivery options table + `delivery_method_edit.php` (`DeliveryMethod`). `payments.php` stays "coming soon".
+- admin.js: `data-length-menu`, `data-searching="false"`; `adminDataTablesJson()` takes an optional row class. Helpers `adminAuditChanges()`, `adminAuditEntity()`, `adminCalendarDate()`.
+- Tested end to end with a temporary super admin, staff account and delivery option (all removed; settings restored): validation under fields, own-account protection, password reset, audit filters, report ranges + every CSV, unchanged settings save writes nothing, role access (only Reports for Finance). 171 tests pass.
+- Reports also download as PDF: "Full report (PDF)" (summary + all sections) and a PDF button next to each section's CSV; layout `admin/includes/report_pdf.php` (built from the same section definitions as the page), Dompdf through `adminPdfFromHtml()` with the receipt's safe settings; downloads (CSV, PDF, receipt) go through one `adminSendFile()` (no-store).
+- Actions column on every list (icon buttons, `adminRowActions()` / `adminActionLink()` / `adminActionButton()` — POST + CSRF, confirm on delete, handled by the list page with `adminHandleForm()`): products (edit, stock, hide/show, delete), stock (adjust, edit), categories (edit, hide/show, delete), sellers (edit, activate/deactivate; verified button kept), banners (edit, hide/show, delete), orders (view, receipt), customers (view), delivery agents (edit, activate/deactivate), admin users (edit), delivery options (edit, enable/disable). Toggles use the backend's one-click switches (setProductActive, setCategoryActive, setBannerActive, setSellerVerified/Status, setDeliveryAgentActive, setDeliveryMethodActive) — the audit log now records only the changed column; tested: toggling twice leaves every record identical. Every action also exists on the record page (switch/delete/stock/receipt).
+- Customer page: the Orders section now lists the customer's orders (`Order::getOrders()`, 20 per page with Newer/Older links): number, placed, status, payment, items, total, and View / Print receipt actions for roles with `orders.view`.
+- For the backend: the payment-method CSV shows codes (`cod`) — the page shows "Cash on delivery"; maybe use readable names in `Report::exportCsv()`.
+
+### 2026-10-01 — Web storefront step 5 done: Vipendwa, Arifa, Wasifu, Anwani, help/terms/privacy (web session)
+- **Vipendwa:** shared `assets/js/wishlist.js` (loaded on every page): saved ids from `/wishlist/ids`, `heartButton()` on every product card (photo corner), `bindButton()` for the product page heart (its own copy removed from `product.js`); all hearts of a product update together (`data-heart-for`), guests go to login. `wishlist.php` + `wishlist_page.js`: saved products with the shared card; removing a heart takes the card away; empty state.
+- **Arifa:** `notifications.php` + `notifications.js`: order updates newest first (`timeAgo()` — "Dakika 5 zilizopita", "Jana, 14:20"), unread highlighted with an orange dot; tapping marks read and opens the order; "Soma zote"; bell count kept in step; page links.
+- **Anwani zangu:** `addresses.php` + `addresses.js`: list with "Kuu", "Weka kuu", "Badilisha", "Futa". The address form is now one shared piece — `includes/address_form.php` + `assets/js/address_form.js` (`CHIMBO.addressForm.attach/describe`, add or edit) — used by checkout and Anwani zangu. `location_select.connect()` can now be called again safely.
+- **Wasifu (`account.php`/`account.js`, built by another session, extended):** quick links (Oda Zangu, Vipendwa, Arifa, Anwani zangu), "Badilisha taarifa" (name, email → `PATCH /me`; shop, region, district → `PATCH /me/business`), "Toka" (phones have no header menu), "Futa akaunti yangu" with a confirmation dialog (`DELETE /me`).
+- **Msaada / Vigezo na Masharti / Faragha / 404:** `help.php` (support phone, WhatsApp link, hours from `Settings::getSupportContacts()` — the same as `GET /support` — plus the COD limit; 9 questions in an accordion). `terms.php` / `privacy.php` show `Settings::getLegalPage()` (the same text as `GET /pages/…`, edited by staff in admin settings): escaped, split into paragraphs on empty lines (shared `includes/legal_page.php`). **The legal texts are the backend's drafts — a lawyer must review them before launch.** New `404.php` ("Ukurasa haupo", links home / Gundua), used for every unknown address via `ErrorDocument 404 /chimbo/404.php` in the root `.htaccess` (the path must match the shop folder on the live server). Every page linked from the header/footer now exists.
+- Verified in headless Chrome: register (code → PIN → details) → heart on a card and the product page → Vipendwa (2 → 1 after un-hearting) → order → Arifa (bell 1, opens the order, read) → Anwani (add prefilled, make main, edit, delete) → Wasifu (bad email message, details saved) → Futa akaunti (logged out). Test order cancelled, test account deleted. Lint clean, 171 tests pass, no overflow at 360 px.
+
+### 2026-10-01 — Backend for the remaining admin pages and website pages (backend session)
+- Decision: finish the admin dashboard and the website before time-limited offers.
+- New classes: `AdminUser` (staff accounts: create, edit, disable, reset password; never yourself; always one super admin), `Report` (sales summary, by day / category / top products / payment method / region, CSV), `DeliveryMethod` (delivery options and fees). `AuditLog` gained `search()`, `getActions()`, `getEntityTypes()`. `Settings` gained the editable list (`Settings::EDITABLE`), `updateSettings()`, `getSupportContacts()`, `getLegalPage()`.
+- New public endpoints: `GET /support`, `GET /pages/terms`, `GET /pages/privacy`. Draft Kiswahili legal texts seeded (`legal_terms`, `legal_privacy`) — **a lawyer must review them before launch**.
+- Tests: 171 passing (10 new in `AdminToolsTest`).
+- **Admin session:** build `admin_users.php`, `audit_log.php`, `reports.php`, `settings.php` from ADMIN_CLASSES.md (section "Admin users, Audit log, Reports, Settings"). `payments.php` stays "coming soon" until Phase 5.
+- **Web session:** pages still missing from blueprint §10.2: `wishlist.php`, `notifications.php`, `addresses.php`, `help.php` (uses `/support`), `terms.php` / `privacy.php` (use `/pages/…`), `404.php`. All their APIs exist.
+
+### 2026-10-01 — PIN login + global 401 handler (mobile session)
+- **Login flow (blueprint §12.5):** phone screen → `POST /auth/start` → `next_step`: `otp` (code already sent → OTP screen), `pin` → new `PinLoginScreen` ("Ingia kwa PIN", `/auth/pin/login`), `pin_locked` → same screen with "PIN imefungwa…" + "Umesahau PIN?". `PIN_INVALID` shows the server message; `PIN_LOCKED` starts "Umesahau PIN?" (SMS code → OTP screen → "Weka PIN Mpya").
+- **Order after every login and on start (`/auth/me`):** new `AuthStatus.needsPin` → `CreatePinScreen` (`/auth/pin/new`, "Tengeneza PIN" = registration step 3 of 4); then `needsProfile` → business details (step 4); else Home. An SMS login from "Umesahau PIN?" always asks a new PIN (`AuthState.isPinReset`).
+- **PIN entry:** `PinPad` (own number pad, dots, 4–6 digits, PIN sent as text) and `PinSetupForm` (current → new → confirm; server field errors `current_pin` / `user_pin` / `user_pin_confirmation` shown on their step). Wasifu → "Badilisha PIN" (`/profile/pin`, `ChangePinScreen`).
+- **Logins send** `auth_token_device_name` (device_info_plus, `core/device/device_name.dart`) and `auth_token_platform`.
+- **Global 401 handler:** `SessionExpiredInterceptor` (401 on a request that carried a token) → `sessionExpiredEventsProvider` → `AuthController` forgets the token and shows the phone screen with "Umetolewa kwenye akaunti. Tafadhali ingia tena." (e.g. PIN changed on another phone).
+- **Msaada and legal pages** (`features/support/`): Wasifu → Msaada (`/profile/help`: hours from `GET /support`, "Piga simu" `tel:`, WhatsApp via `support_whatsapp_url`); Wasifu → Vigezo na Masharti / Sera ya Faragha and the two links in the login screen's terms sentence open `LegalPageScreen` (`/pages/terms|privacy`, public, allowed by the login redirect). `page_body` is split into paragraphs at empty lines and shown as plain text.
+- Test fakes follow the server's PIN rules (easy PINs refused, 5 wrong → locked). Verified: format + analyze clean, **99 tests pass** (new: `pin_login_flow_test.dart`, `session_expired_interceptor_test.dart`, `api_support_repository_test.dart`, `support_pages_test.dart`, PIN cases in `api_auth_repository_test.dart` and the registration flow). Device test by the user.
+
+### 2026-10-01 — Web storefront: PIN login reviewed and tested (web session)
+- The PIN login on the website (`login.php`, `auth.js`) and the new Wasifu page (`account.php`, `account.js`: photo upload/remove, account details, "Badilisha PIN", "Umesahau PIN?" via `login.php?forgot_pin=1`) were built by another session on 2026-09-30; this session reviewed them against the API and tested them end to end in headless Chrome.
+- Checked: new number → `/auth/start` "otp" → code auto-filled → Tengeneza PIN (`1234` refused: "PIN hii ni rahisi kukisia", mismatch → "PIN hazifanani") → business details → home; Wasifu → Badilisha PIN (wrong current PIN → "Umebakiza majaribio 4" under the field; right → "PIN yako imebadilishwa") → Toka (`/auth/me` 401 afterwards); registered number → PIN step → wrong PIN message under the box → right PIN → logged in. `requireCustomer()` / `isCustomerReady()` also send customers without a PIN back to login.
+- Tidied: `account.php` had a second `<main>` inside the layout's `<main>` (now a `<section>`), an unstyled "AKAUNTI YAKO" label removed, file doc comments for `account.php` and an up-to-date one for `login.php`.
+- Test account deleted. Lint clean, 171 tests pass, no overflow at 360 px.
+
+### 2026-10-01 — Admin: customer PIN on the customer page (admin session)
+- Migrations 006 and 007 were already applied. The PIN rows ("Ana PIN", "PIN imefungwa") and the "Lazimisha kubadili PIN" button had already been added to `admin/customer_details.php` by another agent; reviewed and moved its form handling to `adminHandleForm()` (permission `customers.manage` checked in the action, NOT_FOUND shown as a flash message, other errors in the page alert).
+- Tested with temporary customers and admin (removed): with PIN → reset locks the PIN, revokes sessions, writes `customer.pin_reset_forced`; without PIN → button hidden, forced POST gives "This customer has no PIN to reset."; Finance → button hidden, POST refused; bad CSRF → 403; the hash is never shown.
+- Open: the page still reads the two PIN flags with its own SQL — needs a class method (e.g. `CustomerPin::getPinStatus($user_id)` → `user_has_pin`, `user_pin_is_locked`) from the backend session.
+
+### 2026-09-30 — PIN login (backend session)
+- **New login flow** (blueprint R-23, §12.5): registration = phone → SMS code → create PIN → business details; login = phone → PIN; "Umesahau PIN?" = SMS code → new PIN. 4–6 digits, like M-Pesa.
+- Migration `007_customer_pin.sql`: `users.user_pin_hash`, `user_pin_failed_attempts`, `user_pin_locked_at`, `user_pin_changed_at`, `user_sessions_revoked_at`; `auth_tokens.auth_token_pin_reset_until`.
+- New class `CustomerPin` (hashing, 5-try lock, easy-PIN check, staff forced reset). `CustomerAuth` gained `startLogin()`, `logInWithPin()`, `savePin()`; both login kinds share one private `logIn()`.
+- Endpoints: `POST /auth/start`, `POST /auth/pin/login`, `POST /auth/pin` (🔒). The profile has `user_has_pin`. Details in API_REFERENCE "Customer login".
+- Changing or resetting a PIN logs out every other device (tokens revoked; website sessions checked against `user_sessions_revoked_at` in `AuthMiddleware`).
+- Tests: 161 passing (13 new in `CustomerPinTest`). Checked the whole flow over HTTP.
+- **Mobile session:** phone screen calls `/auth/start` and branches on `next_step`; new screens Tengeneza PIN, Ingia kwa PIN (+ "Umesahau PIN?"), Badilisha PIN in Wasifu; after every login check `user_has_pin` before `is_profile_complete`. Existing test accounts have no PIN, so they go through the SMS code and create one.
+- **Web session:** same flow on the login page (`client: "web"` + `X-CSRF-Token` on `/auth/pin/login`).
+- **Admin session:** run `php database/migrate.php`; "Ana PIN" / "PIN imefungwa" on the customer page and a "Lazimisha kubadili PIN" button → `CustomerPin::forcePinReset()` (ADMIN_CLASSES.md).
+
+### 2026-09-30 — Speed work; time-limited offers planned (backend session)
+- **Smaller answers:** JSON of 1 KB or more is gzip-compressed when the client accepts it (`Response::send`). Home 8.4 KB → 1.3 KB, product list 4.5 KB → 0.9 KB.
+- **Photos cached for a year** (`media/.htaccess`, `Cache-Control: public, max-age=31536000, immutable`). Safe because a new photo always gets a new random file name.
+- **Fewer database writes:** a Bearer token's last-used time and expiry are refreshed at most once an hour instead of on every request (`AuthToken::findUserIdByToken`).
+- **Stored list prices:** migration `006_stored_product_prices.sql` adds `products.product_price` (highest tier) and `product_price_from` (lowest tier) with an index. `ProductEditor::refreshStoredPrices()` updates them whenever tiers are saved (also in the demo seed). Shop lists, price filters/sorting, the admin product list and the manual-order form read these columns instead of re-calculating every product's tiers. **Cart, checkout and orders still price each line from the tiers.** Anyone who changes tiers outside `ProductEditor` must call `refreshStoredPrices()`.
+- **Home rails no longer count** matching products (`Product::getCollection` skips the COUNT; only paged lists count).
+- Tests: 148 passing (one new assertion for stored prices). Local timings 20–30 ms per endpoint.
+- **Planned next (before the first beta): time-limited offers "Ofa"** — blueprint R-22 and §12.4.
+- Later, not now: FULLTEXT search (LIKE is fine at the current catalog size).
+- **Other sessions:** admin — run `php database/migrate.php` to get migration 006; nothing else to change (it already goes through `ProductEditor`). Mobile/web — nothing to change; gzip is handled by the HTTP client/browser.
+
+### 2026-09-30 — Web storefront: Oda Zangu + order tracking; guest cart live (web session)
+- **Guest cart now works** with the backend's new `POST /cart/preview`: quick add as a guest → badge + stepper, product page → drawer, cart page, checkout → login → merge. No web code change was needed.
+- **`orders.php` (Oda Zangu):** tabs Zote / Zinazoendelea / Zimefika, server-rendered order cards (`includes/order_card.php`: number, date, status pill, first product photos, pieces, total, "Agiza Tena", "Fuatilia"), page links when there are more than 20. Orders from the app show here too (same account).
+- **`order.php` (Fuatilia Oda):** status pill + message, vertical timeline (`orderTimeline()`: done / current in orange / stopped in red for cancelled or expired, with Tanzania times), expected or delivered date, cancel reason, delivery agent with "Piga simu", items, totals, payment (COD: "andaa TZS …"), delivery details, "Agiza Tena", "Pakua Risiti" (`receiptUrl()` → the API's PDF, the login cookie is enough), "Ghairi oda" in a dialog with an optional reason (only while `can_cancel`).
+- `assets/js/orders.js`: reorder (skipped-item messages, cart refreshed, drawer opens) and cancel.
+- `includes/storefront.php`: `ORDER_STATUS_LABELS` / `ORDER_STATUS_MESSAGES` (the same words as the app), `ORDER_STATUS_TONES`, `PAYMENT_METHOD_NAMES`, `PAYMENT_STATUS_LABELS`, `ORDER_TRACKING_STEPS`.
+- Fixes: a stepper with `delayMs: 0` now reports at once (fast taps then "Ongeza kikapuni" added too few); cart lines show one bin (the separate remove button) instead of two at the MOQ.
+- Verified end to end in headless Chrome (desktop + phone): guest cart → order CHB576159 → Fuatilia → Oda Zangu → Agiza Tena → receipt `200 application/pdf` → cancel → red timeline. Test orders cancelled, test accounts deleted. Lint clean, 148 tests pass.
+- **Phone numbers checked in the browser too** (user report: the login box accepted any length): `CHIMBO.phone` in `chimbo.js` — typing/pasting 0712…, 712…, +255 712… or 255712… is tidied to "712 345 678" (digits only, 9 at most); a number that is not a Tanzanian mobile (6/7 + 8 digits) shows "Weka namba sahihi ya simu, mfano 712 345 678." under the box and nothing is sent; the message clears while correcting; the API gets "+255…". Used on login and the checkout address form (now also with the +255 box). The server still validates as before.
+- Next (step 5 rest): Vipendwa (wishlist page + hearts on cards), Arifa (notifications), Wasifu (profile, business, addresses, photo, logout), help/terms/privacy pages.
+
+### 2026-09-30 — Guest cart preview for the website (backend session, requested by the web session)
+- `POST /cart/preview` (public, saves nothing): prices a guest's browser cart and returns exactly the `GET /cart` shape; problems come back as `line_problem`, unknown/hidden products in `warnings`; max 100 items; rate limit 600/hour per IP.
+- `Cart` refactored so pricing lives in ONE place: new private `priceItems([product_id => quantity])` is used by both `getCart()` (which then removes unavailable saved lines) and new `previewGuestCart()`.
+- Tests: 3 new in `ShoppingTest` (preview identical to a saved cart and saves nothing, problems/warnings, duplicates added + bad input/over 100 rejected) — **148 passing**. docs/API_REFERENCE.md updated.
+
+### 2026-09-30 — Web storefront step 4: cart, login, checkout, order success (web session)
+- **Focused layout** for login and checkout (`$page['is_focused']`): `includes/focused_header.php` (logo + "Salama na siri"), one-line footer, no menus/search/bottom nav, `header.js` not loaded. Full footer moved to `includes/site_footer.php`.
+- **`cart.php` + `cart_page.js`:** lines grouped by category (shared line template), summary panel (pieces, "Unaokoa", subtotal, checkout blocked while `can_checkout` is false, guest hint, "Futa kikapu chote"), phone bar with total + "Endelea kwenye Malipo". `cart.js` now fills every `[data-cart-summary]` box (drawer + cart page) in one place, and offers `whenLoaded()`, `refresh()`, `clear()`, `mergeGuestCart()`, `renderGroups()`.
+- **`login.php` + `auth.js`:** phone → 6 code boxes (auto-advance, paste, backspace, auto-submit, resend countdown, dev code auto-filled with a "Hali ya majaribio" note) → "Tuambie kuhusu biashara yako" for new customers (name, shop, region → district). Then the guest cart goes to `POST /cart/merge` (skipped items shown), browser copy cleared, back to `?return=` — `safeReturnPath()` only accepts paths inside the shop. `requireCustomer()` sends guests (and customers without step 3) to login and back.
+- **`checkout.php` + `checkout.js`:** 1 address (radio cards; add-address form prefilled from the profile), 2 delivery methods that reach it, 3 payment (cod), 4 review with the server's totals (`POST /checkout/preview`), note, "Thibitisha Oda" → `POST /orders` with `expected_total` and an `Idempotency-Key` kept in sessionStorage for the checkout; `PRICE_CHANGED` refreshes the totals and asks again; `CART_EMPTY`/`CART_HAS_PROBLEMS` send the customer to the cart. Defaults are chosen automatically, so a returning customer only confirms.
+- **`order_success.php`:** check-mark + ring animation, order number, total, payment, expected date in Kiswahili (`swahiliDate()`), cash reminder for COD, delivery address, items, "Fuatilia Oda" (order.php — step 5) / "Endelea kununua".
+- Shared: `chimbo.js` `submitForm()` (field messages under inputs), `newIdempotencyKey()`; `location_select.js` (region → district, used by login and checkout).
+- **Product page:** "Unaweza pia kupenda" always shows up to 10 products — related ones first, topped up from the same top category, then best sellers (`productSuggestions()`), never the product itself.
+- **Home:** the sub-category circles are one sideways "train" on every screen; on desktop ‹ › buttons (shown only when there is more that side) and soft fading edges.
+- Verified end to end in headless Chrome: guest with a browser cart → checkout → login (dev code) → step 3 (empty fields show messages) → cart merged → address added → Standard/Haraka options → preview totals → order CHB070974 placed (channel `web`) → success page; login again on a phone width, checkout with savings row, cart page. Test order cancelled (stock returned) and test account deleted. Lint clean, 145 tests pass, no overflow at 360 px.
+- Still waiting on the backend: `POST /cart/preview` for guest carts.
+
+### 2026-09-30 — Web storefront: one owner; catalog, product and Gundua pages cleaned up (web session)
+- **User decision:** this web session now owns the whole storefront (root pages, `includes/`, `assets/css|js|img|fonts`); the other session that built category/product/search in parallel stops. Reviewed and reworked its pages to the coding standards.
+- **One catalog for category + search/collections:** `includes/catalog_browser.php` (count, "Chuja" filters with an active-count badge, sort, grid, "Umeona bidhaa X kati ya Y" + "Onyesha zaidi" only when there is more than one page) and one `assets/js/catalog.js` (sort/filters/load more via `GET /products`, address bar kept in step, Back works, late answers ignored, empty state with "Ondoa vichujio" when filters hide everything). `search.js` (a ~90% copy of catalog.js) removed.
+- `includes/storefront.php`: `catalogFilters()`, `catalogState()` (server-rendered first page; validation errors from `Product::getProducts()` shown as a Kiswahili message, e.g. search > 100 characters), `requestInt()`, `requestText()`, `formatPieces()`, `productBadgeText()`, `CATALOG_SORT_OPTIONS`, `PRODUCT_BADGE_LABELS`; `tierRows()` now also returns `min_quantity` and `savings_percent` (home uses it too).
+- `category.php` / `search.php` rewritten (invalid `?chip=` no longer passed `false` as the category; collections get chips Zote/Ofa/Mpya/Zinazouzwa zaidi). `product.php` / `product.js` cleaned up: first tier from `Pricing::tierForQuantity()`, "pcs" wording, "−8%" badge like the cards, next-tier hint ("Ongeza 18 pcs upate TZS 4,800 kila moja"), "Tayari una N pcs kikapuni", instant price preview (`quantityStepper` got a `delayMs` option), delivery/COD/verified promises, phone buy bar that appears only after the main button scrolls away, thumbnails column only when there are several photos (fixes the empty column), page scripts not loaded on 404 pages. Gallery (user request): hovering or tabbing to a thumbnail shows it in the big picture, moving away shows the chosen photo again, clicking chooses it.
+- **New `explore.php` (Gundua tab):** Ofa / Bidhaa mpya / Zinazouzwa zaidi shortcuts + every category with its sub-categories. Shared `includes/subcategory_link.php` (home + Gundua).
+- **Bug fixed:** the header/footer category loops used `$category`/`$chip`, which leaked into the page (includes share variables) — the Cosmetics page showed "Jewelry" and the "Bags" chip. Layout partials now use `$menu_category`, `$menu_chip`, `$footer_category`.
+- CSS: one-line rules and the product section that had split the product-card block replaced by formatted sections (tier table — shared, breadcrumb, catalog, product page, Gundua); missing `.eyebrow` usages removed.
+- Verified: lint clean, 145 tests pass; headless Chrome 360/390/1366 px on home, category, search (incl. 120-character search), product, Gundua, 404s — no console errors, no overflow; sort, filters, filter badge, empty state, address bar; product preview, add → drawer, in-cart note, buy bar. Test account deleted. Guest add-to-cart still waits for `POST /cart/preview` (backend).
+
+### 2026-09-30 — Web storefront standards cleanup
+- Moved product tier selection and savings calculations above the product page HTML; the template now only displays prepared values.
+- Limited storefront search input to the API's 100-character maximum. Longer queries now show a Kiswahili validation message and do not call the products API.
+- Verified changed PHP files with `php -l` and ran PHPUnit (**145 tests passing**). Browser and console checks remain unavailable because no browser session is exposed.
+
+### 2026-09-30 — Web storefront: collection navigation
+- Built `search.php` for the existing header links to Ofa (`deals`), Mpya (`new`), and Zinazouzwa Zaidi (`best_sellers`). It reads the matching collection through `Product::getProducts()`, renders products with the shared product card, supports sorting and load-more, and also handles header search queries.
+- Added `assets/js/search.js` for product cards, sorting, pagination, URL history, and empty/error states. Existing storefront CSS and header links were reused.
+- Verified all three collection URLs return HTTP 200 with the correct distinct heading and product counts (3, 2, 12); PHP lint clean; PHPUnit **145 passing**.
+
+### 2026-09-30 — Web storefront: interactive product image gallery
+- Product detail gallery now uses the large image size in its main display. On desktop the thumbnails sit vertically to the left; on phones they remain in a horizontal strip below the image.
+- Hover and keyboard focus preview a thumbnail; click selects it and keeps it displayed after pointer exit. The gallery still supports products with a single image or no images.
+- Verified: PHP lint clean; product route returned HTTP 200; `product.js` serves and contains hover/focus/click handling; PHPUnit **145 passing**. Current local product records have no multi-image gallery to exercise visually; browser bridge is unavailable.
+
+### 2026-09-30 — Web storefront: product details page
+- Added `product.php` and the `/p/{product_id}-{slug}` rewrite using existing product, tier, image-gallery, and related-product data. The page shows product photos, seller verification, wholesale tier prices, MOQ, current quantity-price preview, delivery range, description, wishlist/share actions, add to cart, and related products.
+- Added `assets/js/product.js` for gallery selection, tier/quantity previews, wishlist, sharing, cart action, and related product cards. Added product-page component styles using the existing storefront tokens.
+- No backend changes. Guest add-to-cart still depends on the missing public cart preview endpoint.
+- Verified: `php -l product.php` clean; `/p/1-vaseline-petroleum-jelly-400ml` returned HTTP 200 with its product heading and tier table; both page scripts returned HTTP 200; an unknown product returned 404; PHPUnit **145 passing**. Browser viewport/console checks and JavaScript syntax parsing remain unavailable here (browser bridge unavailable; Node.js is not installed).
+
+### 2026-09-30 — Web storefront: category pages show selected category and products
+- Fixed a shared PHP variable collision: the header category menu reused `$category`, overwriting the selected category with the last top-level category (Jewelry). `category.php` now keeps its page data in `$current_category`.
+- Loaded `product_card.js` before `catalog.js`, so initial product results render through the shared product card component.
+- Verified both `/c/1-cosmetics` and `/c/9-jewelry` return HTTP 200, render their correct distinct headings and include their respective product data and card-renderer script. PHP lint clean; PHPUnit **145 passing**. No styles or backend code changed.
+
+### 2026-09-30 — Web storefront: category listing page
+- Added `category.php` for `/c/{category_id}-{slug}` using the existing `Category` and `Product` classes. Includes breadcrumb, category heading, subcategory chips, price/MOQ filters, sort, product grid, empty/error states, and paginated load-more through the existing `/products` API.
+- Added the category URL rewrite and `assets/js/catalog.js`; product tiles use the existing `CHIMBO.productCard` component. Added category-page component CSS with the established storefront tokens and controls.
+- No backend files changed. Product links still await the product page step.
+- Verified: `php -l category.php` clean; PHPUnit **145 passing**; `/c/1-cosmetics` returned HTTP 200 and rendered the catalog page without PHP warning/fatal text. Phone/desktop browser and console checks plus JavaScript syntax parsing remain unavailable here (browser bridge unavailable; Node.js is not installed).
+
+### 2026-09-30 — Web storefront: home page rebuilt as a store layout (web session)
+- The first home page (made by another session) was the phone app stretched to desktop (sideways rails with empty space, two competing heroes, busy cards). User asked for a Shopify-style web layout; phones keep the app feel.
+- `index.php` (PHP draws the page from `Home::getHome()`; product grids come from the same data printed as JSON — no second request): split hero (text on green + banner photo; photo behind the text on phones; Bootstrap carousel when there are several banners) + Ofa / Bidhaa mpya tiles · trust strip · "Karibu tena" reorder grid (logged in) · "Nunua kwa aina" (big category tiles + round sub-category links) · one product section with tabs (Zinazouzwa Zaidi / Mpya / Ofa) in a 5-column grid (sideways rail on phones) · green "Nunua zaidi, lipa kidogo" band with a real tier table (the best seller with the longest price ladder, "Unaokoa hadi N%").
+- New shared `assets/js/product_card.js` (`CHIMBO.productCard.render/renderSkeletons`): photo, badge ("−8%" on offers), seller + verified tick, name, "Kuanzia" price with old price, MOQ; quick add puts the MOQ in the cart and turns into a stepper; cards follow the cart through `chimbo:cart-changed`. Mouse users see "Ongeza kikapuni" on hover; touch screens a round (+). `assets/js/home.js` rewritten (renders grids, tabs with arrow keys).
+- `includes/storefront.php`: `collectionUrl()`, `bannerUrl()` (outside links only over http/https), `formatTzs()`, `tierRows()`; `productUrl()`/`categoryUrl()` slug now optional (`/p/{id}` works for banner targets).
+- CSS: the old home block (partly one-line rules) and alias tokens (`--chimbo-text`, `--chimbo-border` …) removed; new sections for section headings, hero, trust strip, category tiles, wholesale band, tier table, product grid and card. New token `--chimbo-image-shade`.
+- **Data to fix in admin:** the Cosmetics and Skin Care category images are screenshots of an unrelated app; no product has photos yet. Banner images are 800 px (fine for the split hero; a larger size would help on big screens).
+- Verified: lint clean, 145 tests pass, headless Chrome 360/390/1366 px — no console errors or overflow; tabs, quick add → stepper + badge, logged-in "Karibu tena". Guest add still waits for `POST /cart/preview` (backend). Test account deleted.
+
+### 2026-09-30 — Web storefront: Home page
+- Replaced the Home placeholder with a PHP-rendered storefront homepage using the existing `Home` and catalog classes: greeting, wholesale benefits, active banners, categories, and product rails for deals, new arrivals, best sellers, and (when signed in) recently ordered items.
+- Added mobile-first home components and quick-add actions via the existing shared cart helper. Product cards display server-provided tier starting prices, MOQ, seller verification, and image placeholders.
+- No backend changes. Guest cart preview (`POST /cart/preview`) is still absent from the API; guest quick-add therefore cannot work until the backend provides it, while signed-in cart quick-add uses the existing endpoint.
+- Verified: `php -l index.php` clean; PHPUnit **145 passing**; `http://localhost/chimbo/` returned 200 with the home heading, categories, and collection sections and no PHP warning/fatal text. Browser viewport/console check and JavaScript syntax check could not run in this environment (browser bridge unavailable; Node.js is not installed).
+
+### 2026-09-30 — Web storefront: design system + shared layout (web session)
+- Decisions (my proposed defaults; the user said continue): pages READ through the classes for the first render (layout, meta, 404) and draw the rest with JavaScript from the API; pretty URLs `/p/{id}-{slug}` and `/c/{id}-{slug}` (no slug lookup needed; the rewrite rules come with the product/category pages); guest cart in `localStorage`, priced by the server.
+- **Waiting on the backend session:** a public `POST /cart/preview` `{"items":[{product_id, quantity}]}` → the same priced cart shape as `GET /cart` (groups, summary, warnings), nothing saved, no login; problems as `line_problem` (not errors), products that left the shop in `warnings`. Until it exists, guests can't add to the cart (clear error toast, nothing saved).
+- Assets: Poppins 400/500/600/700 as WOFF2 (~51 KB each, from the app's TTFs) + OFL licence in `assets/fonts/`; `assets/img/logo-mark.webp` (192 px) and `favicon.png`, cropped from the app's `logo_mark.png` (its left edge had a stray line).
+- `assets/css/theme.css` (all tokens: brand colours, neutrals, type scale, spacing, radii, shadows, motion; Bootstrap variables mapped to the brand) · `assets/css/app.css` (buttons — green = navigate, orange `.btn-buy` = buy, with dark text for contrast — header, search suggestions, category menu, footer, bottom nav, cart drawer, cart line, quantity stepper, skeleton/empty/error states, toasts, animations; reduced motion respected).
+- `includes/`: `init.php` (bootstrap + helpers + `CustomerSession::start()`), `storefront.php` (`asset()` with cache-busting, `productUrl()`, `categoryUrl()`, `loginUrl()`, `currentCustomer()`, `shopCategories()`, `pageSettings()`, `storefrontConfig()`), `head.php`, `header.php`, `footer.php`, `bottom_nav.php`, `cart_drawer.php`. Pages set `$page` (title, description, nav, scripts) and include header/footer.
+- JS: `chimbo.js` (the `CHIMBO` namespace: `api.get/getPage/post/patch/delete` with CSRF + ngrok header, error toasts, 401 → login with return path; `el()` safe DOM builder, `formatTzs`, `formatPieces`, `productImage` + placeholder, `stateBlock`/`errorState`, `setLoading`, `toast`, `quantityStepper` with a debounced commit). `cart.js` (guest/account cart behind one interface, badges with bump, drawer with tier price, next-tier hint, line problems + one-tap fixes, "Unaokoa", checkout blocked while `can_checkout` is false; `chimbo:cart-changed` event). `header.js` (live search suggestions with keyboard support, unread bell count, logout, header shadow on scroll).
+- `index.php` now uses the layout (the full Home comes in step 3).
+- Verified: `php -l` and `node --check` clean, 145 backend tests pass; headless Chrome at 360/390 px and 1366 px — no console errors, no horizontal overflow; search suggestions; logged-in drawer (add, stepper — two taps = one PATCH, remove, badge), account menu. Temporary test account deleted afterwards.
+
+### 2026-09-30 — Rules for any AI agent + web storefront guide (backend session)
+- New **`AGENTS.md`** (project root): the shared rules for every AI agent (docs to read, file ownership per area, non-negotiable rules, definition of done, Git rules). `CLAUDE.md` now just points to it plus Claude-specific notes. Flutter folder got its own `AGENTS.md` pointing to the same rules.
+- New **`docs/WEB_STOREFRONT_GUIDE.md`**: pages and files, how the website calls the API (web login + CSRF, guest cart + merge, prices from the server, idempotent orders), JS/CSS rules, required page states, definition-of-done checklist.
+- Measured API speed: 20–35 ms per endpoint with the demo data. Optimization plan (not done yet, waiting for the user): gzip + media caching in Apache, token "last used" write at most hourly, skip counts for Home rails, stored product prices (migration), full-text search later.
+
+### 2026-09-30 — Notifications, receipt PDF, profile photo (mobile session)
+- **Arifa:** Home bell shows the unread count (`unreadNotificationsProvider`, `CountIconBadge` — renamed from `CartIconBadge`); `NotificationsScreen` at `/home/notifications` (paginated, pull to refresh, "Soma zote"); tapping marks read and opens `notification_data.order_id`. Feature folder `features/notifications/`.
+- **Pakua Risiti:** `ApiClient.download()` (bytes; JSON errors still become `ApiException`), `OrdersRepository.downloadReceipt`, `OrderActions.shareReceipt` saves `Risiti-CHB….pdf` in the app documents folder (path_provider) and opens the share sheet (share_plus).
+- **Profile photo:** `ApiClient.upload()` (multipart), `ProfileRepository.uploadAvatar/deleteAvatar`; Wasifu photo has a camera badge → sheet (Chagua picha / Piga picha / Ondoa picha, image_picker, shrunk to 1080 px). `PersonAvatar` (renamed from `InitialsAvatar`) shows `user_avatar_url` in Wasifu and Home, initials otherwise. iOS camera/photo texts in Info.plist.
+- **Back button:** one Android back (button or swipe) never closes the app. `core/widgets/exit_guard.dart` (`ExitGuard`) on the root screens (tabs, onboarding, phone): the first back shows "Bonyeza nyuma tena ili kutoka.", a second within 3 s (`AppDurations.exitConfirmWindow`) exits. Back on another tab's first screen goes to Nyumbani first; screens inside a tab still close normally; "Oda Imepokelewa!" back = Rudi Nyumbani.
+- Verified: format + analyze clean, **80 tests pass** (new: `back_button_test.dart`). Device test by the user.
+
+#### Planned: push notifications (not started — user decision: later)
+Goal: notifications in the phone's status bar even when the app is closed; if the phone is offline, FCM delivers them when it reconnects (like WhatsApp). Tapping opens the order.
+1. **User:** Firebase project "CHIMBO" → Android app `com.chimbo.chimbo` → `google-services.json` into `AndroidStudioProjects/chimbo/android/app/`. Project settings → Service accounts → private key JSON for the **backend only** (secret, outside the web root, never in the app).
+2. **Backend session:** table `device_tokens` (user_id, device_token unique, device_platform, last_seen_at) · `POST /devices` 🔒 `{"device_token", "device_platform": "android"}` (save/update for the logged-in user) · `DELETE /devices/{token}` on logout · `Notification::notifyUser()` also sends through the FCM HTTP v1 API to all the user's tokens: `notification {title, body}`, `data {notification_id, order_id}`, Android priority high, channel `chimbo_orders`; delete tokens FCM reports `UNREGISTERED` · document in API_REFERENCE.md (blueprint §12 already lists `POST /devices`, table `device_tokens`).
+3. **Mobile session:** `firebase_core` + `firebase_messaging`; ask notification permission (Android 13+); after login register the token (`POST /devices`) and again on token refresh; remove it on logout; tapping a push (app closed or in background) opens the order and marks it read; with the app open, refresh the bell count and show a toast instead.
+
+### 2026-09-30 — Receipt PDF and profile photo (backend session)
+- **Receipt ("Pakua Risiti"):** Dompdf 3.1 added via Composer. `Receipt` class (`createReceiptForCustomer` — own orders only; `createReceiptForAdmin`) + HTML template `classes/views/receipt.php` (CHIMBO green header, buyer, delivery address copy, items with tier, totals, payment method/status in Kiswahili, Tanzania time, "ODA IMESITISHWA" stamp when cancelled). Dompdf runs with remote files off and chroot to the project. `GET /orders/{id}/receipt` returns the PDF via new `Response::download()`. Helper `localDateTime()`.
+- **Profile photo:** `User::setAvatar()` / `setAvatarFromFile()` / `removeAvatar()` (ImageUploader, 300 px WebP kept, old file deleted on replace); account deletion now deletes the photo file too. `POST /me/avatar` (multipart field `avatar`), `DELETE /me/avatar`.
+- Checked visually: receipt PDF renders correctly (fixed the column-title alignment). Live: PDF download 200 `application/pdf`, others' receipts 404, avatar upload/replace/remove, fake image rejected.
+- Tests: `tests/Integration/ReceiptAndAvatarTest.php` (7) — **145 passing**.
 
 ### 2026-09-30 — Fixes requested by the admin session (backend session)
 - **"Add order" 500 error:** `OrderManager::createManualOrder()` (added by the admin session) called `checkCashOnDeliveryLimit()` / `newOrderNumber()`, which were private in `Order`. Now `Order::newOrderNumber()`, `checkCashOnDeliveryLimit()`, `recordStatus()` and `notifyCustomer()` are public and the manual order uses them (no copied timeline/notification code; the notification now matches app orders).
@@ -38,6 +318,7 @@ Update this file at the end of every work session. Newest entry on top.
 - Status pills: order and payment statuses now have colours (new blue "info" tone) and readable names ("Awaiting payment", "Awaiting cash", "On the way"); payment methods shown as "M-Pesa", "Cash on delivery" …
 - Tested end to end with a temporary admin, customer, agent and test orders (all removed): pages, validation messages, confirmed → packed → dispatched (agent required) → delivered → cash confirmed (wrong amount refused), Finance cannot move orders.
 - Backend bugs reported the same day and fixed by the backend session: "Add order" 500 error, cancelled orders keeping "cod_pending" (new payment status `cancelled`, red pill + filter option), order sorting. Orders table now sorts by number, total and placed date (newest first by default). Re-tested end to end: Add order → stock reserved → cancel → stock and sold count restored, payment "Cancelled" (test data removed).
+- "Print receipt" button on the order page → `admin/order_receipt.php` sends the PDF from `Receipt::createReceiptForAdmin()` inline (new tab, `Cache-Control: private, no-store`); permission `orders.view`; missing order → back to the list with a message.
 
 ### 2026-09-30 — Oda on the API + ngrok header (mobile session)
 - Every API request and every network image sends `ngrok-skip-browser-warning: true` (`Env.tunnelHeaders`, used by `ApiHeadersInterceptor` and `AppNetworkImage`), so the tester APK works through the ngrok tunnel.

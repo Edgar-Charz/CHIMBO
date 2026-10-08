@@ -17,8 +17,8 @@ class Admin
     public const ROLE_PERMISSIONS = [
         'super_admin' => ['*'],
         'catalog'     => ['dashboard.view', 'products.manage', 'categories.manage', 'sellers.manage', 'banners.manage', 'inventory.manage'],
-        'operations'  => ['dashboard.view', 'orders.view', 'orders.manage', 'delivery.manage', 'customers.view', 'payments.confirm_cash'],
-        'finance'     => ['dashboard.view', 'payments.manage', 'reports.view', 'orders.view', 'customers.view'],
+        'operations'  => ['dashboard.view', 'orders.view', 'orders.manage', 'delivery.manage', 'customers.view', 'customers.manage', 'payments.confirm_cash'],
+        'finance'     => ['dashboard.view', 'payments.manage', 'reports.view', 'orders.view', 'customers.view'],   // payment_methods.manage = super admin only
     ];
 
     public const ROLE_NAMES = [

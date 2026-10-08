@@ -18,8 +18,11 @@ class User
         'district_id'   => 'nullable|int|min:1',
     ]; 
 
-    public function __construct(private Database $db)
+    private ImageUploader $uploader;
+
+    public function __construct(private Database $db, ?ImageUploader $uploader = null)
     {
+        $this->uploader = $uploader ?? new ImageUploader();
     }
 
     /**
@@ -49,11 +52,25 @@ class User
         return (int) $user['user_id'];
     }
 
-    /** True when the account exists and is active (used on every logged-in request). */
-    public function isActiveUser(int $user_id): bool
+    /**
+     * True when the account exists and is active (used on every logged-in request).
+     * $logged_in_at (website only): the login must be newer than the last "log out everywhere".
+     */
+    public function isActiveUser(int $user_id, ?string $logged_in_at = null): bool
     {
         return (bool) $this->db->fetchValue(
-            "SELECT 1 FROM users WHERE user_id = :user_id AND user_status = 'active'",
+            "SELECT 1 FROM users
+             WHERE user_id = :user_id AND user_status = 'active'
+               AND (:logged_in_at IS NULL OR user_sessions_revoked_at IS NULL OR user_sessions_revoked_at <= :logged_in_at_again)",
+            ['user_id' => $user_id, 'logged_in_at' => $logged_in_at, 'logged_in_at_again' => $logged_in_at]
+        );
+    }
+
+    /** Website sessions that logged in before now stop working (the app's tokens are revoked separately). */
+    public function revokeWebsiteSessions(int $user_id): void
+    {
+        $this->db->execute(
+            'UPDATE users SET user_sessions_revoked_at = UTC_TIMESTAMP() WHERE user_id = :user_id',
             ['user_id' => $user_id]
         );
     }
@@ -63,6 +80,7 @@ class User
     {
         $row = $this->db->fetchOne(
             'SELECT u.user_id, u.user_phone, u.user_full_name, u.user_email, u.user_avatar_path, u.user_locale, u.created_at,
+                    u.user_pin_hash IS NOT NULL AS user_has_pin,
                     b.business_profile_id, b.business_name, b.region_id, r.region_name, b.district_id, d.district_name,
                     b.business_verification_status
              FROM users u
@@ -87,6 +105,7 @@ class User
             'user_avatar_url'     => $row['user_avatar_path'] ? url($row['user_avatar_path']) : null,
             'user_locale'         => $row['user_locale'],
             'created_at'          => isoDate($row['created_at']),
+            'user_has_pin'        => (bool) $row['user_has_pin'],   // false → show "Tengeneza PIN" before anything else
             'business'            => $has_business ? [
                 'business_name'                => $row['business_name'],
                 'region_id'                    => (int) $row['region_id'],
@@ -170,6 +189,8 @@ class User
             throw ApiException::validation(['confirm' => 'Thibitisha kwamba unataka kufuta akaunti.']);
         }
 
+        $old_avatar_path = $this->currentAvatarPath($user_id);
+
         $this->db->transaction(function () use ($user_id) {
             $this->db->execute(
                 "UPDATE users
@@ -185,6 +206,67 @@ class User
             (new AuthToken($this->db))->revokeAllTokensForUser($user_id);
             (new AuditLog($this->db))->record('customer', $user_id, 'user.deleted', 'user', $user_id);
         });
+
+        // The photo file is deleted only after the account change succeeded
+        if ($old_avatar_path !== null) {
+            $this->uploader->deleteImageFiles([$old_avatar_path]);
+        }
+    }
+
+    /**
+     * Profile photo (POST /me/avatar): saves the uploaded photo ($_FILES entry) and replaces the old one.
+     * Returns the updated profile (with user_avatar_url).
+     */
+    public function setAvatar(int $user_id, ?array $uploaded_file): array
+    {
+        if ($uploaded_file === null) {
+            throw ApiException::validation(['avatar' => 'Chagua picha.']);
+        }
+
+        $paths = $this->uploader->saveUploadedFile($uploaded_file, "avatars/{$user_id}");
+        return $this->saveAvatarPaths($user_id, $paths);
+    }
+
+    /** Same as setAvatar() for a file already on the server (tests and imports). */
+    public function setAvatarFromFile(int $user_id, string $file_path): array
+    {
+        return $this->saveAvatarPaths($user_id, $this->uploader->saveImageFile($file_path, "avatars/{$user_id}"));
+    }
+
+    /** Removes the profile photo (the app goes back to showing initials). Returns the updated profile. */
+    public function removeAvatar(int $user_id): array
+    {
+        $old_avatar_path = $this->currentAvatarPath($user_id);
+
+        $this->db->execute('UPDATE users SET user_avatar_path = NULL WHERE user_id = :user_id', ['user_id' => $user_id]);
+        if ($old_avatar_path !== null) {
+            $this->uploader->deleteImageFiles([$old_avatar_path]);
+        }
+
+        return $this->getProfile($user_id);
+    }
+
+    /** Keeps the 300 px size only (a profile photo is small on screen) and deletes the previous photo. */
+    private function saveAvatarPaths(int $user_id, array $paths): array
+    {
+        $old_avatar_path = $this->currentAvatarPath($user_id);
+
+        $this->uploader->deleteImageFiles([$paths['medium'], $paths['large']]);
+        $this->db->execute(
+            'UPDATE users SET user_avatar_path = :avatar_path WHERE user_id = :user_id',
+            ['avatar_path' => $paths['thumb'], 'user_id' => $user_id]
+        );
+        if ($old_avatar_path !== null) {
+            $this->uploader->deleteImageFiles([$old_avatar_path]);
+        }
+
+        return $this->getProfile($user_id);
+    }
+
+    private function currentAvatarPath(int $user_id): ?string
+    {
+        $path = $this->db->fetchValue('SELECT user_avatar_path FROM users WHERE user_id = :user_id', ['user_id' => $user_id]);
+        return $path === null ? null : (string) $path;
     }
 
     /** One business profile per user: inserted the first time, updated after that. */

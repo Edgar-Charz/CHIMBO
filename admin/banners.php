@@ -2,7 +2,26 @@
 require __DIR__ . '/includes/admin_bootstrap.php';
 
 $current_admin = AdminSession::requireLogin('banners.manage');
-$banners       = (new Banner(Database::instance()))->getAllBannersForAdmin();
+$admin_id      = (int) $current_admin['admin_id'];
+$banner_model  = new Banner(Database::instance());
+
+// Row actions: hide/show (one-click switch; the schedule is untouched) and delete.
+$form_error = adminHandleForm(function (string $form_action) use ($banner_model, $admin_id): void {
+    $banner_id = adminActionRecordId();
+    $banner    = $banner_model->getBannerForAdmin($banner_id);
+
+    if ($form_action === 'toggle_active') {
+        $is_active = !$banner['banner_is_active'];
+        $banner_model->setBannerActive($banner_id, $is_active, $admin_id);
+        Session::flash('success', $banner['banner_title'] . ($is_active ? ' is active again.' : ' is now hidden.'));
+    } elseif ($form_action === 'delete') {
+        $banner_model->deleteBanner($banner_id, $admin_id);
+        Session::flash('success', $banner['banner_title'] . ' was deleted.');
+    }
+    redirect(url('admin/banners.php'));
+});
+
+$banners = $banner_model->getAllBannersForAdmin();
 $now_utc       = gmdate('Y-m-d H:i:s');
 
 /** What the customer sees right now: hidden, scheduled (starts later), ended or active. */
@@ -19,6 +38,8 @@ $page_title  = 'Banners';
 $active_menu = 'banners';
 require __DIR__ . '/includes/header.php';
 ?>
+
+<?php require __DIR__ . '/includes/form_alert.php'; ?>
 
 <div class="admin-page-actions">
     <p class="text-muted mb-0">Promotions on the app's Home screen, shown in this order.</p>
@@ -41,6 +62,7 @@ require __DIR__ . '/includes/header.php';
                         <th>Shows</th>
                         <th class="text-end">Order</th>
                         <th>Status</th>
+                        <th class="text-end" data-orderable="false">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -77,6 +99,16 @@ require __DIR__ . '/includes/header.php';
                             </td>
                             <td class="text-end"><?= e($banner['banner_sort_order']) ?></td>
                             <td><?= adminStatusBadge($banner_state($banner)) ?></td>
+                            <td class="text-end">
+                                <?= adminRowActions(
+                                    adminActionLink('bi-pencil', 'Edit', url('admin/banner_edit.php?id=' . $banner['banner_id'])),
+                                    $banner['banner_is_active']
+                                        ? adminActionButton('bi-eye-slash', 'Hide', 'toggle_active', (int) $banner['banner_id'])
+                                        : adminActionButton('bi-eye', 'Show', 'toggle_active', (int) $banner['banner_id']),
+                                    adminActionButton('bi-trash', 'Delete', 'delete', (int) $banner['banner_id'],
+                                        'Delete the banner "' . $banner['banner_title'] . '"? This cannot be undone.', is_danger: true),
+                                ) ?>
+                            </td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

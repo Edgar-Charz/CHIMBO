@@ -22,7 +22,10 @@ class Dashboard
                 (SELECT COUNT(*) FROM orders)                                              AS total_orders,
                 (SELECT COUNT(*) FROM orders WHERE order_status IN ('pending_payment', 'confirmed', 'packed', 'dispatched', 'in_transit')) AS active_orders,
                 (SELECT COUNT(*) FROM orders WHERE order_status = 'pending_payment')       AS orders_awaiting_payment,
-                (SELECT COUNT(*) FROM orders WHERE order_status = 'delivered')             AS delivered_orders"
+                (SELECT COUNT(*) FROM orders WHERE order_status = 'delivered')             AS delivered_orders,
+                (SELECT COUNT(*) FROM payments WHERE payment_status = 'submitted')         AS payments_awaiting_review,
+                (SELECT COUNT(*) FROM orders WHERE order_status IN ('cancelled', 'expired')
+                  AND order_payment_status = 'paid')                                       AS refunds_due"
         );
     }
 }

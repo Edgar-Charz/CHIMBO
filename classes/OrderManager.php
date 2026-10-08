@@ -98,13 +98,12 @@ class OrderManager
     {
         $products = $this->db->fetchAll(
             "SELECT p.product_id, p.product_name, p.product_sku, p.product_moq, p.product_unit_label,
-                    p.product_stock_quantity,
-                    (SELECT MAX(t.tier_unit_price) FROM product_price_tiers t WHERE t.product_id = p.product_id) AS product_price
+                    p.product_stock_quantity, p.product_price
              FROM products p
              JOIN sellers s ON s.seller_id = p.seller_id AND s.seller_status = 'active'
              JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
              WHERE p.product_is_active = 1 AND p.deleted_at IS NULL
-               AND EXISTS (SELECT 1 FROM product_price_tiers t WHERE t.product_id = p.product_id)
+               AND p.product_price IS NOT NULL
              ORDER BY p.product_name"
         );
         $tiers = $this->db->fetchAll(
@@ -461,6 +460,10 @@ class OrderManager
         );
         $order['delivery'] = $this->db->fetchOne('SELECT * FROM order_deliveries WHERE order_id = :order_id', ['order_id' => $order_id]);
         $order['allowed_next_statuses'] = self::ALLOWED_TRANSITIONS[$order['order_status']] ?? [];
+        $order['payments'] = (new Payment($this->db))->getPaymentsForOrder($order_id);   // every payment sent, newest first
+        $order['can_record_payment'] = $order['order_status'] === 'pending_payment'
+            && $order['order_payment_status'] === 'unpaid'
+            && $order['order_payment_method'] !== 'cod';
         $order['can_confirm_cash'] = $order['order_payment_method'] === 'cod'
             && $order['order_payment_status'] === 'cod_pending'
             && $order['order_status'] === 'delivered';

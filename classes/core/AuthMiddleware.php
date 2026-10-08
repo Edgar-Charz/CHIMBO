@@ -16,11 +16,15 @@ class AuthMiddleware
     {
         $db = Database::instance();
 
-        $user_id = $request->bearerToken() !== null
+        $is_app  = $request->bearerToken() !== null;
+        $user_id = $is_app
             ? (new AuthToken($db))->findUserIdByToken($request->bearerToken())
             : $this->userIdFromWebsiteSession($request);
 
-        if ($user_id === null || !(new User($db))->isActiveUser($user_id)) {
+        // Website logins older than a "log out everywhere" (e.g. PIN changed) no longer count
+        $logged_in_at = $is_app ? null : (CustomerSession::loggedInAt() ?? '1970-01-01 00:00:00');
+
+        if ($user_id === null || !(new User($db))->isActiveUser($user_id, $logged_in_at)) {
             throw ApiException::unauthenticated('Tafadhali ingia tena ili kuendelea.');
         }
 

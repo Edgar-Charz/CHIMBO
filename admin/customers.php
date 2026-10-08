@@ -59,6 +59,7 @@ require __DIR__ . '/includes/header.php';
                 <th data-column="status" data-sort="user_status">Status</th>
                 <th data-column="joined" data-sort="created_at" data-cell-class="text-nowrap">Joined</th>
                 <th data-column="last_login" data-sort="user_last_login_at" data-cell-class="text-nowrap">Last login</th>
+                <th data-column="actions" data-cell-class="text-end" class="text-end">Actions</th>
             </tr>
         </thead>
     </table>

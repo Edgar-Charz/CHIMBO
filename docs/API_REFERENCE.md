@@ -11,11 +11,20 @@ This file lists only endpoints that **exist and are tested**. The full plan is i
 - **Image and link URLs use the address you called the API with** (emulator → `http://10.0.2.2/chimbo/…`, phone on Wi-Fi → `http://192.168.x.x/chimbo/…`, production → its domain). Unknown hosts fall back to `APP_URL`.
 - **Mobile app login:** header `Authorization: Bearer <auth_token>`.
 - **Website login:** session cookie (sent automatically by the browser) + header `X-CSRF-Token: <csrf_token>` on every POST/PATCH/DELETE.
+- **Compression:** answers of 1 KB or more are gzip-compressed when the request says `Accept-Encoding: gzip` (browsers and Dart's `http`/`dio` do this by themselves). Home shrinks from ~8 KB to ~1.3 KB.
+- **Photos** under `/media/` are cached for a year (`Cache-Control: immutable`) — a changed photo always gets a new file name, so never add `?v=` to image URLs.
 
 ## System
 | Method | Path | Auth | Returns |
 |---|---|---|---|
 | GET | `/health` | — | `{status, app, version, database, time}` |
+
+## Support and legal pages (public)
+| Method | Path | Answer |
+|---|---|---|
+| GET | `/support` | `{support_phone, support_whatsapp, support_whatsapp_url, support_hours}` — "Msaada": call button `tel:`, WhatsApp button = `support_whatsapp_url` |
+| GET | `/app-images` | `[{app_image_slot, app_image_url, updated_at}]` — pictures staff uploaded for the app's fixed screens. Slots: `onboarding_products`, `onboarding_wholesale`, `onboarding_delivery`, `auth_welcome`, `auth_verify`, `auth_business`, `order_success`. A slot missing from the list → use the picture built into the app. A new upload always has a new URL (cache by URL) |
+| GET | `/pages/terms` · `/pages/privacy` | `{page_title, page_body, updated_at}` — `page_body` is plain text, paragraphs separated by an empty line (escape it, then split on `\n\n`). Other names → 404 `NOT_FOUND` |
 
 ## Locations
 | Method | Path | Auth | Returns |
@@ -23,9 +32,44 @@ This file lists only endpoints that **exist and are tested**. The full plan is i
 | GET | `/regions` | — | `[{region_id, region_name}]` |
 | GET | `/regions/{region_id}/districts` | — | `[{district_id, district_name}]` · 404 `NOT_FOUND` |
 
-## Customer login (phone + OTP — registration and login are the same steps)
+## Customer login (phone → PIN; new numbers: phone → SMS code → create PIN → business details)
 
-### 1. `POST /auth/otp/request` — send the code (also "Tuma tena")
+**Screens and calls**
+| Case | Calls |
+|---|---|
+| Phone number screen (everyone) | `POST /auth/start` → `next_step` says which screen is next |
+| `next_step: "otp"` (new number, or no PIN yet) | code already sent → `POST /auth/otp/verify` → `POST /auth/pin` (Tengeneza PIN) → `POST /auth/profile` (business details) |
+| `next_step: "pin"` | `POST /auth/pin/login` |
+| `next_step: "pin_locked"` or "Umesahau PIN?" | `POST /auth/otp/request` → `POST /auth/otp/verify` → `POST /auth/pin` (new PIN, no old PIN needed) |
+| Wasifu → "Badilisha PIN" | `POST /auth/pin` with `current_pin` |
+
+After **any** login (and on app start with `GET /auth/me`) check the profile in this order:
+`user_has_pin: false` → "Tengeneza PIN" · else `is_profile_complete: false` → business details · else → Home.
+
+### `POST /auth/start` — the phone number screen
+Body: `{"user_phone": "0712 345 678"}`
+```json
+{"user_phone": "+255712345678", "next_step": "pin"}
+{"user_phone": "+255712345678", "next_step": "pin_locked"}
+{"next_step": "otp", "user_phone": "+255712345678", "otp_expires_in_seconds": 300, "otp_resend_after_seconds": 60, "debug_otp_code": "849144"}
+```
+`pin_locked` = 5 wrong PINs: show "PIN imefungwa…" with a button to "Umesahau PIN?". For `otp` the SMS code has **already been sent** (same fields as `/auth/otp/request`).
+Errors: `VALIDATION_ERROR` · `FORBIDDEN` (suspended account) · `RATE_LIMITED` (429, 30 numbers per hour per device) · the `/auth/otp/request` errors for `otp`.
+
+### `POST /auth/pin/login` — the PIN screen
+Body: `{"user_phone": "0712345678", "user_pin": "4826", "client": "app", "auth_token_device_name": "Tecno Spark 10", "auth_token_platform": "android"}`
+Send the PIN as **text** (keeps a leading zero). Same answer and `client` rules as `/auth/otp/verify` (web needs `X-CSRF-Token`).
+Errors: `PIN_INVALID` (422, message says "Umebakiza majaribio N") · `PIN_LOCKED` (423 → "Umesahau PIN?") · `FORBIDDEN` (suspended) · `RATE_LIMITED` · `CSRF_INVALID` (web).
+
+### `POST /auth/pin` · 🔒 — create, reset or change the PIN
+Body: `{"user_pin": "4826", "user_pin_confirmation": "4826", "current_pin": "5930"}`
+- **Tengeneza PIN** (no PIN yet) and **new PIN after "Umesahau PIN?"**: no `current_pin`. A device that logged in with an SMS code may set a new PIN without the old one **once, within 15 minutes**.
+- **Badilisha PIN** (Wasifu): `current_pin` required; wrong tries count towards the 5-try lock.
+- Rules: 4–6 digits; refused when easy to guess (`0000`, `1234`, `9876`, the end of the customer's phone number) — the message is in `fields.user_pin`. Mismatch → `fields.user_pin_confirmation`.
+- Replacing a PIN **logs out every other device** (app and website); this device stays logged in.
+Returns the profile. Errors: `VALIDATION_ERROR` (`user_pin`, `user_pin_confirmation`, `current_pin`) · `PIN_INVALID` / `PIN_LOCKED` (wrong current PIN).
+
+### `POST /auth/otp/request` — send the SMS code ("Umesahau PIN?", "Tuma tena")
 Body: `{"user_phone": "0712 345 678"}` (any Tanzanian format)
 ```json
 {"user_phone": "+255712345678", "otp_expires_in_seconds": 300, "otp_resend_after_seconds": 60,
@@ -34,7 +78,7 @@ Body: `{"user_phone": "0712 345 678"}` (any Tanzanian format)
 `debug_otp_code` exists only in **"show code" mode** (`OTP_SHOW_CODE=true`) on a local or staging server — the app should auto-fill/show it when present. It is **never** sent when `APP_ENV=production`.
 Errors: `VALIDATION_ERROR` (bad phone) · `OTP_RESEND_TOO_SOON` (429, message says how many seconds) · `RATE_LIMITED` (429) · `SMS_FAILED` (503).
 
-### 2. `POST /auth/otp/verify` — check the code, log in
+### `POST /auth/otp/verify` — check the SMS code, log in
 Body:
 ```json
 {"user_phone": "0712345678", "otp_code": "849144", "client": "app",
@@ -45,10 +89,10 @@ Body:
 ```json
 {"user": { …profile, see below… }, "auth_token": "b27a…cdb", "auth_token_expires_at": "2026-11-27T14:39:44+00:00"}
 ```
-If `user.is_profile_complete` is `false` → show registration step 3.
+Then follow the profile checks above (`user_has_pin`, then `is_profile_complete`).
 Errors: `OTP_INVALID` (422) · `OTP_EXPIRED` (422: expired, used, or replaced by a newer code — ask for a new one) · `OTP_TOO_MANY_ATTEMPTS` (429) · `FORBIDDEN` (suspended account) · `CSRF_INVALID` (web).
 
-### 3. `POST /auth/profile` — registration step 3 (also edits later) · 🔒
+### `POST /auth/profile` — business details step (also edits later) · 🔒
 Body: `{"user_full_name": "Joyce Joseph", "business_name": "Duka la Joyce", "region_id": 2, "district_id": 8}`
 (`business_name` and `district_id` optional; the district must belong to the region.) Returns the profile.
 
@@ -59,12 +103,12 @@ Body: `{"user_full_name": "Joyce Joseph", "business_name": "Duka la Joyce", "reg
 ### Profile object
 ```json
 {"user_id": 1, "user_phone": "+255712000111", "user_full_name": "Joyce Joseph", "user_email": null,
- "user_avatar_url": null, "user_locale": "sw", "created_at": "2026-09-28T14:39:44+00:00",
+ "user_avatar_url": null, "user_locale": "sw", "created_at": "2026-09-28T14:39:44+00:00", "user_has_pin": true,
  "business": {"business_name": "Duka la Joyce", "region_id": 2, "region_name": "Dar es Salaam",
               "district_id": 8, "district_name": "Ilala", "business_verification_status": "unverified"},
  "is_profile_complete": true}
 ```
-`business` is `null` until step 3 is done. 🔒 endpoints answer `401 UNAUTHENTICATED` without a valid login → send the user to the phone screen.
+`business` is `null` until the business details step is done. `user_has_pin: false` → show "Tengeneza PIN" first. 🔒 endpoints answer `401 UNAUTHENTICATED` without a valid login → send the user to the phone screen.
 
 ## My account ("Wasifu") · 🔒 all
 | Method | Path | Body | Returns |
@@ -74,7 +118,9 @@ Body: `{"user_full_name": "Joyce Joseph", "business_name": "Duka la Joyce", "reg
 | PATCH | `/me/business` | `business_name` (optional), `region_id`, `district_id` (optional, must be in the region) | profile |
 | DELETE | `/me` | `{"confirm": true}` | `null` — personal data removed, every login ended; the phone number can register again as a new account |
 
-Avatar upload (`POST /me/avatar`) comes later, with the shared image uploader.
+**Profile photo:**
+- `POST /me/avatar` — **file upload** (`multipart/form-data`) with the field **`avatar`** (JPG, PNG or WEBP, up to 8 MB, at least 200 px) → the profile with the new `user_avatar_url` (a 300 px WebP). A new photo replaces the old one. Error: `INVALID_IMAGE` (422) with a Kiswahili message.
+- `DELETE /me/avatar` → the profile with `user_avatar_url: null` (show initials again).
 
 ## Catalog — Nyumbani & Gundua (public, no login needed)
 | Method | Path | Returns |
@@ -126,7 +172,7 @@ Everything on the card, plus:
 | POST | `/wishlist` | `{"product_id": 7}` | `null` (saving twice is fine) · 404 if the product isn't in the shop |
 | DELETE | `/wishlist/{product_id}` | — | `null` |
 
-## Cart — Kikapu · 🔒 all · every call returns the whole priced cart
+## Cart — Kikapu · 🔒 all except `/cart/preview` · every call returns the whole priced cart
 | Method | Path | Body |
 |---|---|---|
 | GET | `/cart` | — |
@@ -134,6 +180,7 @@ Everything on the card, plus:
 | PATCH | `/cart/items/{product_id}` | `{"quantity": 12}` — sets the quantity |
 | DELETE | `/cart/items/{product_id}` | — |
 | DELETE | `/cart` | — empties the cart |
+| POST | `/cart/preview` | **public (no login)** — website guests: prices the cart kept in the browser **without saving anything**. Body `{"items": [{"product_id": 1, "quantity": 8}]}` (max 100 items; the same product twice is added together) → **the same shape as `GET /cart`**. Below-MOQ / not-enough-stock lines come back with `line_problem` (not an error); unknown or hidden products are left out and listed in `warnings`. Invalid body → `VALIDATION_ERROR` (`fields` like `items.0.quantity`). No CSRF check needed (read-only); limit 600 calls/hour per IP. |
 | POST | `/cart/merge` | website after login: `{"items": [{"product_id": 1, "quantity": 8}]}` → cart + `skipped_items[{product_id, message}]` (bigger quantity wins) |
 
 ```json
@@ -163,7 +210,8 @@ Everything on the card, plus:
 Address: `{address_id, address_recipient_name, address_phone, region_id, region_name, district_id, district_name, address_street, address_landmark, address_is_default}`.
 
 ## Checkout · 🔒 all
-- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_days_min, delivery_days_max, region_id}], "payment_methods": ["cod"]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` lists what is switched on (only `cod` until mobile money is connected).
+- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_days_min, delivery_days_max, region_id}], "payment_methods": ["mpesa", "cod"], "payment_method_details": [ …payment method objects… ]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the codes staff switched on; `payment_method_details` = the same methods with their name and "pay to" details (show the name in the list; show the pay-to box after ordering).
+- **Payment method object** (also `GET /payment-methods`, public): `{payment_method_code, payment_method_name, payment_method_type (mobile_money | bank | cash), payment_method_account_name, payment_method_account_number (Lipa Namba / phone / bank account), payment_method_bank_name, payment_method_instructions}`.
 - `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` → `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, discount_total, grand_total, delivery_days_min, delivery_days_max}`. Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
 
 ## Orders — Oda · 🔒 all
@@ -173,6 +221,9 @@ Address: `{address_id, address_recipient_name, address_phone, region_id, region_
 | GET | `/orders?group=active\|delivered\|all&page=1` | "Oda Zangu" (paginated, newest first). `active` = Zinazoendelea, `delivered` = Zimefika |
 | GET | `/orders/{id}` (also `/orders/{id}/tracking`) | the order with items, `events` (timeline) and `delivery_agent` |
 | POST | `/orders/{id}/cancel` | `{"order_cancel_reason"}` (optional) → the order. Only while `can_cancel` is true (before packing). |
+| GET | `/orders/{id}/receipt` | "Pakua Risiti": the receipt as a **PDF file** (`Content-Type: application/pdf`, file name `Risiti-CHB123456.pdf`) — download and open/share it. Own orders only (404 otherwise). |
+| POST | `/orders/{id}/payment` | **"Nimelipa"**: `{"payment_payer_account": "0712345678", "payment_reference": "QJK3X7ABC1"}` → the order. Only while `payment.can_submit_payment` is true. For `bank`, `payment_payer_account` is the account / name paid from. |
+| POST | `/orders/{id}/payment-method` | **"Badilisha njia ya malipo"**: `{"payment_method": "airtel_money"}` → the order. Only while `payment.can_change_payment_method` is true. To `cod`: same cash limit as checkout, and the order becomes `confirmed` / `cod_pending` at once. The time to pay does not restart. |
 | POST | `/orders/{id}/reorder` | "Agiza Tena" → the cart + `skipped_items` (current prices; unavailable items skipped) |
 
 Place-order errors: `PRICE_CHANGED` (409 — the message has the new total; show Hakiki again), `CART_EMPTY`, `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `payment_method` (not enabled, or cash-on-delivery above the limit) or `delivery_method_id`.
@@ -194,7 +245,11 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
             "order_item_unit_label": "pc", "order_item_quantity": 8, "order_item_unit_price": 5000,
             "order_item_tier_min_quantity": 6, "order_item_line_total": 40000}],
  "events": [{"order_status": "confirmed", "status_note": null, "created_at": "2026-09-29T13:10:00+00:00"}],
- "delivery_agent": null}
+ "delivery_agent": null,
+ "payment": {"payment_method": { …payment method object… }, "payment_amount": 96000, "payment_note_hint": "CHB765068",
+             "can_submit_payment": false, "can_change_payment_method": false,
+             "latest_payment": {"payment_id": 4, "payment_payer_account": "+255712000111", "payment_reference": "QJK3X7ABC1",
+                                "payment_status": "submitted", "payment_review_note": null, "created_at": "…"}}}
 ```
 - `order_status`: `pending_payment`, `confirmed`, `packed`, `dispatched`, `in_transit`, `delivered`, `cancelled`, `expired`. Cash on delivery starts at `confirmed`.
 - `order_payment_status`: `unpaid`, `pending`, `paid`, `cod_pending` (cash to collect on delivery), `refunded`, `failed`, `cancelled` (the order was cancelled/expired before payment — nothing is owed).
@@ -202,6 +257,17 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 - `delivery_agent` (from `dispatched` on): `{delivery_agent_full_name, delivery_agent_phone, delivery_agent_photo_url}`.
 - `address` is a **copy** made when ordering (it has no `address_id`).
 - `GET /home` with a login now also fills `recently_ordered` ("Uliagiza Hivi Karibuni").
+
+**Paying by mobile money or bank (checked by CHIMBO staff until a provider is connected)**
+1. The order is placed as `pending_payment` / `unpaid` with `order_expires_at` (24 hours by default).
+2. Order screen, while `payment.can_submit_payment`: show the pay-to box — "Lipa **TZS {payment_amount}** kwa {payment_method_name}: **{payment_method_account_number}** ({payment_method_account_name})", the bank name for banks, `payment_method_instructions`, and "Andika **{payment_note_hint}** kama maelezo/kumbukumbu" — then the **"Nimelipa"** form (number paid from + confirmation code from the SMS).
+3. After sending: `order_payment_status` = `pending`, `latest_payment.payment_status` = `submitted` → show "Tunakagua malipo yako". Cancelling is blocked while it is checked (`can_cancel` false).
+4. Staff confirm → order `confirmed`, payment `paid` (notification "Oda imethibitishwa"). Staff reject → payment `unpaid` again, `latest_payment.payment_status` = `rejected` with `payment_review_note` (show it), notification type `payment`, and the form is shown again.
+5. A paid order that is cancelled is refunded by staff → `order_payment_status` = `refunded` (notification "Pesa imerudishwa").
+
+`POST /orders/{id}/payment` errors: `VALIDATION_ERROR` (`payment_payer_account`: not a Tanzanian mobile number; `payment_reference`: 6–30 letters/digits, or already used) · `PAYMENT_UNDER_REVIEW` (409, already sent) · `PAYMENT_TIME_OVER` (409) · `PAYMENT_NOT_EXPECTED` (409: cash order or not waiting for payment) · `NOT_FOUND`.
+`POST /orders/{id}/cancel` can also answer `PAYMENT_UNDER_REVIEW` (409).
+`POST /orders/{id}/payment-method` errors: `VALIDATION_ERROR` on `payment_method` (switched off, or cash above the limit) · `PAYMENT_UNDER_REVIEW` · `PAYMENT_METHOD_LOCKED` (409: cash order, paid, or not waiting for payment) · `PAYMENT_TIME_OVER`.
 
 ## Notifications (the bell) · 🔒 all
 | Method | Path | Returns |

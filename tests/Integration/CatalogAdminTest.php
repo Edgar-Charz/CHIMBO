@@ -108,6 +108,10 @@ final class CatalogAdminTest extends TestCase
         ]]), self::ADMIN_ID);
 
         $this->assertSame([['tier_min_quantity' => 1, 'tier_unit_price' => 1500]], (new Product($this->db))->getPriceTiers($product_id));
+
+        // The stored list prices follow the new tiers
+        $stored = $this->db->fetchOne('SELECT product_price, product_price_from FROM products WHERE product_id = :id', ['id' => $product_id]);
+        $this->assertSame(['product_price' => 1500, 'product_price_from' => 1500], array_map('intval', $stored));
     }
 
     public function testStockCannotGoBelowZeroAndEveryChangeIsRecorded(): void

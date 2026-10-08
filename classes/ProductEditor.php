@@ -22,11 +22,9 @@ class ProductEditor
     private const DEFAULT_PER_PAGE   = 25;
 
     // Columns the admin list can be sorted by. Only these fixed strings ever reach ORDER BY.
-    // (Sorting by price is calculated from the tiers for each product — fine for thousands of products;
-    // with tens of thousands, add a stored price column or index.)
     private const SORT_COLUMNS = [
         'product_name'           => 'p.product_name',
-        'product_price'          => 'product_price',              // the normal price (highest tier), from the SELECT
+        'product_price'          => 'p.product_price',            // the normal price (highest tier), stored by saveTiers()
         'product_stock_quantity' => 'p.product_stock_quantity',
         'created_at'             => 'p.created_at',
     ];
@@ -94,9 +92,8 @@ class ProductEditor
                     p.product_stock_quantity, p.product_is_active, p.product_is_bestseller, p.product_compare_at_price,
                     p.updated_at, p.created_at,
                     s.seller_name, c.category_name, parent.category_name AS parent_category_name,
-                    image.product_image_thumb_path,
-                    (SELECT MAX(tier_unit_price) FROM product_price_tiers t WHERE t.product_id = p.product_id) AS product_price,
-                    (SELECT MIN(tier_unit_price) FROM product_price_tiers t WHERE t.product_id = p.product_id) AS product_price_from
+                    p.product_price, p.product_price_from,
+                    image.product_image_thumb_path
              {$from_sql}
              WHERE {$where_sql}
              ORDER BY {$order_by}
@@ -377,6 +374,23 @@ class ProductEditor
                 ['product_id' => $product_id] + $tier
             );
         }
+        $this->refreshStoredPrices($product_id);
+    }
+
+    /**
+     * Copies the normal price (highest tier) and the "kuanzia" price (lowest tier) onto the product,
+     * so product lists can filter and sort by price without reading every tier.
+     * Call it after any change to a product's tiers.
+     */
+    public function refreshStoredPrices(int $product_id): void
+    {
+        $this->db->execute(
+            'UPDATE products
+             SET product_price      = (SELECT MAX(tier_unit_price) FROM product_price_tiers WHERE product_id = :tier_product_id),
+                 product_price_from = (SELECT MIN(tier_unit_price) FROM product_price_tiers WHERE product_id = :min_product_id)
+             WHERE product_id = :product_id',
+            ['tier_product_id' => $product_id, 'min_product_id' => $product_id, 'product_id' => $product_id]
+        );
     }
 
     /** Validated data → values for the INSERT/UPDATE (slug and SKU filled in, checkboxes to 0/1). */
@@ -440,5 +454,12 @@ class ProductEditor
         };
 
         return [implode(' AND ', $conditions), $params];
+    }
+
+
+    /** "Hide / Show" in the product list: changes only product_is_active. Returns false when nothing changed. */
+    public function setProductActive(int $product_id, bool $is_active, int $admin_id): bool
+    {
+        return (new RecordSwitch($this->db))->set('products', 'product_id', $product_id, 'product_is_active', (int) $is_active, $admin_id, 'product', 'deleted_at IS NULL');
     }
 }

@@ -169,4 +169,11 @@ class Banner
             'banner_target_value' => $row['banner_target_value'],
         ], $rows);
     }
+
+
+    /** "Hide / Show": changes only banner_is_active (the schedule is left untouched). Returns false when nothing changed. */
+    public function setBannerActive(int $banner_id, bool $is_active, int $admin_id): bool
+    {
+        return (new RecordSwitch($this->db))->set('banners', 'banner_id', $banner_id, 'banner_is_active', (int) $is_active, $admin_id, 'banner');
+    }
 }

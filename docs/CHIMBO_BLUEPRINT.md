@@ -193,6 +193,8 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 | R-19 | OTP rate limits / anti-SMS-fraud | SMS credit abuse | MVP |
 | R-20 | **Web storefront** with the same account, cart and orders as the app | Customers on computers; Google can index products | MVP (Phase 7) |
 | R-21 | Crash reporting & analytics | Field issues | v1.1 |
+| R-23 | **PIN login** (4–6 digits, like M-Pesa) — phone → PIN; SMS code only for new numbers and "Umesahau PIN?" (design in §12.5) | Saves an SMS per login; works when SMS is slow | Before the first beta (built 2026-09-30) |
+| R-22 | **Time-limited offers ("Ofa")** — a % discount on a product for a set period, with a countdown (design in §12.4) | Brings shop owners back; clears slow stock | Before the first beta |
 
 ---
 
@@ -716,6 +718,40 @@ Auth: **P** public · **O** optional login · **A** logged-in customer (token or
 4. `quantity < moq` → `MOQ_NOT_MET` (checkout blocked). `quantity > stock_qty` → `OUT_OF_STOCK`.
 Used by cart, preview, order creation, web pages, admin and receipts.
 
+### 12.5 PIN login (built, R-23)
+**Registration:** phone → SMS code → **Tengeneza PIN** (enter + confirm) → business details → Home.
+**Login:** phone → **PIN** (with "Umesahau PIN?") → Home.
+**Umesahau PIN?:** SMS code → new PIN + confirm → Home. **Badilisha PIN** (Wasifu): current PIN + new PIN.
+
+Rules (`CustomerPin`, `CustomerAuth`):
+1. `POST /auth/start` answers `pin`, `pin_locked` or `otp` (and sends the code). It shows whether a number is registered — accepted, like WhatsApp/M-Pesa — so it is limited to 30 numbers per hour per device.
+2. Stored as bcrypt of an HMAC keyed with `APP_KEY`. Changing `APP_KEY` makes every PIN stop working (customers then use "Umesahau PIN?").
+3. 5 wrong PINs in a row **lock** the PIN; only a new PIN after an SMS code unlocks it. A right PIN resets the counter.
+4. Refused PINs: one repeated digit, counting up/down (`1234`, `9876`, `123456`), the end of the customer's phone number.
+5. A device that logged in with an SMS code may set a new PIN without the old one once, within 15 minutes (`auth_tokens.auth_token_pin_reset_until` / the web session). A stolen phone that is already logged in cannot change the PIN without the current PIN.
+6. Replacing a PIN logs out every other device: app tokens are revoked; website sessions older than `users.user_sessions_revoked_at` stop working.
+7. Staff can force a reset (lock + log out everywhere) but can never see or set a PIN.
+
+### 12.4 Time-limited offers — "Ofa" (planned, R-22)
+Built after the 2026-09-30 speed work and before the first beta.
+
+**What the customer sees:** an "Ofa −15%" badge on the card, the old price crossed out next to the offer price, and a countdown on the product page ("Inaisha baada ya saa 5"). A Home rail "Ofa za muda" lists running offers.
+
+**Rules**
+1. One offer per product at a time: a **percentage** (1–90) taken off **every tier**, so bulk prices still get cheaper with quantity. Prices are rounded to whole shillings.
+2. Each offer has a start and an end date-time (entered in East Africa time, stored in UTC). It starts and ends by itself — no cron job, the server compares the time on every request.
+3. The server alone decides whether an offer is running. `Pricing::priceLine` applies it, so cart, checkout, orders, receipts, website and admin all agree.
+4. If an offer ends while a customer is checking out, the existing `PRICE_CHANGED` check stops the order and shows the new total. The order copies the price actually charged, so it never changes afterwards.
+5. The stored list prices (`product_price`, `product_price_from`) stay the normal prices; the listing works out the offer price for the page it returns.
+6. Not in the first version: quantity limits ("first 100 pieces"), a limit per customer, coupon codes, offers on a whole category.
+
+**Build list**
+- Migration: `product_offers` (`product_offer_id`, `product_id`, `product_offer_percent`, `product_offer_starts_at`, `product_offer_ends_at`, `created_by_admin_id`, timestamps; index on `product_id, product_offer_ends_at`).
+- Backend: `ProductOffer` class (create / end early / list for the admin, with audit log), `Pricing` takes the running percentage, product cards and the product page gain `product_offer_percent`, `product_offer_ends_at` and the offer price; `collection=offers` for the Home rail and Gundua.
+- Admin: an "Ofa" box on the product form (percent, start, end) and an offers list.
+- App and website: badge, crossed-out price, countdown, Home rail.
+- Tests: offer running / not started / ended, all tiers discounted, `PRICE_CHANGED` when an offer ends mid-checkout.
+
 ---
 
 ## 13. Payment architecture
@@ -838,6 +874,8 @@ Location: **`C:\xampp\htdocs\chimbo\admin\`** — PHP + Bootstrap 5, page-per-fi
 **Web storefront** — the same features in a responsive PHP + JS website, plus public catalog pages for guests (onboarding slides replaced by a Home hero section).
 
 **Admin** — login/roles, categories, sellers, products (tiers, images, stock), banners, orders & statuses, delivery agents, payments & COD, customers & verification, reports, settings, audit log.
+
+**Before the first beta:** time-limited offers "Ofa" (§12.4).
 
 **Not in MVP** (in the document, deferred on purpose): camera/image search · live map tracking · ratings display · in-app seller chat · "Punguzo" cart discounts/coupons · bank payment (unless the aggregator includes it).
 

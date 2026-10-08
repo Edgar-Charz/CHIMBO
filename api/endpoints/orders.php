@@ -41,9 +41,29 @@ $router->group('/orders', function (Router $router) {
         return Response::success($order_model->cancelOrder($request->user()['user_id'], (int) $request->param('id'), $request->all()));
     });
 
+    // POST /api/v1/orders/{id}/payment — "Nimelipa": the number paid from + the confirmation code; staff then check it.
+    // Body: { "payment_payer_account": "0712345678", "payment_reference": "QJK3X7ABC1" } → the order
+    $router->post('/{id}/payment', function (Request $request) {
+        $payment_model = new Payment(Database::instance());
+        return Response::success($payment_model->submitPayment($request->user()['user_id'], (int) $request->param('id'), $request->all()));
+    });
+
+    // POST /api/v1/orders/{id}/payment-method — "Badilisha njia ya malipo" while the order waits for payment.
+    // Body: { "payment_method": "airtel_money" | "cod" | … } → the order
+    $router->post('/{id}/payment-method', function (Request $request) {
+        $payment_model = new Payment(Database::instance());
+        return Response::success($payment_model->changePaymentMethod($request->user()['user_id'], (int) $request->param('id'), $request->all()));
+    });
+
     // POST /api/v1/orders/{id}/reorder — "Agiza Tena": puts the products back in the cart → the cart + skipped_items
     $router->post('/{id}/reorder', function (Request $request) {
         return Response::success((new Order(Database::instance()))->reorder($request->user()['user_id'], (int) $request->param('id')));
+    });
+
+    // GET /api/v1/orders/{id}/receipt — "Pakua Risiti": the receipt as a PDF file (the customer's own orders only)
+    $router->get('/{id}/receipt', function (Request $request) {
+        $receipt = (new Receipt(Database::instance()))->createReceiptForCustomer($request->user()['user_id'], (int) $request->param('id'));
+        return Response::download($receipt['pdf'], 'application/pdf', $receipt['file_name']);
     });
 
 }, [AuthMiddleware::class]);

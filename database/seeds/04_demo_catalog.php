@@ -76,6 +76,7 @@ return function (Database $db) use ($categories, $sellers, $products): void {
         }
 
         // Products with their tier prices and opening stock
+        $product_editor = new ProductEditor($db);
         foreach ($products as $number => [$name, $brand, $seller, $chip, $unit, $moq, $stock, $tiers, $flags]) {
             $product_id = $db->insert(
                 'INSERT INTO products (
@@ -111,6 +112,7 @@ return function (Database $db) use ($categories, $sellers, $products): void {
                     ['product_id' => $product_id, 'tier_min_quantity' => $min_quantity, 'tier_unit_price' => $unit_price]
                 );
             }
+            $product_editor->refreshStoredPrices($product_id);
 
             $db->insert(
                 "INSERT INTO inventory_movements (product_id, movement_quantity_change, movement_reason, movement_note)

@@ -4,12 +4,19 @@
 Options -Indexes
 DirectoryIndex index.php
 
+# Unknown addresses show the shop's own "Ukurasa haupo" page (the path must start with the shop folder)
+ErrorDocument 404 /chimbo/404.php
+
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
     # Block private folders (defence in depth: most also have their own "Require all denied")
     RewriteRule ^(\.git|\.claude|classes|config|database|cron|storage|tests|vendor|docs|includes)(/|$) - [F,L]
     RewriteRule ^(admin/includes|api/endpoints)(/|$) - [F,L]
+
+    # Customer storefront category pages use stable ids with readable slugs.
+    RewriteRule ^c/([0-9]+)(?:-[^/]+)?/?$ category.php?id=$1 [QSA,L]
+    RewriteRule ^p/([0-9]+)(?:-[^/]+)?/?$ product.php?id=$1 [QSA,L]
 </IfModule>
 
 # Block hidden files (.env, .gitignore, .htaccess …)

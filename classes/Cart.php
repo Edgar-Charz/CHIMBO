@@ -30,45 +30,111 @@ class Cart
     public function getCart(int $user_id): array
     {
         $rows = $this->db->fetchAll(
-            'SELECT ci.product_id, ci.cart_item_quantity, p.product_name, p.product_moq, p.product_stock_quantity,
-                    COALESCE(parent.category_name, c.category_name) AS group_name
-             FROM cart_items ci
-             JOIN products p   ON p.product_id = ci.product_id
-             JOIN categories c ON c.category_id = p.category_id
-             LEFT JOIN categories parent ON parent.category_id = c.parent_category_id
-             WHERE ci.user_id = :user_id
-             ORDER BY COALESCE(parent.category_sort_order, c.category_sort_order), ci.created_at, ci.cart_item_id',
+            'SELECT product_id, cart_item_quantity FROM cart_items WHERE user_id = :user_id ORDER BY created_at, cart_item_id',
             ['user_id' => $user_id]
         );
+        $quantities = array_column($rows, 'cart_item_quantity', 'product_id');
+
+        $priced = $this->priceItems($quantities);
+
+        // Products that left the shop are taken out of the saved cart
+        foreach ($priced['unavailable_product_ids'] as $product_id) {
+            $this->deleteLine($user_id, $product_id);
+        }
+
+        return $priced['cart'];
+    }
+
+    /**
+     * Website guests keep their cart in the browser. This prices that list exactly like a saved cart
+     * (same shape as getCart()), but saves nothing. Lines below the MOQ or above the stock come back
+     * with "line_problem"; unknown or hidden products are left out and listed in "warnings".
+     * Body: {"items": [{"product_id": 1, "quantity": 8}, …]} — the same product twice is added together.
+     */
+    public function previewGuestCart(array $input): array
+    {
+        $data = Validator::validate($input, ['items' => 'required|array|max:' . self::MAX_LINES]);
+
+        $quantities = [];
+        $errors     = [];
+        foreach (array_values($data['items']) as $index => $item) {
+            try {
+                $item = Validator::validate(is_array($item) ? $item : [], [
+                    'product_id' => 'required|int|min:1',
+                    'quantity'   => 'required|int|min:1|max:' . self::MAX_QUANTITY,
+                ]);
+                $quantities[$item['product_id']] = min(self::MAX_QUANTITY, ($quantities[$item['product_id']] ?? 0) + $item['quantity']);
+            } catch (ApiException $e) {
+                foreach ($e->fields() as $field => $message) {
+                    $errors["items.{$index}.{$field}"] = $message;
+                }
+            }
+        }
+        if ($errors) {
+            throw ApiException::validation($errors);
+        }
+
+        return $this->priceItems($quantities)['cart'];
+    }
+
+    /**
+     * The ONE place a cart is priced — used by the saved cart (getCart) and the guest preview.
+     * $quantities: [product_id => quantity], in the order the products were added.
+     * Returns the priced cart, and the ids of products that are no longer in the shop.
+     */
+    private function priceItems(array $quantities): array
+    {
+        $product_ids = array_map('intval', array_keys($quantities));
+        if ($product_ids === []) {
+            return ['cart' => $this->formatCart([], []), 'unavailable_product_ids' => []];
+        }
+
+        // Name, MOQ, stock and the top category (for grouping) of each product; the ids are whole numbers
+        $products = array_column($this->db->fetchAll(
+            'SELECT p.product_id, p.product_name, p.product_moq, p.product_stock_quantity,
+                    COALESCE(parent.category_name, c.category_name) AS group_name,
+                    COALESCE(parent.category_sort_order, c.category_sort_order) AS group_sort_order
+             FROM products p
+             JOIN categories c ON c.category_id = p.category_id
+             LEFT JOIN categories parent ON parent.category_id = c.parent_category_id
+             WHERE p.product_id IN (' . implode(', ', $product_ids) . ')'
+        ), null, 'product_id');
 
         $product_model = new Product($this->db);
-        $product_ids   = array_map('intval', array_column($rows, 'product_id'));
         $cards_by_id   = array_column($product_model->getProductCardsByIds($product_ids), null, 'product_id');
         $tiers_by_id   = $product_model->getPriceTiersForProducts($product_ids);
 
-        $groups   = [];
-        $warnings = [];
-        foreach ($rows as $row) {
-            $product_id = (int) $row['product_id'];
+        // Group order follows the categories (Cosmetics before Jewelry); inside a group, the order added
+        $sorted_ids = $product_ids;
+        usort($sorted_ids, fn (int $first, int $second) =>
+            [$products[$first]['group_sort_order'] ?? PHP_INT_MAX, array_search($first, $product_ids, true)]
+            <=> [$products[$second]['group_sort_order'] ?? PHP_INT_MAX, array_search($second, $product_ids, true)]);
 
-            // No longer in the shop (hidden, deleted, or its seller/category was hidden): take it out
-            if (!isset($cards_by_id[$product_id]) || $tiers_by_id[$product_id] === []) {
-                $this->deleteLine($user_id, $product_id);
-                $warnings[] = ['product_id' => $product_id, 'message' => "{$row['product_name']} haipatikani tena na imeondolewa kwenye kikapu."];
+        $groups                  = [];
+        $warnings                = [];
+        $unavailable_product_ids = [];
+        foreach ($sorted_ids as $product_id) {
+            $product = $products[$product_id] ?? null;
+
+            // Unknown, hidden, deleted, or its seller/category was hidden
+            if ($product === null || !isset($cards_by_id[$product_id]) || ($tiers_by_id[$product_id] ?? []) === []) {
+                $product_name              = $product['product_name'] ?? 'Bidhaa hii';
+                $warnings[]                = ['product_id' => $product_id, 'message' => "{$product_name} haipatikani tena na imeondolewa kwenye kikapu."];
+                $unavailable_product_ids[] = $product_id;
                 continue;
             }
 
-            $quantity = (int) $row['cart_item_quantity'];
-            $groups[$row['group_name']][] = [
+            $quantity = (int) $quantities[$product_id];
+            $groups[$product['group_name']][] = [
                 'product'       => $cards_by_id[$product_id],
                 'cart_quantity' => $quantity,
             ] + Pricing::priceLine($tiers_by_id[$product_id], $quantity) + [
-                'line_problem'  => $this->lineProblem($quantity, (int) $row['product_moq'], (int) $row['product_stock_quantity']),
-                'available_quantity' => (int) $row['product_stock_quantity'],
+                'line_problem'       => $this->lineProblem($quantity, (int) $product['product_moq'], (int) $product['product_stock_quantity']),
+                'available_quantity' => (int) $product['product_stock_quantity'],
             ];
         }
 
-        return $this->formatCart($groups, $warnings);
+        return ['cart' => $this->formatCart($groups, $warnings), 'unavailable_product_ids' => $unavailable_product_ids];
     }
 
     /** Adds pieces of a product (on top of what is already in the cart). Returns the priced cart. */
@@ -194,7 +260,7 @@ class Cart
              JOIN sellers s    ON s.seller_id = p.seller_id AND s.seller_status = 'active'
              JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
              WHERE p.product_id = :product_id AND p.product_is_active = 1 AND p.deleted_at IS NULL
-               AND EXISTS (SELECT 1 FROM product_price_tiers t WHERE t.product_id = p.product_id)",
+               AND p.product_price IS NOT NULL",
             ['product_id' => $product_id]
         );
         if ($product === null) {

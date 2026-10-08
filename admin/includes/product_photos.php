@@ -54,13 +54,17 @@ $can_upload  = $photo_count < ProductImage::MAX_IMAGES_PER_PRODUCT;
             <?php if ($can_upload): ?>
                 <form class="photo-upload" method="post" enctype="multipart/form-data">
                     <?= Csrf::field() ?>
-                    <input class="form-control<?= adminInvalidClass($errors, 'product_image') ?>" type="file" name="product_image"
-                        accept="image/jpeg,image/png,image/webp" required aria-label="Choose a photo">
+                    <input class="form-control<?= adminInvalidClass($errors, 'product_image') ?>" type="file" name="product_images[]"
+                        accept="image/jpeg,image/png,image/webp" multiple required aria-label="Choose product photos">
                     <button class="btn btn-outline-secondary text-nowrap" type="submit" name="form_action" value="upload_image">
-                        <i class="bi bi-upload"></i> Upload photo
+                        <i class="bi bi-upload"></i> Upload photos
                     </button>
                 </form>
-                <div class="form-text">JPG, PNG or WEBP, up to 8 MB, at least 200 px. <?= $photos ? '' : 'The first photo becomes the main one.' ?></div>
+                <div class="form-text">
+                    Select up to <?= e(ProductImage::MAX_IMAGES_PER_PRODUCT - $photo_count) ?> photos at once
+                    (hold Ctrl while clicking to choose multiple). JPG, PNG or WEBP, up to 8 MB each, at least 200 px.
+                    <?= $photos ? '' : 'The first photo becomes the main one.' ?>
+                </div>
                 <?= adminFieldError($errors, 'product_image') ?>
             <?php else: ?>
                 <p class="text-muted small mb-0">This product has the maximum of <?= e(ProductImage::MAX_IMAGES_PER_PRODUCT) ?> photos. Delete one to add another.</p>

@@ -8,3 +8,11 @@ Options -Indexes
 <IfModule php_module>
     php_flag engine off
 </IfModule>
+
+# Photos never change under the same name (a new photo gets a new random file name),
+# so phones and browsers may keep them for a year instead of downloading them again.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(webp|jpe?g|png)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+</IfModule>

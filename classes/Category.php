@@ -224,4 +224,11 @@ class Category
             'category_image_url' => $row['category_image_path'] ? url($row['category_image_path']) : null,
         ];
     }
+
+
+    /** "Hide / Show in the shop": changes only category_is_active. Returns false when nothing changed. */
+    public function setCategoryActive(int $category_id, bool $is_active, int $admin_id): bool
+    {
+        return (new RecordSwitch($this->db))->set('categories', 'category_id', $category_id, 'category_is_active', (int) $is_active, $admin_id, 'category');
+    }
 }

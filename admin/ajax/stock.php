@@ -4,7 +4,8 @@
 
 require dirname(__DIR__) . '/includes/admin_bootstrap.php';
 
-AdminSession::requireAjaxLogin('inventory.manage');
+$current_admin     = AdminSession::requireAjaxLogin('inventory.manage');
+$can_edit_products = Admin::can($current_admin, 'products.manage');
 
 try {
     $pagination = (new ProductEditor(Database::instance()))->getProductsForAdmin(adminDataTablesInput($_GET, 'q'));
@@ -21,4 +22,8 @@ adminDataTablesJson($pagination, fn (array $product): array => [
     'moq'      => e($product['product_moq']),
     'in_stock' => adminStockBadge((int) $product['product_stock_quantity'])
         . ' <span class="text-muted">' . e($product['product_unit_label']) . '</span>',
+    'actions'  => adminRowActions(
+        adminActionLink('bi-plus-slash-minus', 'Adjust stock', url('admin/product_stock.php?id=' . $product['product_id'])),
+        $can_edit_products ? adminActionLink('bi-pencil', 'Edit product', url('admin/product_edit.php?id=' . $product['product_id'])) : '',
+    ),
 ]);

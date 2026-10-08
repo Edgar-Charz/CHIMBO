@@ -29,6 +29,18 @@ $router->group('/me', function (Router $router) {
         return Response::success($user_model->updateBusiness($request->user()['user_id'], $request->all()));
     });
 
+    // POST /api/v1/me/avatar — profile photo. Send as a file upload (multipart/form-data) with the field "avatar"
+    // (JPG, PNG or WEBP, up to 8 MB). Returns the profile with the new user_avatar_url.
+    $router->post('/avatar', function (Request $request) {
+        $user_model = new User(Database::instance());
+        return Response::success($user_model->setAvatar($request->user()['user_id'], $request->file('avatar')));
+    });
+
+    // DELETE /api/v1/me/avatar — remove the photo (the app shows initials again)
+    $router->delete('/avatar', function (Request $request) {
+        return Response::success((new User(Database::instance()))->removeAvatar($request->user()['user_id']));
+    });
+
     // DELETE /api/v1/me — delete the account. Body: { "confirm": true }
     $router->delete('', function (Request $request) {
         (new User(Database::instance()))->deleteAccount($request->user()['user_id'], $request->all());

@@ -56,6 +56,7 @@ require __DIR__ . '/includes/header.php';
                 <th data-column="items" data-cell-class="text-end" class="text-end">Items</th>
                 <th data-column="total" data-sort="order_total" data-cell-class="text-end text-nowrap" class="text-end">Total</th>
                 <th data-column="placed" data-sort="order_placed_at" data-cell-class="text-nowrap">Placed</th>
+                <th data-column="actions" data-cell-class="text-end" class="text-end">Actions</th>
             </tr>
         </thead>
     </table>

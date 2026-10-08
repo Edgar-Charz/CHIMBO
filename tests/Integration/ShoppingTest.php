@@ -113,6 +113,41 @@ final class ShoppingTest extends TestCase
         $this->assertSame([self::NECKLACE, 9999], array_column($cart['skipped_items'], 'product_id'));
     }
 
+    public function testGuestPreviewIsPricedLikeASavedCartAndSavesNothing(): void
+    {
+        $saved   = $this->cart->addItem($this->user_id, ['product_id' => self::VASELINE, 'quantity' => 8]);
+        $preview = $this->cart->previewGuestCart(['items' => [['product_id' => self::VASELINE, 'quantity' => 8]]]);
+
+        $this->assertSame($saved, $preview);   // exactly the same shape and numbers
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cart_items')); // only the saved one
+    }
+
+    public function testGuestPreviewReportsProblemsInsteadOfFailing(): void
+    {
+        $preview = $this->cart->previewGuestCart(['items' => [
+            ['product_id' => self::NECKLACE, 'quantity' => 2],    // below MOQ 6
+            ['product_id' => self::VASELINE, 'quantity' => 999],  // more than the stock (500)
+            ['product_id' => 9999, 'quantity' => 1],              // unknown
+        ]]);
+
+        $lines = array_merge(...array_column($preview['groups'], 'items'));
+        $this->assertSame(['not_enough_stock', 'below_moq'], array_column($lines, 'line_problem'));
+        $this->assertFalse($preview['summary']['can_checkout']);
+        $this->assertSame([9999], array_column($preview['warnings'], 'product_id'));
+    }
+
+    public function testGuestPreviewAddsUpTheSameProductAndRejectsBadInput(): void
+    {
+        $preview = $this->cart->previewGuestCart(['items' => [
+            ['product_id' => self::VASELINE, 'quantity' => 3],
+            ['product_id' => self::VASELINE, 'quantity' => 3],
+        ]]);
+        $this->assertSame(6, $preview['groups'][0]['items'][0]['cart_quantity']);
+
+        $this->assertApiError('VALIDATION_ERROR', fn () => $this->cart->previewGuestCart(['items' => [['product_id' => 'abc', 'quantity' => 0]]]));
+        $this->assertApiError('VALIDATION_ERROR', fn () => $this->cart->previewGuestCart(['items' => array_fill(0, 101, ['product_id' => 1, 'quantity' => 1])]));
+    }
+
     // ------------------------------------------------------------------ addresses
 
     public function testFirstAddressBecomesTheDefault(): void

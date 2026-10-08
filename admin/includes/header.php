@@ -9,6 +9,9 @@
  *   $current_admin  from AdminSession::requireLogin()
  */
 
+// Payments customers sent that staff still have to check (the badge on the Payments menu item)
+$payments_waiting = Admin::can($current_admin, 'payments.manage') ? (new Payment(Database::instance()))->countWaitingForReview() : 0;
+
 $success_message = Session::takeFlash('success');
 $error_message   = Session::takeFlash('error');
 ?>
@@ -43,6 +46,9 @@ $error_message   = Session::takeFlash('error');
                     <?php foreach ($menu_items as $menu_key => [$label, $icon, $page]): ?>
                         <a class="nav-link <?= $menu_key === $active_menu ? 'active' : '' ?>" href="<?= e(url('admin/' . $page)) ?>">
                             <i class="bi <?= e($icon) ?>"></i> <?= e($label) ?>
+                            <?php if ($menu_key === 'payments' && $payments_waiting > 0): ?>
+                                <span class="menu-badge" title="Payments waiting for review"><?= e($payments_waiting) ?></span>
+                            <?php endif; ?>
                         </a>
                     <?php endforeach; ?>
                 <?php endforeach; ?>

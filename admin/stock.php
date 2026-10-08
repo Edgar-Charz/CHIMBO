@@ -43,6 +43,7 @@ require __DIR__ . '/includes/header.php';
                 <th data-column="sku">SKU</th>
                 <th data-column="moq" data-cell-class="text-end" class="text-end">MOQ</th>
                 <th data-column="in_stock" data-sort="product_stock_quantity" data-cell-class="text-end text-nowrap" class="text-end">In stock</th>
+                <th data-column="actions" data-cell-class="text-end" class="text-end">Actions</th>
             </tr>
         </thead>
     </table>

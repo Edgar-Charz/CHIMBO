@@ -17,8 +17,35 @@ $form_error = adminHandleForm(function (string $form_action) use ($product_edito
 
     switch ($form_action) {
         case 'upload_image':
-            $product_images->addImage($product_id, $_FILES['product_image'] ?? [], $admin_id);
-            Session::flash('success', 'Photo added.');
+            $uploads = $_FILES['product_images'] ?? [];
+            $names = $uploads['name'] ?? null;
+            if (!is_array($names) || $names === []) {
+                throw ApiException::validation(['product_image' => 'Choose at least one photo to upload.']);
+            }
+
+            $files = [];
+            foreach (array_keys($names) as $index) {
+                $file = [];
+                foreach (['name', 'type', 'tmp_name', 'error', 'size'] as $field) {
+                    if (!isset($uploads[$field]) || !is_array($uploads[$field]) || !array_key_exists($index, $uploads[$field])) {
+                        throw ApiException::validation(['product_image' => 'Choose the photos again and retry the upload.']);
+                    }
+                    $file[$field] = $uploads[$field][$index];
+                }
+                $files[] = $file;
+            }
+
+            $available_slots = ProductImage::MAX_IMAGES_PER_PRODUCT - count($product_images->getImages($product_id));
+            if (count($files) > $available_slots) {
+                throw ApiException::validation([
+                    'product_image' => 'Choose no more than ' . $available_slots . ' photo' . ($available_slots === 1 ? '' : 's') . '.',
+                ]);
+            }
+
+            foreach ($files as $file) {
+                $product_images->addImage($product_id, $file, $admin_id);
+            }
+            Session::flash('success', count($files) . (count($files) === 1 ? ' photo added.' : ' photos added.'));
             redirect($edit_page . '#photos');
 
         case 'set_main_image':
