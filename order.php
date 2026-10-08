@@ -112,7 +112,7 @@ require __DIR__ . '/includes/header.php';
                                 <?php endif; ?>
                                 <span class="checkout-item__name">
                                     <a href="<?= e(productUrl($item['product_id'])) ?>"><?= e($item['product_name']) ?></a>
-                                    <small><?= e(formatPieces($item['order_item_quantity'])) ?> × <?= e(formatTzs($item['order_item_unit_price'])) ?></small>
+                                    <small><?= e(formatPieces($item['order_item_quantity'])) ?> × <?= e(formatTzs($item['order_item_unit_price'])) ?> <?= offerTag($item['order_item_offer_percent']) ?></small>
                                 </span>
                                 <span class="checkout-item__total"><?= e(formatTzs($item['order_item_line_total'])) ?></span>
                             </li>

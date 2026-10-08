@@ -154,6 +154,11 @@
     const suggestionsGrid = document.querySelector('[data-suggested-products]');
     if (suggestionsGrid) suggestionsGrid.replaceChildren(...suggestedProducts.map(productCard.render));
 
+    // This product's offer reached zero: reload, so every price on the page is the server's normal price again
+    document.addEventListener(CHIMBO.offerEndedEvent, ({ detail }) => {
+        if (detail.productId === product.product_id) window.location.reload();
+    });
+
     showPricePreview();
     setUpAddToCart();
     setUpBuyBar();

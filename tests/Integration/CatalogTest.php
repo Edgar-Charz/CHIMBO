@@ -19,7 +19,7 @@ final class CatalogTest extends TestCase
         $home = (new Home($this->db))->getHome();
 
         $this->assertSame(
-            ['banners', 'top_categories', 'best_sellers', 'deals', 'new_arrivals', 'recently_ordered'],
+            ['banners', 'top_categories', 'best_sellers', 'deals', 'offers', 'new_arrivals', 'recently_ordered'],
             array_keys($home)
         );
         $this->assertSame('Shamba la Vipodozi', $home['top_categories'][0]['category_tagline']);

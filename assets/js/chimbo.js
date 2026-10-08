@@ -111,6 +111,68 @@
         button.setAttribute('aria-busy', String(isLoading));
     }
 
+    // ------------------------------------------------------------------ Offer countdown ("Inaisha baada ya 05:12:09")
+
+    const SECOND_MS = 1000;
+    const SECONDS_PER_DAY = 86400;
+    const SERVER_CLOCK_TOLERANCE_MS = 2000; // the Date header has whole seconds; smaller differences are noise
+    const OFFER_ENDED_EVENT = 'chimbo:offer-ended';
+    const OFFER_ENDED_RETRY_MS = 10 * SECOND_MS;  // ask again if the server still had the offer at the first ask
+
+    // How far the computer's clock is from the server's (a wrong computer clock must not change the countdown).
+    // Starts from the time PHP printed into the page, then follows the "Date" header of every API answer.
+    let serverOffsetMs = new Date(config.server_time).getTime() - Date.now();
+    const serverNow = () => Date.now() + serverOffsetMs;
+
+    function rememberServerTime(response) {
+        const serverDate = new Date(response.headers.get('Date') ?? '').getTime();
+        if (Number.isNaN(serverDate)) return;
+        const offset = serverDate - Date.now();
+        if (Math.abs(offset - serverOffsetMs) > SERVER_CLOCK_TOLERANCE_MS) serverOffsetMs = offset;
+    }
+
+    const secondsLeft = (endsAt) => Math.max(0, Math.floor((new Date(endsAt).getTime() - serverNow()) / SECOND_MS));
+
+    /** 93 784 seconds → "Inaisha baada ya 01:02:03:04" (DD:HH:MM:SS); under a day "HH:MM:SS". */
+    function countdownText(endsAt) {
+        const seconds = secondsLeft(endsAt);
+        const twoDigits = (number) => String(number).padStart(2, '0');
+        const days = Math.floor(seconds / SECONDS_PER_DAY);
+        const clock = [Math.floor((seconds % SECONDS_PER_DAY) / 3600), Math.floor((seconds % 3600) / 60), seconds % 60].map(twoDigits).join(':');
+        return `Inaisha baada ya ${days > 0 ? `${twoDigits(days)}:${clock}` : clock}`;
+    }
+
+    const endedAnnouncedAt = new Map(); // product id → when its "offer ended" was announced
+
+    /**
+     * Updates every [data-offer-ends] on the page — one shared timer, never one per card. When an offer reaches
+     * zero, "chimbo:offer-ended" (detail: {productId}) tells the scripts to load that product again: the server
+     * then returns the normal price. Cards, the product page and the cart each listen for it.
+     */
+    function tickCountdowns() {
+        document.querySelectorAll('[data-offer-ends]').forEach((element) => {
+            element.textContent = countdownText(element.dataset.offerEnds);
+            const productId = Number(element.dataset.offerProduct);
+            const lastAnnounced = endedAnnouncedAt.get(productId) ?? 0;
+            if (secondsLeft(element.dataset.offerEnds) === 0 && Date.now() - lastAnnounced > OFFER_ENDED_RETRY_MS) {
+                endedAnnouncedAt.set(productId, Date.now());
+                document.dispatchEvent(new CustomEvent(OFFER_ENDED_EVENT, { detail: { productId } }));
+            }
+        });
+    }
+
+    setInterval(tickCountdowns, SECOND_MS);
+
+    /** A live "Inaisha baada ya …" label for a product's offer ending at endsAt (ISO time). */
+    const offerCountdown = (endsAt, productId, className) => el('span', {
+        className,
+        text: countdownText(endsAt),
+        dataset: { offerEnds: endsAt, offerProduct: productId },
+    });
+
+    /** The small "Ofa −15%" tag on cart, checkout and order lines (null when the line has no offer). */
+    const offerTag = (percent) => (percent > 0 ? el('span', { className: 'offer-tag', text: `Ofa −${percent}%` }) : null);
+
     // ------------------------------------------------------------------ Choice cards (radio buttons)
 
     /** One selectable card (address, delivery, payment). `lines` are the texts under the title; `tag` a small label. */
@@ -234,6 +296,7 @@
 
         try {
             const response = await sendRequest(method, path, query, body, headers);
+            rememberServerTime(response);
             const envelope = await readEnvelope(response);
             if (envelope.success) {
                 return { data: envelope.data, meta: envelope.meta ?? {} };
@@ -441,6 +504,9 @@
         errorState,
         setLoading,
         toast,
+        offerCountdown,
+        offerEndedEvent: OFFER_ENDED_EVENT,
+        offerTag,
         choiceCard,
         paymentChoiceCard,
         submitForm,

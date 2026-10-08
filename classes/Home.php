@@ -21,6 +21,7 @@ class Home
             'top_categories'   => (new Category($this->db))->getCategoryTree(),
             'best_sellers'     => $product_model->getCollection('best_sellers', self::RAIL_SIZE),
             'deals'            => $product_model->getCollection('deals', self::RAIL_SIZE),
+            'offers'           => $product_model->getCollection('offers', self::RAIL_SIZE),   // "Ofa za muda", ending soonest first
             'new_arrivals'     => $product_model->getCollection('new', self::RAIL_SIZE),
             'recently_ordered' => $user_id === null ? [] : (new Order($this->db))->getRecentlyOrderedProducts($user_id, self::RAIL_SIZE),
         ];

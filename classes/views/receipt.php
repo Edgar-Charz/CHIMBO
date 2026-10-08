@@ -92,7 +92,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
             <tr>
                 <td>
                     <?= e($item['product_name']) ?><br>
-                    <span class="muted"><?= e($item['order_item_tier_min_quantity']) ?>+ <?= e($item['order_item_unit_label']) ?> — bei ya jumla</span>
+                    <span class="muted"><?= e($item['order_item_tier_min_quantity']) ?>+ <?= e($item['order_item_unit_label']) ?> — bei ya jumla<?= $item['order_item_offer_percent'] > 0 ? ' · Ofa −' . e($item['order_item_offer_percent']) . '%' : '' ?></span>
                 </td>
                 <td class="right"><?= e($item['order_item_quantity']) ?> <?= e($item['order_item_unit_label']) ?></td>
                 <td class="right"><?= e($money($item['order_item_unit_price'])) ?></td>

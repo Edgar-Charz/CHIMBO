@@ -4,7 +4,8 @@
  *   CHIMBO.productCard.render(product)        → <article> element
  *   CHIMBO.productCard.renderSkeletons(count) → grey placeholder cards while loading
  * Quick add puts the MOQ in the cart; the card then shows a stepper. Cards stay in step with the cart
- * through the "chimbo:cart-changed" event (also when the change happens in the drawer).
+ * through the "chimbo:cart-changed" event (also when the change happens in the drawer), and redraw themselves
+ * when their offer countdown reaches zero ("chimbo:offer-ended").
  */
 (() => {
     'use strict';
@@ -15,9 +16,12 @@
     const BADGE_LABELS = { deal: 'Ofa', bestseller: 'Inauzwa sana', new: 'Mpya' };
     const productsByCard = new WeakMap(); // card element → its product, to redraw the add button later
 
-    /** "−12%" for products on offer, otherwise the badge name. */
+    /** "Ofa −15%" during a time-limited offer, "−12%" for a deal with an old price, otherwise the badge name. */
     function badgeText(product) {
-        const { product_badge: badge, product_compare_at_price: compareAt, product_price: price } = product;
+        const { product_badge: badge, product_compare_at_price: compareAt, product_price: price, product_offer: offer } = product;
+        if (badge === 'offer' && offer) {
+            return `Ofa −${offer.product_offer_percent}%`;
+        }
         if (badge === 'deal' && compareAt > price) {
             return `−${Math.round((1 - price / compareAt) * 100)}%`;
         }
@@ -92,6 +96,7 @@
                 ]),
                 el('a', { className: 'product-card__name', text: product.product_name, attrs: { href: link } }),
                 renderPrice(product),
+                product.product_offer ? CHIMBO.offerCountdown(product.product_offer.product_offer_ends_at, product.product_id, 'product-card__countdown') : null,
                 el('p', { className: 'product-card__moq', text: `MOQ ${CHIMBO.formatPieces(product.product_moq)}` }),
             ]),
         ]);
@@ -119,7 +124,20 @@
         });
     }
 
+    /** An offer reached zero: load that product again (the server now gives the normal price) and redraw its cards. */
+    async function refreshCardsAfterOffer({ detail }) {
+        const cards = [...document.querySelectorAll(`.product-card[data-product-id="${detail.productId}"]`)];
+        if (cards.length === 0) return;
+        try {
+            const product = await CHIMBO.api.get(`/products/${detail.productId}`, { silent: true });
+            cards.forEach((card) => card.replaceWith(render(product)));
+        } catch {
+            // the product may have left the shop; the card stays until the next page load
+        }
+    }
+
     document.addEventListener(CHIMBO.cart.changedEvent, syncCardsWithCart);
+    document.addEventListener(CHIMBO.offerEndedEvent, refreshCardsAfterOffer);
 
     CHIMBO.productCard = { render, renderSkeletons };
 })();

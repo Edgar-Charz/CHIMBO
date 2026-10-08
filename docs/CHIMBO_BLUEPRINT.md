@@ -732,8 +732,8 @@ Rules (`CustomerPin`, `CustomerAuth`):
 6. Replacing a PIN logs out every other device: app tokens are revoked; website sessions older than `users.user_sessions_revoked_at` stop working.
 7. Staff can force a reset (lock + log out everywhere) but can never see or set a PIN.
 
-### 12.4 Time-limited offers — "Ofa" (planned, R-22)
-Built after the 2026-09-30 speed work and before the first beta.
+### 12.4 Time-limited offers — "Ofa" (built 2026-10-08, R-22)
+Backend: migration `010_product_offers.sql`, `ProductOffer`, `Pricing::withOffer()` / `offerPrice()` (API_REFERENCE "Product card").
 
 **What the customer sees:** an "Ofa −15%" badge on the card, the old price crossed out next to the offer price, and a countdown on the product page ("Inaisha baada ya saa 5"). A Home rail "Ofa za muda" lists running offers.
 

@@ -164,6 +164,60 @@ class Payment
         return ['items' => $items, 'total' => $total, 'page' => $page, 'per_page' => $per_page];
     }
 
+    /**
+     * "Malipo yangu": the customer's own payments, newest first, 20 per page (input: page).
+     * Every attempt is listed — sent, confirmed, rejected (with the reason) — plus cash collected on delivery.
+     */
+    public function getPaymentsForCustomer(int $user_id, array $input): array
+    {
+        $data     = Validator::validate($input, ['page' => 'nullable|int|min:1']);
+        $per_page = 20;
+        $page     = $data['page'] ?? 1;
+
+        $total = (int) $this->db->fetchValue('SELECT COUNT(*) FROM payments WHERE user_id = :user_id', ['user_id' => $user_id]);
+        $rows  = $this->db->fetchAll(
+            'SELECT p.*, o.order_number FROM payments p JOIN orders o ON o.order_id = p.order_id
+             WHERE p.user_id = :user_id
+             ORDER BY p.payment_id DESC
+             LIMIT ' . $per_page . ' OFFSET ' . (($page - 1) * $per_page),
+            ['user_id' => $user_id]
+        );
+
+        $payment_method_model = new PaymentMethod($this->db);
+        $items = array_map(fn (array $row) => [
+            'payment_id'            => (int) $row['payment_id'],
+            'order_id'              => (int) $row['order_id'],
+            'order_number'          => $row['order_number'],
+            'payment_method_code'   => $row['payment_method_code'],
+            'payment_method_name'   => $payment_method_model->getDetailsByCode($row['payment_method_code'])['payment_method_name'] ?? $row['payment_method_code'],
+            'payment_amount'        => (int) $row['payment_amount'],
+            'payment_payer_account' => $row['payment_payer_account'],
+            'payment_reference'     => $row['payment_reference'],
+            'payment_status'        => $row['payment_status'],        // submitted | confirmed | rejected
+            'payment_review_note'   => $row['payment_review_note'],   // why it was rejected
+            'created_at'            => isoDate($row['created_at']),
+            'payment_reviewed_at'   => isoDate($row['payment_reviewed_at']),
+        ], $rows);
+
+        return ['items' => $items, 'total' => $total, 'page' => $page, 'per_page' => $per_page];
+    }
+
+    /**
+     * Cash on delivery: the cash the delivery agent brought back, saved as a confirmed payment so it appears in
+     * "Malipo yangu" and next to the other payments. Runs inside OrderManager::confirmCashCollected()'s transaction.
+     */
+    public function recordCashCollected(int $order_id, int $admin_id): void
+    {
+        $this->db->execute(
+            "INSERT INTO payments (order_id, user_id, payment_method_code, payment_amount, payment_payer_account, payment_reference,
+                                   payment_status, submitted_by_admin_id, reviewed_by_admin_id, payment_reviewed_at)
+             SELECT order_id, user_id, 'cod', order_total, order_ship_phone, CONCAT('CASH-', order_number),
+                    'confirmed', :submitted_by, :reviewed_by, UTC_TIMESTAMP()
+             FROM orders WHERE order_id = :order_id",
+            ['submitted_by' => $admin_id, 'reviewed_by' => $admin_id, 'order_id' => $order_id]
+        );
+    }
+
     /** How many payments are waiting for staff (menu badge, dashboard). */
     public function countWaitingForReview(): int
     {

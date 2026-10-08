@@ -194,3 +194,17 @@ A section **"App pictures"** on settings.php: one card per slot (where it shows,
 | `removeImage($slot, $admin_id)` | back to the picture built into the app |
 
 Both write the audit log. Home's pictures are not here: they come from Categories (category pictures) and Banners.
+
+## Offers ("Ofa") — `ProductOffer` — added 2026-10-08 · `products.manage`
+
+A page **offers.php** (menu "Offers", under Products) with tabs Running · Scheduled · Ended, plus an "Offers" box on product_edit.php showing that product's offers and a "New offer" button.
+
+| Method | Use |
+|---|---|
+| `getOffersForAdmin($_GET)` | filters `status` (`running`/`scheduled`/`ended`), `product_id`, `page`, `per_page` (`ProductOffer::PER_PAGE_OPTIONS` 25/50/100) → `['items', 'total', 'page', 'per_page']`. Items: every `product_offers` column + `product_offer_status, product_name, product_price, product_price_from` (normal prices — show "5,500 → 4,675" with `Pricing::offerPrice($price, $percent)`), `created_by_admin_name`. Times UTC → `localDateTime()` |
+| `getOfferById($id)` | one offer + `product_offer_status` · 404 |
+| `createOffer($_POST, $admin_id)` | fields `product_id`, `product_offer_percent` (1–90), `product_offer_starts_at` (empty = now), `product_offer_ends_at` — both `<input type="datetime-local">` in Tanzania time; at most 90 days; no overlap with another offer of the same product → new id |
+| `updateOffer($id, $_POST, $admin_id)` | same fields except the product; running or scheduled offers only (`OFFER_ENDED` otherwise). For the form, convert the saved UTC times back with `adminDateTime($time, 'Y-m-d\TH:i')` |
+| `endOffer($id, $admin_id)` | **End now** (running) / **Cancel** (scheduled). Confirm dialog |
+
+Prices are applied by the backend everywhere (shop, cart, checkout, staff orders, receipts). The audit log is written by the class. `OrderManager::getManualOrderOptions()` products now carry `product_offer_percent` and their `price_tiers` already include the offer. Banners may now target the collection `offers`.

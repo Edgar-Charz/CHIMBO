@@ -103,6 +103,7 @@ class Cart
         $product_model = new Product($this->db);
         $cards_by_id   = array_column($product_model->getProductCardsByIds($product_ids), null, 'product_id');
         $tiers_by_id   = $product_model->getPriceTiersForProducts($product_ids);
+        $offers_by_id  = (new ProductOffer($this->db))->getRunningPercents($product_ids);
 
         // Group order follows the categories (Cosmetics before Jewelry); inside a group, the order added
         $sorted_ids = $product_ids;
@@ -128,7 +129,7 @@ class Cart
             $groups[$product['group_name']][] = [
                 'product'       => $cards_by_id[$product_id],
                 'cart_quantity' => $quantity,
-            ] + Pricing::priceLine($tiers_by_id[$product_id], $quantity) + [
+            ] + Pricing::priceLine($tiers_by_id[$product_id], $quantity, $offers_by_id[$product_id] ?? 0) + [
                 'line_problem'       => $this->lineProblem($quantity, (int) $product['product_moq'], (int) $product['product_stock_quantity']),
                 'available_quantity' => (int) $product['product_stock_quantity'],
             ];

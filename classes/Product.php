@@ -6,6 +6,8 @@
  * Prices come from product_price_tiers: the highest tier price is the normal price
  * ("product_price"), the lowest is the best wholesale price ("kuanzia", product_price_from).
  * Both are also stored on the product (ProductEditor::refreshStoredPrices) so lists can use an index.
+ * A running offer ("Ofa", ProductOffer) is applied to the prices this class returns; the stored
+ * columns (used for filters and sorting) stay the normal prices.
  *
  * How to use it:
  *   $product_model = new Product(Database::instance());
@@ -25,6 +27,7 @@ class Product
         'newest'     => 'p.created_at DESC, p.product_id DESC',
         'price_asc'  => 'p.product_price ASC, p.product_id DESC',
         'price_desc' => 'p.product_price DESC, p.product_id DESC',
+        'offer_ends' => 'offer.product_offer_ends_at ASC, p.product_id DESC',   // offers ending soonest first (not a customer choice)
     ];
 
     public function __construct(private Database $db)
@@ -34,7 +37,7 @@ class Product
     /**
      * One page of product cards.
      * Filters (all optional): category_id (a top category includes its chips), q (search text),
-     * collection (deals | new | best_sellers), min_price, max_price, max_moq,
+     * collection (deals | new | best_sellers | offers), min_price, max_price, max_moq,
      * sort (popular | newest | price_asc | price_desc), page, per_page (max 50).
      */
     public function getProducts(array $input): array
@@ -42,7 +45,7 @@ class Product
         $filters = Validator::validate($input, [
             'category_id' => 'nullable|int|min:1',
             'q'           => 'nullable|string|max:100',   // search text
-            'collection'  => 'nullable|in:deals,new,best_sellers',
+            'collection'  => 'nullable|in:deals,new,best_sellers,offers',
             'min_price'   => 'nullable|int|min:0',
             'max_price'   => 'nullable|int|min:0',
             'max_moq'     => 'nullable|int|min:1',
@@ -138,7 +141,7 @@ class Product
             'product_stock_quantity'    => (int) $row['product_stock_quantity'],
             'product_delivery_days_min' => (int) $row['product_delivery_days_min'],
             'product_delivery_days_max' => (int) $row['product_delivery_days_max'],
-            'tiers'                     => $this->getPriceTiers($product_id),
+            'tiers'                     => Pricing::withOffer($this->getPriceTiers($product_id), (int) $row['product_offer_percent']),   // offer taken off; tier_price_before_offer when one runs
             'images'                    => array_column($gallery, 'product_image_medium_url'), // big photo + thumbnails, in order
             'gallery'                   => $gallery,                                           // every size (zoom, website)
         ];
@@ -237,6 +240,7 @@ class Product
 
         $conditions[] = match ($filters['collection'] ?? null) {
             'deals'        => 'p.product_compare_at_price > p.product_price',
+            'offers'       => 'offer.product_offer_id IS NOT NULL',
             'new'          => 'p.product_new_until >= UTC_DATE()',
             'best_sellers' => 'p.product_sold_count > 0',
             default        => '1 = 1',
@@ -262,7 +266,8 @@ class Product
     private function chooseSort(array $filters): string
     {
         return $filters['sort'] ?? match ($filters['collection'] ?? null) {
-            'new'   => 'newest',
+            'new'    => 'newest',
+            'offers' => 'offer_ends',
             default => 'popular',
         };
     }
@@ -272,25 +277,39 @@ class Product
     {
         return 'SELECT p.product_id, p.product_name, p.product_slug, p.category_id, p.product_moq, p.product_unit_label,
                        p.product_stock_quantity, p.product_compare_at_price, p.product_is_bestseller, p.product_new_until,
-                       p.product_price, p.product_price_from,
+                       p.product_price, p.product_price_from, offer.product_offer_percent, offer.product_offer_ends_at,
                        s.seller_name, s.seller_is_verified,
                        image.product_image_thumb_path';
     }
 
-    /** The tables a product card is built from. Only products of an active seller and an active category appear in the shop. */
+    /**
+     * The tables a product card is built from. Only products of an active seller and an active category appear in the shop.
+     * "offer" = the running offer, if any (at most one per product, ProductOffer makes sure).
+     */
     private function productFromSql(): string
     {
         return "FROM products p
                 JOIN sellers s    ON s.seller_id = p.seller_id AND s.seller_status = 'active'
                 JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
                 LEFT JOIN product_images image
-                       ON image.product_id = p.product_id AND image.product_image_is_primary = 1";
+                       ON image.product_id = p.product_id AND image.product_image_is_primary = 1
+                LEFT JOIN product_offers offer
+                       ON offer.product_id = p.product_id AND " . ProductOffer::RUNNING_SQL;
     }
 
-    /** A database row → the product card JSON the apps use (keys follow the column names). */
+    /**
+     * A database row → the product card JSON the apps use (keys follow the column names).
+     * With a running offer: product_price / product_price_from are the offer prices, product_compare_at_price is the
+     * normal price (crossed out), and product_offer says how much and until when.
+     */
     private function formatProductCard(array $row): array
     {
-        $price = (int) $row['product_price'];
+        $normal_price  = (int) $row['product_price'];
+        $offer_percent = (int) $row['product_offer_percent'];
+        $price         = Pricing::offerPrice($normal_price, $offer_percent);
+        $crossed_out   = $offer_percent > 0
+            ? max($normal_price, (int) $row['product_compare_at_price'])
+            : ($row['product_compare_at_price'] > $price ? (int) $row['product_compare_at_price'] : null);
 
         return [
             'product_id'               => (int) $row['product_id'],
@@ -298,22 +317,27 @@ class Product
             'product_slug'             => $row['product_slug'],
             'category_id'              => (int) $row['category_id'],
             'product_price'            => $price,
-            'product_price_from'       => (int) $row['product_price_from'],
-            'product_compare_at_price' => $row['product_compare_at_price'] > $price ? (int) $row['product_compare_at_price'] : null,
+            'product_price_from'       => Pricing::offerPrice((int) $row['product_price_from'], $offer_percent),
+            'product_compare_at_price' => $crossed_out,
+            'product_offer'            => $offer_percent > 0 ? [   // "Ofa −15%" + "Inaisha baada ya …"
+                'product_offer_percent' => $offer_percent,
+                'product_offer_ends_at' => isoDate($row['product_offer_ends_at']),
+            ] : null,
             'product_moq'              => (int) $row['product_moq'],
             'product_unit_label'       => $row['product_unit_label'],
             'product_in_stock'         => $row['product_stock_quantity'] >= $row['product_moq'],
             'product_image_url'        => $row['product_image_thumb_path'] ? url($row['product_image_thumb_path']) : null,
-            'product_badge'            => $this->chooseBadge($row, $price),
+            'product_badge'            => $this->chooseBadge($row, $price, $offer_percent),
             'seller_name'              => $row['seller_name'],
             'seller_is_verified'       => (bool) $row['seller_is_verified'],
         ];
     }
 
-    /** One badge per card at most: a deal first, then bestseller, then new. */
-    private function chooseBadge(array $row, int $price): ?string
+    /** One badge per card at most: an offer first, then a deal, then bestseller, then new. */
+    private function chooseBadge(array $row, int $price, int $offer_percent): ?string
     {
         return match (true) {
+            $offer_percent > 0                                                            => 'offer',
             $row['product_compare_at_price'] > $price                                     => 'deal',
             (bool) $row['product_is_bestseller']                                          => 'bestseller',
             $row['product_new_until'] !== null && $row['product_new_until'] >= gmdate('Y-m-d') => 'new',

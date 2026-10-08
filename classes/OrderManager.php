@@ -117,8 +117,11 @@ class OrderManager
                 'tier_unit_price' => (int) $tier['tier_unit_price'],
             ];
         }
+        $offers_by_id = (new ProductOffer($this->db))->getRunningPercents(array_column($products, 'product_id'));
         foreach ($products as &$product) {
-            $product['price_tiers'] = $tiers_by_product[$product['product_id']] ?? [];
+            // Tiers with any running offer already taken off (the same prices the order will use)
+            $product['product_offer_percent'] = $offers_by_id[$product['product_id']] ?? 0;
+            $product['price_tiers'] = Pricing::withOffer($tiers_by_product[$product['product_id']] ?? [], $product['product_offer_percent']);
         }
         unset($product);
 
@@ -326,6 +329,7 @@ class OrderManager
 
             $priced_lines = [];
             $subtotal = 0;
+            $offers_by_id = (new ProductOffer($this->db))->getRunningPercents($product_ids);
             foreach ($lines as $line) {
                 $product_id = (int) $line['product_id'];
                 $product = $products[$product_id];
@@ -343,7 +347,7 @@ class OrderManager
                 if (!$tiers) {
                     throw ApiException::validation(['items' => "{$product['product_name']} has no price tiers and cannot be ordered."]);
                 }
-                $pricing = Pricing::priceLine($tiers, $quantity);
+                $pricing = Pricing::priceLine($tiers, $quantity, $offers_by_id[$product_id] ?? 0);
                 $priced_lines[] = ['product' => $product, 'quantity' => $quantity, 'pricing' => $pricing];
                 $subtotal += $pricing['line_total'];
             }
@@ -421,13 +425,14 @@ class OrderManager
                 $this->db->insert(
                     'INSERT INTO order_items (
                         order_id, product_id, seller_id, order_item_product_name, order_item_sku, order_item_image_path,
-                        order_item_unit_label, order_item_quantity, order_item_unit_price, order_item_tier_min_quantity, order_item_line_total
-                     ) VALUES (:order, :product, :seller, :name, :sku, :image, :unit, :quantity, :price, :tier, :line_total)',
+                        order_item_unit_label, order_item_quantity, order_item_unit_price, order_item_tier_min_quantity,
+                        order_item_offer_percent, order_item_line_total
+                     ) VALUES (:order, :product, :seller, :name, :sku, :image, :unit, :quantity, :price, :tier, :offer_percent, :line_total)',
                     [
                         'order' => $order_id, 'product' => $product['product_id'], 'seller' => $product['seller_id'],
                         'name' => $product['product_name'], 'sku' => $product['product_sku'], 'image' => $product['product_image_thumb_path'],
                         'unit' => $product['product_unit_label'], 'quantity' => $quantity, 'price' => $pricing['unit_price'],
-                        'tier' => $pricing['tier_min_quantity'], 'line_total' => $pricing['line_total'],
+                        'tier' => $pricing['tier_min_quantity'], 'offer_percent' => $pricing['offer_percent'], 'line_total' => $pricing['line_total'],
                     ]
                 );
                 $stock->changeStock((int) $product['product_id'], -$quantity, 'order_reserve', 'Manually created order', $admin_id, 'order', $order_id);
@@ -538,6 +543,7 @@ class OrderManager
                 ['cash' => $data['delivery_cash_collected'], 'admin_id' => $admin_id, 'order_id' => $order_id]
             );
             $this->db->execute("UPDATE orders SET order_payment_status = 'paid' WHERE order_id = :order_id", ['order_id' => $order_id]);
+            (new Payment($this->db))->recordCashCollected($order_id, $admin_id);
 
             (new AuditLog($this->db))->record('admin', $admin_id, 'order.cash_confirmed', 'order', $order_id, null, $data);
         });

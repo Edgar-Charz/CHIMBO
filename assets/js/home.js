@@ -1,6 +1,7 @@
 /**
  * Home page: draws the product grids from the data the page printed (#home-products-data),
- * switches the "Zinazouzwa Zaidi / Mpya / Ofa" tabs without reloading, and runs the sub-category train.
+ * the "Ofa za muda" rail, switches the "Zinazouzwa Zaidi / Mpya / Ofa" tabs without reloading, and runs the
+ * sub-category train.
  */
 (() => {
     'use strict';
@@ -16,6 +17,11 @@
 
     const recentGrid = document.querySelector('[data-home-recent]');
     if (recentGrid) showProducts(recentGrid, homeProducts.recently_ordered);
+
+    // ------------------------------------------------------------------ "Ofa za muda" (shown only while offers run)
+
+    const offersGrid = document.querySelector('[data-home-offers]');
+    if (offersGrid) showProducts(offersGrid, homeProducts.offers);
 
     // ------------------------------------------------------------------ Sub-category train
 

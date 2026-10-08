@@ -4232,6 +4232,59 @@ a.help-contact:hover {
     color: var(--chimbo-danger);
 }
 
+/* ------------------------------------------------------------------ Time-limited offers ("Ofa za muda") */
+
+.product-card__badge--offer {
+    background: var(--chimbo-danger);
+    color: var(--chimbo-surface);
+}
+
+/* Live seconds: equal-width digits so the text does not wobble every second */
+[data-offer-ends] {
+    font-variant-numeric: tabular-nums;
+}
+
+.product-card__countdown {
+    color: var(--chimbo-danger);
+    font-size: 0.6875rem;
+    font-weight: 600;
+}
+
+.product-price__offer {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--chimbo-space-1);
+    margin: var(--chimbo-space-2) 0 0;
+    padding: 2px var(--chimbo-space-3);
+    border-radius: var(--chimbo-radius-pill);
+    background: var(--chimbo-danger-soft);
+    color: var(--chimbo-danger);
+    font-size: var(--chimbo-text-sm);
+    font-weight: 600;
+}
+
+.tier-table__before {
+    margin-left: var(--chimbo-space-1);
+    color: var(--chimbo-muted);
+    font-size: var(--chimbo-text-xs);
+    font-weight: 400;
+}
+
+.offer-tag {
+    display: inline-block;
+    padding: 0 var(--chimbo-space-2);
+    border-radius: var(--chimbo-radius-pill);
+    background: var(--chimbo-danger-soft);
+    color: var(--chimbo-danger);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.home-offers .section-heading__title .bi {
+    color: var(--chimbo-danger);
+}
+
 /* ------------------------------------------------------------------ Page states: loading, empty, error */
 
 .skeleton {

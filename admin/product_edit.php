@@ -6,12 +6,13 @@ $admin_id       = (int) $current_admin['admin_id'];
 $database       = Database::instance();
 $product_editor = new ProductEditor($database);
 $product_images = new ProductImage($database);
+$offer_model    = new ProductOffer($database);
 
 $product_id = (int) ($_GET['id'] ?? 0);
 $is_new     = $product_id === 0;
 $product    = $is_new ? null : adminLoadOrRedirect(fn () => $product_editor->getProductForAdmin($product_id), 'products.php');
 
-$form_error = adminHandleForm(function (string $form_action) use ($product_editor, $product_images, $product_id, $is_new, $admin_id): void {
+$form_error = adminHandleForm(function (string $form_action) use ($product_editor, $product_images, $offer_model, $product_id, $is_new, $admin_id): void {
     $edit_page        = url("admin/product_edit.php?id={$product_id}");
     $product_image_id = (int) ($_POST['product_image_id'] ?? 0);
 
@@ -65,6 +66,15 @@ $form_error = adminHandleForm(function (string $form_action) use ($product_edito
             Session::flash('success', 'Photo deleted.');
             redirect($edit_page . '#photos');
 
+        case 'end_offer':
+            $offer = $offer_model->getOfferById(adminActionRecordId());
+            if ((int) $offer['product_id'] !== $product_id) {
+                throw ApiException::notFound('Offer not found.');
+            }
+            $offer_model->endOffer((int) $offer['product_offer_id'], $admin_id);
+            Session::flash('success', $offer['product_offer_status'] === 'running' ? 'The offer has ended.' : 'The offer was cancelled.');
+            redirect($edit_page . '#offers');
+
         case 'delete':
             $product_editor->deleteProduct($product_id, $admin_id);
             Session::flash('success', 'Product deleted.');
@@ -96,6 +106,7 @@ $form             = adminFormValues($form_error, $product ?? $new_product_defaul
 $category_groups  = adminCategoryGroups((new Category($database))->getAllCategoriesForAdmin());
 $sellers          = (new Seller($database))->getActiveSellers();
 $can_adjust_stock = Admin::can($current_admin, 'inventory.manage');
+$product_offers   = $is_new ? [] : $offer_model->getOffersForAdmin(['product_id' => $product_id, 'per_page' => 25])['items'];
 
 $page_title  = $is_new ? 'Add product' : $product['product_name'];
 $active_menu = 'products';
@@ -243,6 +254,7 @@ require __DIR__ . '/includes/header.php';
 
     <?php if (!$is_new): ?>
         <div class="col-lg-4">
+            <?php require __DIR__ . '/includes/product_offers.php'; ?>
             <form class="admin-panel admin-danger-zone" method="post" data-confirm="Delete this product? It disappears from the shop and from this list.">
                 <?= Csrf::field() ?>
                 <div class="admin-panel-body">

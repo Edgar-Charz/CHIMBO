@@ -363,10 +363,11 @@ class Order
             $this->db->insert(
                 'INSERT INTO order_items (
                     order_id, product_id, seller_id, order_item_product_name, order_item_sku, order_item_image_path,
-                    order_item_unit_label, order_item_quantity, order_item_unit_price, order_item_tier_min_quantity, order_item_line_total
+                    order_item_unit_label, order_item_quantity, order_item_unit_price, order_item_tier_min_quantity,
+                    order_item_offer_percent, order_item_line_total
                  ) VALUES (
                     :order_id, :product_id, :seller_id, :product_name, :sku, :image_path,
-                    :unit_label, :quantity, :unit_price, :tier_min_quantity, :line_total
+                    :unit_label, :quantity, :unit_price, :tier_min_quantity, :offer_percent, :line_total
                  )',
                 [
                     'order_id'          => $order_id,
@@ -379,6 +380,7 @@ class Order
                     'quantity'          => $line['cart_quantity'],
                     'unit_price'        => $line['unit_price'],
                     'tier_min_quantity' => $line['tier_min_quantity'],
+                    'offer_percent'     => $line['offer_percent'],
                     'line_total'        => $line['line_total'],
                 ]
             );
@@ -534,6 +536,7 @@ class Order
                 'order_item_quantity'          => (int) $item['order_item_quantity'],
                 'order_item_unit_price'        => (int) $item['order_item_unit_price'],
                 'order_item_tier_min_quantity' => (int) $item['order_item_tier_min_quantity'],
+                'order_item_offer_percent'     => (int) $item['order_item_offer_percent'],   // 0 = no offer
                 'order_item_line_total'        => (int) $item['order_item_line_total'],
             ], $items),
             'events'                        => array_map(fn (array $event) => [   // the "Fuatilia Oda" timeline

@@ -4,7 +4,7 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
 - **Stage:** MVP features built on backend, admin, website and app (catalog, PIN login, cart, checkout, orders, cash on delivery + mobile money / bank checked by staff, notifications, receipts, admin tools, app pictures). Preparing for the first beta.
-- **Next (backend session):** time-limited offers "Ofa" (blueprint §12.4) → staging server + scheduled jobs (cancel unpaid orders after the time to pay, send queued SMS) → real SMS provider for login codes.
+- **Next (backend session):** staging server + scheduled jobs (cancel unpaid orders after the time to pay, send queued SMS) → real SMS provider for login codes.
 - **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
 - **Uncommitted work:** everything since commit 6a9c091 (user commits when they choose)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
@@ -25,6 +25,58 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-30 | **Push notifications (FCM, R-11) moved forward from v1.1**, to be built in a later session — plan in the 2026-09-30 mobile entry ("Planned: push notifications") |
 
 ## Session log
+
+### 2026-10-08 — Mobile: delivery address management
+- Wasifu → **Anwani za Usafirishaji** now lists saved addresses, supports adding and editing through the shared form, setting the default, and deleting after confirmation. Successful changes update the shared addresses controller, so checkout sees the same current list.
+- Added repository operations for `PATCH /addresses/{id}`, `POST /addresses/{id}/default`, and `DELETE /addresses/{id}`, plus widget and API tests.
+- Verified: `flutter analyze` clean; **135 Flutter tests pass**.
+
+### 2026-10-08 — Mobile: product sharing and WhatsApp support
+- Product pages share the CHIMBO website product URL and open CHIMBO support on WhatsApp with the product link prefilled. If support contacts are still loading or failed, the button remains usable and can retry.
+- Added widget tests for the share text/URL and the WhatsApp URL/message, including the support retry path.
+
+### 2026-10-08 — "Coming soon" buttons: Arifa and Malipo yangu (backend session, app files at the user's request)
+- Backend: `GET /payments` (`Payment::getPaymentsForCustomer`) — the customer's payments, newest first. Confirming the cash of a cash-on-delivery order now also saves a confirmed `payments` row (`Payment::recordCashCollected`), so cash shows in "Malipo yangu" too. 206 PHP tests passing.
+- App: Wasifu → **Arifa** opens the notifications list (hint "Taarifa za oda na malipo"). Wasifu → **Malipo yangu** (was "Njia za Malipo"): two tabs — **Historia** (status chip, rejection reason, tap → order, pull to refresh; newest 20 for now) and **Njia za malipo** ("Njia za malipo tunazokubali" from `/payment-methods`). New feature folder `lib/features/payments`; the pay-to details widget moved to `checkout/presentation/widgets/payment_method_details.dart` and is shared with the order's pay-to box. 127 app tests passing, analyze clean.
+- Still "Inakuja": product page Share and Uliza Muuzaji, Wasifu → Anwani (messages ready), Mipangilio → English (kept on purpose).
+
+### 2026-10-08 — Mobile: login hang in the web build fixed (done in the backend session at the user's request)
+- Cause: `DeviceName.read()` asked for iOS/Android details in a browser (DevTools phone emulation) → `UnsupportedError` not caught → the OTP/PIN request was never sent and the button kept spinning.
+- `lib/core/device/device_name.dart`: browser name on web, any error → null. `ApiAuthRepository._logIn()` also logs in without the label if reading it fails.
+- Forms that could spin forever on a non-API error now catch every error and show "Kuna tatizo limetokea": phone, OTP, PIN login, address, change payment method, "Nimelipa", PIN setup, business details.
+- Test: login goes through when the device name can't be read. `flutter analyze` clean, 123 tests passing.
+
+### 2026-10-08 — Web storefront: offer countdown with live seconds (web session)
+- `chimbo.js`: countdown "Inaisha baada ya DD:HH:MM:SS" (under a day "HH:MM:SS"), one shared `setInterval(1000)` for every `[data-offer-ends]` on the page. Time comes from the server: `storefrontConfig()` prints `server_time`, then every API answer's `Date` header corrects `serverOffsetMs` (changes under 2 s ignored — the header has whole seconds), so a wrong computer clock does not change the countdown.
+- At zero the timer sends `chimbo:offer-ended` {productId} (again after 10 s if the server still had the offer): product cards re-fetch `GET /products/{id}` and redraw (`product_card.js`), the product page reloads for its own product (`product.js`), the cart re-prices when the product is in it (`cart.js`). The old 30-second timer and whole-page reload are gone.
+- `CHIMBO.offerCountdown(endsAt, productId, className)`; PHP countdowns carry `data-offer-product`. Countdown digits are tabular so the text does not wobble. Lint clean; not browser-tested (user tests).
+
+### 2026-10-08 — Web storefront: time-limited offers "Ofa za muda" (web session)
+- **Countdown (`chimbo.js`):** `CHIMBO.offerCountdown(endsAt)` and any `[data-offer-ends]` printed by PHP show "Inaisha baada ya siku / saa / dakika X"; one shared timer (30 s) updates them all and reloads the page when an offer ends while it is open (the server decides prices). An end time already past when the page opened (phone clock ahead of the server) never reloads, so no reload loop. `CHIMBO.offerTag(percent)` / PHP `offerTag()` = the "Ofa −X%" line tag.
+- **Product cards:** badge "Ofa −15%" (`product_badge = offer`, red), normal price crossed out (`product_compare_at_price`), countdown under the price. PHP `productBadgeText()` follows the same rules (product page badge).
+- **Product page:** "Bei ya kawaida" crossed out during an offer, countdown pill under the price, each tier's `tier_price_before_offer` crossed out next to `tier_unit_price` (`tierRows()` now has `price_before_offer`). Stepper totals still from `tier_unit_price`.
+- **Home:** "Ofa za muda" rail from `home.offers` right after the trust strip (hidden when empty), "Ona zote" → `search.php?collection=offers`; the offers collection has its own heading/chip.
+- **Lines:** "Ofa −X%" on cart lines (drawer + cart page, `offer_percent`), checkout items, and order items (`order_item_offer_percent`) on the order and success pages.
+- Lint clean. Not browser-tested here (user tests).
+
+### 2026-10-08 — Time-limited offers "Ofa za muda" (mobile session)
+- Models: `ProductOffer` (`product_offer` percent + end time) on `ProductSummary`, badge `offer`; `PriceTier.priceBeforeOffer`; `HomeData.offers`; `ProductCollection.offers`; `CartLine.offerPercent`, `OrderItem.offerPercent` (0 = none).
+- `offer_widgets.dart`: `OfferLabel` ("Ofa −15%") and `OfferCountdown` ("Inaisha baada ya siku / saa / dakika X", ticks every 30 s, calls `onEnded` once when the time is up; an offer already over shows nothing and never reloads, so a fast phone clock can't loop).
+- Card: offer pill + countdown on the picture, normal price crossed out; when it ends Home and lists reload (`WidgetRef.reloadCatalogPrices`). Product page: label + countdown under the name, reloads the product when it ends; tier table shows `tier_price_before_offer` crossed out. Home: "Ofa za muda" rail first (hidden when empty) → list `collection=offers`. Cart lines and Fuatilia Oda items: "Ofa −X%".
+- **Live countdown (seconds):** `OfferCountdown` shows `DD:HH:MM:SS` (`HH:MM:SS` under a day; hours 0–23), tabular digits. One shared 1-second `offerTickerProvider` (autoDispose `StreamProvider`, stops when no offer is on screen) — no timer per card. Server time: `ServerTimeInterceptor` reads the HTTP `Date` header; `ServerClock` (`core/time/server_clock.dart`) keeps `server − phone` from the first answer per app start; countdowns use `ServerClock.now()`. At zero: one reload (card → Home/lists, product page → product).
+- Verified: format + analyze clean, **122 tests pass** (`offers_test.dart`: formats, clock correction, Date header, shared ticker + single reload). Device test by the user.
+
+### 2026-10-08 — Admin: time-limited offers (admin session)
+- `offers.php` (menu "Offers" under Products, `products.manage`): tabs Running / Scheduled / Ended (server-side table `ajax/offers.php`): product, −%, "TZS 6,000 → TZS 5,100" (+ best price), start / end in Tanzania time, created by, status; Edit (running / scheduled) and End now / Cancel (confirm). `offer_edit.php`: product (new offers; `?product_id=` pre-selects), percent 1–90, start (empty = now), end — datetime-local, saved UTC shown back with `adminDateTime($t, 'Y-m-d\TH:i')`; returns to the tab the offer is now in; ended offers can't be edited.
+- Product page: "Offers" box (`includes/product_offers.php`) with that product's offers, Edit, End now / Cancel and "New offer". Banner form: collection hint includes `offers`. Add order: products with a running offer show "−15% offer" (prices already include it). Helper `adminOfferPrice()`; status tone `running`.
+- Tested with a scheduled 2027 offer only (no live price change): validation (over 90 %, missing end, over 90 days, overlap), create, edit, cancel from the product page, ended offer not editable; test data removed. 205 tests pass.
+
+### 2026-10-08 — Time-limited offers "Ofa" (backend session)
+- Migration `010_product_offers.sql`: `product_offers` + `order_items.order_item_offer_percent`. Class `ProductOffer` (create / edit / end, one offer per product at a time, 1–90%, at most 90 days, Tanzania time in forms). `Pricing::withOffer()` / `offerPrice()`: the percentage comes off every tier, rounded to whole shillings.
+- Applied everywhere through `Pricing`: product cards (`product_offer`, badge `offer`, crossed-out normal price), product page tiers (`tier_price_before_offer`), cart lines (`offer_percent`), checkout, customer and staff orders (`order_item_offer_percent`), receipts ("Ofa −15%"). An offer ending mid-checkout → `PRICE_CHANGED`.
+- New collection `offers` (`GET /products?collection=offers`, Home rail `offers`, banner target).
+- Tests: 205 passing (10 new).
+- **Admin session:** offers.php + the "Offers" box on product_edit.php (ADMIN_CLASSES.md "Offers"). **Web / mobile sessions:** "Ofa −X%" badge, crossed-out price, countdown, Home rail "Ofa za muda", tier prices crossed out on the product page (API_REFERENCE "Product card").
 
 ### 2026-10-08 — Onboarding / login pictures appear at once (mobile session)
 - The admin-managed pictures (`features/app_images`) were fetched without waiting and only the next screen's picture was preloaded as the splash left, so the screens showed the fallback icons for a few seconds. Now the splash refreshes the picture list and downloads + decodes every picture shown before Home (`AppImageSlot.beforeHome`: 3 onboarding + 3 auth) while the logo shows, and waits for them (at most 5 s from start) unless the customer goes straight to Home.

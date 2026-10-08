@@ -2,7 +2,7 @@
 
 /**
  * Promotional banners on Home (e.g. "BEI ZA JUMLA — Nunua Sasa").
- * A banner can open a category, a product, a collection (deals | new | best_sellers) or a web address.
+ * A banner can open a category, a product, a collection (deals | new | best_sellers | offers) or a web address.
  *
  * Shop:  getActiveBanners()
  * Staff: getAllBannersForAdmin(), getBannerForAdmin(), createBanner(), updateBanner(), setBannerImage(), deleteBanner()
@@ -121,7 +121,7 @@ class Banner
         if (isset($data['banner_target_type']) && empty($data['banner_target_value'])) {
             $errors['banner_target_value'] = 'Say what the banner opens (a category id, product id, collection or web address).';
         }
-        if (($data['banner_target_type'] ?? null) === 'collection' && !in_array($data['banner_target_value'] ?? '', ['deals', 'new', 'best_sellers'], true)) {
+        if (($data['banner_target_type'] ?? null) === 'collection' && !in_array($data['banner_target_value'] ?? '', ['deals', 'new', 'best_sellers', 'offers'], true)) {
             $errors['banner_target_value'] = 'Collection must be deals, new or best_sellers.';
         }
         if (isset($data['banner_starts_at'], $data['banner_ends_at']) && $data['banner_ends_at'] <= $data['banner_starts_at']) {

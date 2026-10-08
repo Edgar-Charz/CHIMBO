@@ -229,7 +229,10 @@
                     el('a', { className: 'cart-line__name', text: product.product_name, attrs: { href: productUrl(product) } }),
                     el('span', { className: 'cart-line__total', text: formatTzs(item.line_total) }),
                 ]),
-                el('p', { className: 'cart-line__price', text: `${formatTzs(item.unit_price)} kila moja · bei ya ${item.tier_min_quantity}+ pcs` }),
+                el('p', { className: 'cart-line__price' }, [
+                    `${formatTzs(item.unit_price)} kila moja · bei ya ${item.tier_min_quantity}+ pcs `,
+                    CHIMBO.offerTag(item.offer_percent),
+                ]),
                 hint ? el('span', { className: 'cart-line__hint', text: `Ongeza ${formatPieces(hint.extra_quantity)} upate ${formatTzs(hint.unit_price)} kila moja` }) : null,
                 item.line_problem ? renderLineProblem(item) : null,
                 el('div', { className: 'cart-line__actions' }, [
@@ -323,6 +326,11 @@
 
     document.addEventListener('click', (event) => {
         if (event.target.closest('[data-cart-open]')) open();
+    });
+
+    // An offer ended on a product in the cart: price the cart again (the server drops the offer price)
+    document.addEventListener(CHIMBO.offerEndedEvent, ({ detail }) => {
+        if (quantityOf(detail.productId) > 0) refresh().catch(() => {});
     });
 
     if (!config.is_logged_in) updateBadges(guestStore.read().length); // show the count before the server answers

@@ -161,7 +161,7 @@
             productImage(item.product.product_image_url, item.product.product_name, 'checkout-item__image'),
             el('span', { className: 'checkout-item__name' }, [
                 item.product.product_name,
-                el('small', { text: `${formatPieces(item.cart_quantity)} × ${formatTzs(item.unit_price)}` }),
+                el('small', {}, [`${formatPieces(item.cart_quantity)} × ${formatTzs(item.unit_price)} `, CHIMBO.offerTag(item.offer_percent)]),
             ]),
             el('span', { className: 'checkout-item__total', text: formatTzs(item.line_total) }),
         ])));

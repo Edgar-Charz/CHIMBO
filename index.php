@@ -35,6 +35,7 @@ if ($has_tier_example) {
 
 $home_products = [
     'tabs'             => array_column($product_tabs, 'products', 'key'),
+    'offers'           => $home['offers'],
     'recently_ordered' => $home['recently_ordered'],
 ];
 
@@ -116,6 +117,19 @@ require __DIR__ . '/includes/header.php';
         <li class="trust-strip__item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong>Tunakuletea dukani</strong> Fuatilia oda yako</span></li>
     </ul>
 </section>
+
+<?php if ($home['offers'] !== []) : ?>
+    <section class="container-xl home-section home-offers" aria-labelledby="home-offers-title">
+        <div class="section-heading">
+            <div>
+                <h2 class="section-heading__title" id="home-offers-title"><i class="bi bi-alarm" aria-hidden="true"></i> Ofa za muda</h2>
+                <p class="section-heading__text">Bei maalum kwa muda mfupi tu — wahi kabla hazijaisha.</p>
+            </div>
+            <a class="section-heading__link" href="<?= e(collectionUrl('offers')) ?>">Ona zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        </div>
+        <div class="product-grid product-grid--rail" data-home-offers></div>
+    </section>
+<?php endif; ?>
 
 <?php if ($home['recently_ordered'] !== []) : ?>
     <section class="container-xl home-section" aria-labelledby="home-reorder-title">

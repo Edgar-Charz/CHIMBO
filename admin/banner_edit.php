@@ -42,7 +42,7 @@ $form   = adminFormValues($form_error, $saved_values);
 $target_types = [
     'category'   => 'A category — enter its id',
     'product'    => 'A product — enter its id',
-    'collection' => 'A collection — deals, new or best_sellers',
+    'collection' => 'A collection — deals, new, best_sellers or offers',
     'url'        => 'A web address',
 ];
 

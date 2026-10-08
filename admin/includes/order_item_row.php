@@ -23,7 +23,7 @@ $quantity_field = "items.{$item_index}.quantity";
                         data-stock="<?= e($product['product_stock_quantity']) ?>"
                         data-tiers="<?= e(json_encode($product['price_tiers'])) ?>"
                         <?= adminSelected($item, 'product_id', $product['product_id']) ?>>
-                    <?= e($product['product_name']) ?> · <?= e($product['product_sku']) ?>
+                    <?= e($product['product_name']) ?> · <?= e($product['product_sku']) ?><?= !empty($product['product_offer_percent']) ? ' · −' . e($product['product_offer_percent']) . '% offer' : '' ?>
                 </option>
             <?php endforeach; ?>
         </select>

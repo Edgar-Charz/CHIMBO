@@ -186,6 +186,25 @@ final class PaymentTest extends TestCase
         $this->assertApiError('PAYMENT_METHOD_LOCKED', fn () => $this->payment_model->changePaymentMethod($this->user_id, $cash_order['order_id'], ['payment_method' => 'mpesa']));
     }
 
+    public function testMalipoYanguListsOnlyTheCustomersOwnPaymentsNewestFirst(): void
+    {
+        $order      = $this->placeOrder('mpesa');
+        $payment_id = $this->submitAndGetPaymentId($order['order_id']);
+        $this->payment_model->rejectPayment($payment_id, ['payment_review_note' => 'Hatukupata malipo haya.'], self::ADMIN_ID);
+        $this->submit($order['order_id'], self::REFERENCE);
+
+        $page = $this->payment_model->getPaymentsForCustomer($this->user_id, []);
+
+        $this->assertSame(2, $page['total']);
+        $this->assertSame(['submitted', 'rejected'], array_column($page['items'], 'payment_status'));
+        $this->assertSame('M-Pesa', $page['items'][0]['payment_method_name']);
+        $this->assertSame($order['order_number'], $page['items'][0]['order_number']);
+        $this->assertSame('Hatukupata malipo haya.', $page['items'][1]['payment_review_note']);
+
+        $other_user_id = (new User($this->db))->findOrCreateUserIdByPhone('+255754000222');
+        $this->assertSame(0, $this->payment_model->getPaymentsForCustomer($other_user_id, [])['total']);
+    }
+
     // ------------------------------------------------------------------ staff
 
     public function testConfirmingMarksTheOrderPaidAndConfirmed(): void

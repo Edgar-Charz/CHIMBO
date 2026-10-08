@@ -89,7 +89,7 @@ require __DIR__ . '/includes/header.php';
                 <ul class="success-items">
                     <?php foreach (array_slice($order['items'], 0, SUCCESS_ITEMS_SHOWN) as $item) : ?>
                         <li>
-                            <span><?= e($item['product_name']) ?> <small>× <?= e($item['order_item_quantity']) ?></small></span>
+                            <span><?= e($item['product_name']) ?> <small>× <?= e($item['order_item_quantity']) ?></small> <?= offerTag($item['order_item_offer_percent']) ?></span>
                             <span><?= e(formatTzs($item['order_item_line_total'])) ?></span>
                         </li>
                     <?php endforeach; ?>

@@ -8,6 +8,7 @@
 require __DIR__ . '/includes/init.php';
 
 const COLLECTION_PAGES = [
+    'offers'       => ['title' => 'Ofa za muda', 'text' => 'Bei maalum zinazoisha hivi karibuni — wahi kabla hazijaisha.'],
     'deals'        => ['title' => 'Ofa', 'text' => 'Bidhaa zenye bei maalum kwa muda mfupi.'],
     'new'          => ['title' => 'Bidhaa mpya', 'text' => 'Zimewasili hivi karibuni CHIMBO.'],
     'best_sellers' => ['title' => 'Zinazouzwa zaidi', 'text' => 'Bidhaa wanazopenda wenye maduka wengine.'],

@@ -430,6 +430,15 @@ function adminTimeLeft(?string $utc_deadline): string
     return '<span class="' . ($hours === 0 ? 'text-warning-emphasis fw-semibold' : '') . '">' . e($text) . '</span>';
 }
 
+/**
+ * A price before → during an offer, e.g. "TZS 5,500 → TZS 4,675" (the offer price worked out by Pricing,
+ * the same way the shop does it).
+ */
+function adminOfferPrice(int $price, int $offer_percent): string
+{
+    return adminMoney($price) . ' → ' . adminMoney(Pricing::offerPrice($price, $offer_percent));
+}
+
 /** 'airtel_money' → "Airtel Money". */
 function adminPaymentMethodName(string $payment_method): string
 {
@@ -465,6 +474,7 @@ const ADMIN_MENU = [
     ],
     'Catalog' => [
         'products'        => ['Products', 'bi-box-seam', 'products.php', 'products.manage'],
+        'offers'          => ['Offers', 'bi-percent', 'offers.php', 'products.manage'],
         'categories'      => ['Categories', 'bi-diagram-3', 'categories.php', 'categories.manage'],
         'sellers'         => ['Sellers', 'bi-shop', 'sellers.php', 'sellers.manage'],
         'stock'           => ['Stock', 'bi-boxes', 'stock.php', 'inventory.manage'],
@@ -516,6 +526,7 @@ const ADMIN_STATUS_TONES = [
     'inactive'   => 'neutral',
     'hidden'     => 'neutral',
     'scheduled'  => 'warning',
+    'running'    => 'success',
     'ended'      => 'neutral',
     'in_stock'   => 'success',
     'low_stock'  => 'warning',

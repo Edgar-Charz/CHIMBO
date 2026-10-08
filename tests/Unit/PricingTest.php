@@ -60,4 +60,25 @@ final class PricingTest extends TestCase
         $this->assertSame(0, $line['line_savings']);
         $this->assertNull($line['next_tier_hint']);
     }
+
+    public function testOfferTakesThePercentOffEveryTierRoundedToWholeShillings(): void
+    {
+        $tiers = Pricing::withOffer(self::VASELINE_TIERS, 15);
+
+        $this->assertSame([4675, 4250, 3995, 3740], array_column($tiers, 'tier_unit_price'));
+        $this->assertSame([5500, 5000, 4700, 4400], array_column($tiers, 'tier_price_before_offer'));
+        $this->assertSame(self::VASELINE_TIERS, Pricing::withOffer(self::VASELINE_TIERS, 0));
+        $this->assertSame(849, Pricing::offerPrice(999, 15));    // 849.15 → 849
+        $this->assertSame(501, Pricing::offerPrice(1001, 50));   // 500.5 → 501
+    }
+
+    public function testOfferLineSavesAgainstTheNormalPriceAndHintsTheOfferPrice(): void
+    {
+        $line = Pricing::priceLine(self::VASELINE_TIERS, 8, 15);
+
+        $this->assertSame(4250, $line['unit_price']);
+        $this->assertSame(15, $line['offer_percent']);
+        $this->assertSame((5500 - 4250) * 8, $line['line_savings']);
+        $this->assertSame(['extra_quantity' => 16, 'unit_price' => 3995], $line['next_tier_hint']);
+    }
 }

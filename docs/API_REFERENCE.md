@@ -125,13 +125,13 @@ Body: `{"user_full_name": "Joyce Joseph", "business_name": "Duka la Joyce", "reg
 ## Catalog — Nyumbani & Gundua (public, no login needed)
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/home` | `{banners[], top_categories[], best_sellers[], deals[], new_arrivals[], recently_ordered[]}` — one call for the whole Home tab (`recently_ordered` stays `[]` until orders exist) |
+| GET | `/home` | `{banners[], top_categories[], best_sellers[], deals[], offers[], new_arrivals[], recently_ordered[]}` — `offers` = "Ofa za muda" (running offers, ending soonest first; hide the rail when empty) — one call for the whole Home tab (`recently_ordered` stays `[]` until orders exist) |
 | GET | `/categories` | `[{category_id, category_name, category_slug, category_tagline, category_image_url, children: [same without children]}]` |
 | GET | `/categories/{id}` | one top category with its `children` (chips) · 404 |
 | GET | `/products` | paginated product cards (`meta`: page, per_page, total, last_page) |
 
 `GET /products` query parameters (all optional): `category_id` (a top category includes its chips), `q` (search name/brand),
-`collection` = `deals` \| `new` \| `best_sellers`, `min_price`, `max_price` (normal price, TZS), `max_moq`,
+`collection` = `deals` \| `new` \| `best_sellers` \| `offers` (running offers, ending soonest first), `min_price`, `max_price` (normal price, TZS — offers are not taken into account), `max_moq`,
 `sort` = `popular` (default) \| `newest` \| `price_asc` \| `price_desc`, `page` (from 1), `per_page` (default 20, max 50).
 
 **Product card:**
@@ -139,11 +139,12 @@ Body: `{"user_full_name": "Joyce Joseph", "business_name": "Duka la Joyce", "reg
 {"product_id": 1, "product_name": "Vaseline Petroleum Jelly 400ml", "product_slug": "vaseline-petroleum-jelly-400ml",
  "category_id": 2, "product_price": 5500, "product_price_from": 4400, "product_compare_at_price": null,
  "product_moq": 1, "product_unit_label": "pc", "product_in_stock": true, "product_image_url": null,
- "product_badge": "bestseller", "seller_name": "Shamba la Vipodozi", "seller_is_verified": true}
+ "product_offer": null, "product_badge": "bestseller", "seller_name": "Shamba la Vipodozi", "seller_is_verified": true}
 ```
-- `product_price` = normal price (smallest quantity); `product_price_from` = best wholesale price ("kuanzia").
-- `product_compare_at_price` = old price, only when the product is on offer (then `product_badge` = `deal`).
-- `product_badge`: `deal` \| `bestseller` \| `new` \| `null` (one at most).
+- `product_price` = price for the smallest quantity; `product_price_from` = best wholesale price ("kuanzia"). **Both already include a running offer.**
+- `product_compare_at_price` = the crossed-out price, or `null`: the normal price during an offer, otherwise the old price of a `deal`.
+- `product_offer` = `{"product_offer_percent": 15, "product_offer_ends_at": "2026-10-12T17:00:00+00:00"}` while a time-limited offer runs, else `null` → "Ofa −15%" badge and the countdown "Inaisha baada ya saa X" (count down to `product_offer_ends_at`; when it reaches zero, reload — the server decides).
+- `product_badge`: `offer` \| `deal` \| `bestseller` \| `new` \| `null` (one at most, in that order).
 - `product_image_url` is `null` until the admin uploads photos → show a placeholder.
 
 ### `GET /products/{id}` — product page (public)
@@ -160,6 +161,7 @@ Everything on the card, plus:
 - `images`: the photos **in display order** (medium size) — big photo + thumbnail strip. Empty until photos are uploaded.
 - `gallery`: every size of each photo (use `thumb` for the thumbnail strip, `large` for zoom).
 - Tier ranges for display: each tier runs up to the next tier's `tier_min_quantity − 1`; the last one is "60+".
+- During an offer every tier's `tier_unit_price` is the offer price and the tier also has `tier_price_before_offer` (show it crossed out). Work out stepper totals from `tier_unit_price` as before.
 - 404 `NOT_FOUND` if the product doesn't exist or is hidden.
 
 ### `GET /products/{id}/related` — up to 10 product cards from the same chip ("You may also like")
@@ -193,7 +195,8 @@ Everything on the card, plus:
  "warnings": []}
 ```
 - Prices are **always calculated by the server** from the tiers — the app never sends a price.
-- `next_tier_hint` = "Ongeza pcs 16 upate TZS 4,700" (null at the best tier). `line_savings` / `savings` = "Unaokoa".
+- `next_tier_hint` = "Ongeza pcs 16 upate TZS 4,700" (null at the best tier). `line_savings` / `savings` = "Unaokoa" (tiers + offer, against the normal price).
+- Each line also has `offer_percent` (0 = no offer) → "Ofa −15%" on the line. Order items keep it as `order_item_offer_percent`.
 - `line_problem` (after stock/MOQ changed): `not_enough_stock` (lower to `available_quantity`), `out_of_stock`, `below_moq`, or null. Checkout is blocked while `can_checkout` is false.
 - `warnings`: products that left the shop were removed — show the message once.
 - Errors: `VALIDATION_ERROR` on `quantity` (below MOQ: "Kiwango cha chini cha kuagiza ni 6 (MOQ).") · `OUT_OF_STOCK` (409) · `NOT_FOUND`.
@@ -268,6 +271,13 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 `POST /orders/{id}/payment` errors: `VALIDATION_ERROR` (`payment_payer_account`: not a Tanzanian mobile number; `payment_reference`: 6–30 letters/digits, or already used) · `PAYMENT_UNDER_REVIEW` (409, already sent) · `PAYMENT_TIME_OVER` (409) · `PAYMENT_NOT_EXPECTED` (409: cash order or not waiting for payment) · `NOT_FOUND`.
 `POST /orders/{id}/cancel` can also answer `PAYMENT_UNDER_REVIEW` (409).
 `POST /orders/{id}/payment-method` errors: `VALIDATION_ERROR` on `payment_method` (switched off, or cash above the limit) · `PAYMENT_UNDER_REVIEW` · `PAYMENT_METHOD_LOCKED` (409: cash order, paid, or not waiting for payment) · `PAYMENT_TIME_OVER`.
+
+## Malipo yangu · 🔒
+`GET /payments?page=1` → the customer's own payments, newest first, 20 per page (`meta` as other lists):
+`[{payment_id, order_id, order_number, payment_method_code, payment_method_name, payment_amount, payment_payer_account,
+payment_reference, payment_status (submitted | confirmed | rejected), payment_review_note, created_at, payment_reviewed_at}]`.
+Every "Nimelipa" is listed (also rejected ones, with the reason), payments staff recorded, and cash collected on delivery
+(`payment_method_code` `cod`, reference `CASH-{order_number}`). Show "Njia za malipo tunazokubali" below it from `GET /payment-methods`.
 
 ## Notifications (the bell) · 🔒 all
 | Method | Path | Returns |

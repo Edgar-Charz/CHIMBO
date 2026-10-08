@@ -115,7 +115,13 @@ require __DIR__ . '/includes/header.php';
                 <div class="product-price">
                     <p class="product-price__now"><span data-unit-price><?= e(formatTzs($moq_tier['tier_unit_price'])) ?></span> <small>kwa pc</small></p>
                     <?php if ($product['product_compare_at_price'] > $product['product_price']) : ?>
-                        <p class="product-price__was">Bei ya awali <del><?= e(formatTzs($product['product_compare_at_price'])) ?></del></p>
+                        <p class="product-price__was"><?= $product['product_offer'] === null ? 'Bei ya awali' : 'Bei ya kawaida' ?> <del><?= e(formatTzs($product['product_compare_at_price'])) ?></del></p>
+                    <?php endif; ?>
+                    <?php if ($product['product_offer'] !== null) : ?>
+                        <p class="product-price__offer">
+                            <i class="bi bi-alarm" aria-hidden="true"></i>
+                            <span data-offer-ends="<?= e($product['product_offer']['product_offer_ends_at']) ?>" data-offer-product="<?= e($product['product_id']) ?>">Ofa ya muda</span>
+                        </p>
                     <?php endif; ?>
                 </div>
 
@@ -129,7 +135,12 @@ require __DIR__ . '/includes/header.php';
                             <?php foreach ($tier_rows as $tier) : ?>
                                 <tr data-tier-min="<?= e($tier['min_quantity']) ?>">
                                     <td><?= e($tier['label']) ?></td>
-                                    <td><?= e(formatTzs($tier['unit_price'])) ?></td>
+                                    <td>
+                                        <?= e(formatTzs($tier['unit_price'])) ?>
+                                        <?php if ($tier['price_before_offer'] !== null) : ?>
+                                            <del class="tier-table__before"><?= e(formatTzs($tier['price_before_offer'])) ?></del>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="tier-table__saving"><?= $tier['savings_percent'] === 0 ? 'Bei ya kawaida' : e("Unaokoa {$tier['savings_percent']}%") ?></td>
                                 </tr>
                             <?php endforeach; ?>

@@ -151,6 +151,11 @@ final class OrderTest extends TestCase
         $this->assertApiError('VALIDATION_ERROR', fn () => $this->order_manager->confirmCashCollected($order['order_id'], ['delivery_cash_collected' => 1000], self::ADMIN_ID));
         $this->order_manager->confirmCashCollected($order['order_id'], ['delivery_cash_collected' => $order['order_total']], self::ADMIN_ID);
         $this->assertSame('paid', $this->order_model->getOrder($this->user_id, $order['order_id'])['order_payment_status']);
+
+        // The cash also appears in "Malipo yangu"
+        $payment = (new Payment($this->db))->getPaymentsForCustomer($this->user_id, [])['items'][0];
+        $this->assertSame(['cod', 'confirmed', $order['order_total'], 'CASH-' . $order['order_number']],
+            [$payment['payment_method_code'], $payment['payment_status'], $payment['payment_amount'], $payment['payment_reference']]);
     }
 
     public function testSkippingStepsIsRefused(): void

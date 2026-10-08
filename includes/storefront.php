@@ -114,7 +114,8 @@ function formatTzs(int $amount): string
 
 /**
  * Price tiers ready to show: each tier runs up to the next tier's minimum − 1, the last one is "60+".
- * Returns [['min_quantity' => 6, 'label' => '6–23 pcs', 'unit_price' => 5000, 'savings_percent' => 9, 'is_best' => false], …]
+ * Returns [['min_quantity' => 6, 'label' => '6–23 pcs', 'unit_price' => 5000, 'price_before_offer' => null,
+ * 'savings_percent' => 9, 'is_best' => false], …]
  * (savings compared with the first tier's price).
  */
 function tierRows(array $tiers): array
@@ -124,13 +125,14 @@ function tierRows(array $tiers): array
     foreach ($tiers as $index => $tier) {
         $next_tier = $tiers[$index + 1] ?? null;
         $rows[] = [
-            'min_quantity'    => $tier['tier_min_quantity'],
-            'label'           => $next_tier === null
+            'min_quantity'       => $tier['tier_min_quantity'],
+            'label'              => $next_tier === null
                 ? "{$tier['tier_min_quantity']}+ pcs"
                 : "{$tier['tier_min_quantity']}–" . ($next_tier['tier_min_quantity'] - 1) . ' pcs',
-            'unit_price'      => $tier['tier_unit_price'],
-            'savings_percent' => (int) round((1 - $tier['tier_unit_price'] / $normal_price) * 100),
-            'is_best'         => $next_tier === null,
+            'unit_price'         => $tier['tier_unit_price'],
+            'price_before_offer' => $tier['tier_price_before_offer'] ?? null, // set only while a time-limited offer runs
+            'savings_percent'    => (int) round((1 - $tier['tier_unit_price'] / $normal_price) * 100),
+            'is_best'            => $next_tier === null,
         ];
     }
 
@@ -143,9 +145,15 @@ function formatPieces(int $count): string
     return number_format($count) . ($count === 1 ? ' pc' : ' pcs');
 }
 
-/** The card badge: "−8%" for offers with an old price, otherwise the badge name (null = no badge). */
+/**
+ * The card badge: "Ofa −15%" during a time-limited offer, "−8%" for a deal with an old price, otherwise the
+ * badge name (null = no badge). Same rules as badgeText() in product_card.js.
+ */
 function productBadgeText(array $product): ?string
 {
+    if ($product['product_badge'] === 'offer' && $product['product_offer'] !== null) {
+        return 'Ofa −' . $product['product_offer']['product_offer_percent'] . '%';
+    }
     $compare_at_price = $product['product_compare_at_price'];
     if ($product['product_badge'] === 'deal' && $compare_at_price > $product['product_price']) {
         return '−' . round((1 - $product['product_price'] / $compare_at_price) * 100) . '%';
@@ -210,6 +218,12 @@ function orderTimeline(array $order): array
 function receiptUrl(int $order_id): string
 {
     return url("api/v1/orders/{$order_id}/receipt");
+}
+
+/** The small "Ofa −15%" tag on order lines (empty when the line had no offer). Same as CHIMBO.offerTag(). */
+function offerTag(int $offer_percent): string
+{
+    return $offer_percent > 0 ? '<span class="offer-tag">' . e("Ofa −{$offer_percent}%") . '</span>' : '';
 }
 
 /** A whole number from the address bar (?id=5), or null when missing or not a number ≥ $minimum. */
@@ -387,5 +401,6 @@ function storefrontConfig(): array
         'api_url'      => url('api/v1'),
         'login_url'    => url('login.php'),
         'is_logged_in' => currentCustomer() !== null,
+        'server_time'  => gmdate(DATE_ATOM), // offer countdowns use the server's clock, not the computer's
     ];
 }
