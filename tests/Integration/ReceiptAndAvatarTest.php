@@ -2,7 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 
-/** "Pakua Risiti" (receipt PDF) and the profile photo. */
+/** "Pakua Risiti" (receipt PDF), the staff packing slip, and the profile photo. */
 final class ReceiptAndAvatarTest extends TestCase
 {
     private Database $db;
@@ -53,6 +53,45 @@ final class ReceiptAndAvatarTest extends TestCase
         $order_id = $this->placeOrder();
 
         $this->assertStringStartsWith('%PDF', (new Receipt($this->db))->createReceiptForAdmin($order_id)['pdf']);
+    }
+
+    public function testStaffCanPrintAPackingSlipWithAQrCode(): void
+    {
+        $order_id = $this->placeOrder();
+
+        $slip = (new Receipt($this->db))->createPackingSlip($order_id);
+
+        $this->assertStringStartsWith('%PDF', $slip['pdf']);
+        $this->assertMatchesRegularExpression('/^Kupakia-CHB\d{6}\.pdf$/', $slip['file_name']);
+        $this->assertStringContainsString('/Subtype /Image', $slip['pdf']);   // the QR code
+    }
+
+    public function testPackingSlipListsWhatToPackWithoutPricesButWithCashToCollect(): void
+    {
+        $order_id = $this->placeOrder();   // 8 Vaseline, cash on delivery, TZS 45,000
+
+        $html = $this->packingSlipHtml($order_id);
+
+        $this->assertStringContainsString('Vaseline Petroleum Jelly 400ml', $html);
+        $this->assertStringContainsString('CHB-DEMO-001', $html);
+        $this->assertStringContainsString('<strong>8</strong>', $html);
+        $this->assertStringNotContainsString('TZS 5,000', $html);              // no unit price …
+        $this->assertStringContainsString('KUSANYA: TZS 40,000', $html);
+        $this->assertSame(1, substr_count($html, '40,000'));               // … and no line total (only the cash to collect)
+        $this->assertStringContainsString('mteja anamlipa dereva (Bolt)', $html);   // Dar by Bolt: transport isn't CHIMBO's money
+
+        $this->db->execute("UPDATE orders SET order_payment_status = 'paid' WHERE order_id = {$order_id}");
+        $this->assertStringNotContainsString('KUSANYA', $this->packingSlipHtml($order_id));   // nothing left to collect
+    }
+
+    /** The slip's HTML (the PDF's text is compressed, so the template is checked directly). */
+    private function packingSlipHtml(int $order_id): string
+    {
+        $order       = (new OrderManager($this->db))->getOrderForAdmin($order_id);
+        $qr_code_uri = 'data:image/png;base64,';
+        ob_start();
+        require BASE_PATH . '/classes/views/packing_slip.php';
+        return (string) ob_get_clean();
     }
 
     public function testNewPhotoReplacesTheOldOneAndItsFile(): void

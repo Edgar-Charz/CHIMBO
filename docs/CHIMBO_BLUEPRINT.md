@@ -193,6 +193,9 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 | R-19 | OTP rate limits / anti-SMS-fraud | SMS credit abuse | MVP |
 | R-20 | **Web storefront** with the same account, cart and orders as the app | Customers on computers; Google can index products | MVP (Phase 7) |
 | R-21 | Crash reporting & analytics | Field issues | v1.1 |
+| R-25 | **Upcountry transport priced per region, confirmed by staff** — estimate at checkout, staff confirm or adjust after measuring the load, then the customer pays (design in §12.7) | Upcountry costs vary with load size; customers pay transport to CHIMBO | Built 2026-10-09 |
+| R-26 | **Dar by Bolt, paid to the rider · pickup at the shop** — one Dar option where the customer pays the Bolt rider directly (nothing added to CHIMBO's total), and a free "Nitachukua mwenyewe dukani" option for every region (design in §12.8) | In Dar CHIMBO books a Bolt and the customer pays the rider; some customers prefer to collect | Built 2026-10-15 |
+| R-24 | **Smart QR link on the packing slip** — one signed link that opens the admin order page for staff, the order for its customer, and a minimal page (status, cash to collect) for anyone else (design in §12.6) | Packing check, customer support from the box, agents know the cash to collect | Planned — build with the staging server |
 | R-23 | **PIN login** (4–6 digits, like M-Pesa) — phone → PIN; SMS code only for new numbers and "Umesahau PIN?" (design in §12.5) | Saves an SMS per login; works when SMS is slow | Before the first beta (built 2026-09-30) |
 | R-22 | **Time-limited offers ("Ofa")** — a % discount on a product for a set period, with a countdown (design in §12.4) | Brings shop owners back; clears slow stock | Before the first beta |
 
@@ -752,6 +755,66 @@ Backend: migration `010_product_offers.sql`, `ProductOffer`, `Pricing::withOffer
 - App and website: badge, crossed-out price, countdown, Home rail.
 - Tests: offer running / not started / ended, all tiers discounted, `PRICE_CHANGED` when an offer ends mid-checkout.
 
+### 12.7 Upcountry transport: estimate per region, confirmed by staff (R-25, decided 2026-10-09)
+Upcountry orders travel with CHIMBO's transport company; **the customer pays the transport cost to CHIMBO** with the products (no cash on delivery). The cost depends on the region and the size of the load, so: every region has an **estimate**, and staff **confirm** the final price before the customer pays. Dar es Salaam: see §12.8 (Bolt, paid to the rider).
+
+**Flow**
+1. Admin → Settings → **Delivery**: an estimate per region (e.g. Mwanza 15,000 · Arusha 18,000). A region without one → "tutakujulisha bei ya usafiri".
+2. Checkout (address outside Dar): "**Usafiri wa mikoani — hadi Mwanza: 15,000 TZS** (makadirio — tutathibitisha baada ya kupima mzigo)". The total shown is with the estimate.
+3. Order placed → "**Inasubiri uthibitisho wa usafiri**"; no pay box yet; no time limit yet. Staff get a bell notification and a "Waiting for you" item.
+4. Staff measure the load and **confirm**: the same price, more ("+5,000 — mzigo mkubwa, katoni 6") or less. A changed price needs a short reason; the customer sees it.
+5. The customer is notified ("Usafiri umethibitishwa: 20,000 TZS. Jumla: 265,000 TZS — lipa sasa"); the order total is updated; the pay box appears and the **24 hours to pay start now**.
+6. Pay → confirmed → pack → hand to the company. If the customer doesn't accept the new price they cancel for free (nothing paid yet).
+
+**Rules:** the final fee is copied onto the order like every other price (later estimate changes don't touch it) · only staff with `orders.manage` confirm; it is audit-logged · cash on delivery can't be used with a fee that still needs confirming · unconfirmed orders never expire on their own (staff confirm or cancel them).
+
+**Data:** `regions.region_transport_estimate` · delivery options get *where* (all regions / only one region / all except one region) and *pricing* (fixed fee, or the region's estimate confirmed by staff) · orders get `order_delivery_fee_estimate`, `order_delivery_fee_confirmed_at`, `order_delivery_fee_confirmed_by_admin_id`, `order_delivery_fee_note`. A seeded option "**Usafiri wa mikoani**" = every region except Dar, priced by the estimate; Standard becomes Dar-only.
+
+**Admin Settings in tabs:** General (support contacts, legal texts) · Orders & payments · **Delivery** (options + region estimates) · Login (SMS) · App pictures.
+
+### 12.8 Dar by Bolt (paid to the rider) and pickup at the shop (R-26, decided 2026-10-15)
+In Dar es Salaam CHIMBO books a Bolt for the order and **the customer pays the rider directly** — that money never goes through CHIMBO. Some customers prefer to **collect the order themselves**. This replaces the planned Bolt-style Dar price (distance × vehicle): Bolt prices the trip itself.
+
+**Delivery options after this change**
+| Option | Where | Price | Paid to |
+|---|---|---|---|
+| **Bolt (Dar es Salaam)** (siku 0–1) | only Dar | "Unamlipa dereva ukipokea" — no amount shown, nothing added to the total | the rider |
+| **Usafiri wa mikoani** (siku 2–5) | every region except Dar | the region's estimate, confirmed by staff (§12.7) | CHIMBO |
+| **Nitachukua mwenyewe dukani** | every region | free | — |
+
+Standard and Haraka are replaced by the single Bolt option (Haraka is switched off; old orders keep their fees): with Bolt the speed depends on when staff book the ride, not on what the customer picks.
+
+**Rules**
+1. "Customer pays the rider" is a third price type of a delivery option (besides fixed and region's estimate). The order's transport is 0 in CHIMBO's total and the order remembers it was paid to the rider, so the receipt, packing slip and order pages say "**Usafiri: unamlipa dereva**" — never "Bure".
+2. No guide price is shown for Bolt (decided by the owner).
+3. Pickup: the customer **pays first** by mobile money / bank like any order. **One pickup point**: its address and opening hours are settings (Admin → Settings → General → Pickup point), shown at checkout and on the order.
+4. Pickup orders use the same statuses with their own words: `packed` = "**Tayari kuchukuliwa**" (the customer is told: "Oda #… iko tayari, njoo uichukue: {address}, {hours}") and `delivered` = "**Imechukuliwa**". They go straight from packed to delivered — never dispatched / in transit, no delivery agent.
+5. The customer still chooses a saved address (it stays their contact and location); a pickup order simply isn't sent there.
+6. Dispatching a Bolt order is unchanged (a delivery agent from the list is optional).
+
+**Data:** `delivery_methods.delivery_method_pricing` gains `paid_to_rider`; `delivery_methods.delivery_method_is_pickup`; orders get `order_delivery_paid_to_rider` and `order_is_pickup` (copied when ordering); settings `pickup_address`, `pickup_hours`. API: delivery options and an order's `delivery_method` carry `delivery_fee_paid_to_rider` and `delivery_method_is_pickup`; `/checkout/options` and pickup orders carry `pickup_point` {address, hours}.
+
+### 12.6 Smart QR link on the packing slip (planned, R-24)
+Today the slip's QR holds only the order number. Planned: one short, signed link that opens the right page for whoever scans it.
+
+**The link:** `{APP_URL}/o/CHB123456-k7Qx` — the order number + a short signature (HMAC of the order number with `APP_KEY`), so nobody can guess other orders' links. The order number stays printed big next to the QR (and readable inside the link).
+
+**What it opens**
+| Who scans | Sees |
+|---|---|
+| Staff logged in to the admin | the admin order page — check the items while packing, then "Packed" |
+| The customer, logged in on the website | their order: tracking, receipt, "report a problem" (damaged / missing item) |
+| Anyone else (delivery agent, neighbour) | a minimal public page: order number, number of items, status, **cash to collect** if any, CHIMBO support number — **no name, phone or address** (those are printed on the slip for the agent, never shown to strangers) |
+
+**Rules**
+1. The link is built from the `APP_URL` setting only (never the address the admin page was opened from), so moving from ngrok to the real domain is a change of `APP_URL` in `.env` — no code change.
+2. A wrong or changed signature → the same "not found" page as an unknown order (nothing is revealed). The public page is rate-limited.
+3. The real server gets its own new `APP_KEY`: QR codes printed during testing don't open real orders.
+4. Printed paper doesn't update: don't put slips on real customers' boxes until `APP_URL` is the real domain.
+5. Later (delivery-agent side, §17 v2): the same QR + a code from the customer confirms delivery — no change to slips printed now.
+
+**Build list:** `OrderLink` class (make / check the signed code) · public route `o/{code}` (root `.htaccess`) + a page that redirects staff / the customer and shows the minimal page to others · the packing slip's QR uses the link · tests (signature, wrong code, who-sees-what, nothing personal on the public page). Testing now: set `APP_URL` to the ngrok address (`https://unusual-handbook-breeding.ngrok-free.dev/chimbo`); ngrok's free plan shows a one-time "Visit site" warning page.
+
 ---
 
 ## 13. Payment architecture
@@ -884,7 +947,49 @@ Location: **`C:\xampp\htdocs\chimbo\admin\`** — PHP + Bootstrap 5, page-per-fi
 ## 17. Future features
 
 | Version | Features |
+|
+
+### 17.2 Staff for one shop (planned — decided 2026-10-09: docs now, build later)
+CHIMBO's own shops (today *Duka la Vipodozi* and *Mrembo Muuza Urembo*, family-owned) can each get their own admin.
+A staff account gets an optional **shop** (`admins.seller_id`): empty = everything (as today, super admin etc.); set = the same admin and dashboard, but only that shop's data.
+
+| Area | A shop's admin sees |
 |---|---|
+| Dashboard (all tabs) | their shop's sales, best sellers, low stock, charts |
+| Products, stock, offers | their shop's products only (can't open the other shop's) |
+| Orders | orders that contain their products — only their lines and their amount |
+| Reports | their shop's sales and CSVs |
+| The bell | notifications about their shop (its low stock, orders with its items) |
+| Not shown | payments / refunds, settings, staff accounts, audit log, the whole customer list (super admin) |
+
+**Rules proposed (to confirm when built):** a shop's revenue = the value of its order lines (delivery fees and whole-order totals stay with the business) · an order with both shops' products: shop admins see their lines; only super admin / operations change its status (a shop admin may move orders with only their products) — "each seller marks their lines ready" (§17.1 step 3) solves this fully later · open: may shop admins **edit** their products / prices / stock, or only **view**?
+**Safety:** the shop filter lives inside the backend classes (not on each page), with a test per area proving shop A can't see shop B. This is also step 1 of the marketplace (§17.1).
+
+### 17.1 Marketplace: other businesses selling on CHIMBO (v2 — decided 2026-10-09: later)
+**For now CHIMBO sells only its own products.** After launch, once real customers show how they buy, decide whether to open CHIMBO to other sellers.
+
+**Already in place:** every product belongs to a seller (`sellers`, verified badge); every order line remembers its seller (`order_items.seller_id`); roles, permissions, audit log and the staff bell can be reused.
+
+**How it would work**
+1. *Becoming a seller:* a customer taps "Uza kwenye CHIMBO" in Wasifu → shop details, TIN, business licence, documents → CHIMBO staff approve (like business verification).
+2. *Seller area* ("Duka langu", app + website, same phone and PIN): their products, stock, orders with their items, sales, money owed.
+3. *Listing:* sellers add products (photos, tiers, MOQ); new / changed products wait in a **review queue** for CHIMBO to approve.
+4. *Orders:* one customer order can still hold several sellers; each seller sees only their lines and marks them "ready"; CHIMBO collects, packs and delivers.
+5. *Money:* the customer pays CHIMBO; CHIMBO keeps a **commission** and pays each seller on a schedule (e.g. weekly, mobile money). A **seller ledger** records every sale, commission, refund and payout → a statement per seller.
+
+**Open decisions (owner):** delivery — CHIMBO collects from sellers, or sellers ship · commission — one rate or per category · payouts — by hand first, automatic with the payment provider later · who may sell — documents required; TRA / tax questions for an accountant · returns and disputes — who pays for damaged / wrong goods.
+
+**Steps**
+| Step | What |
+|---|---|
+| 1 | Seller statements: staff still add products; each seller logs in to *see* their sales and money owed |
+| 2 | Self-service products with the review queue; sellers manage their own stock |
+| 3 | Order lines per seller ("ready for pickup"), commission, seller ledger |
+| 4 | Automatic payouts, seller ratings, disputes |
+
+**Data changes (when built):** `sellers.user_id` (the account that runs the shop), seller application status, `seller_commission_percent`, payout account · `products.product_review_status` (draft / pending / approved / rejected) · a per-seller status on order lines · `seller_ledger_entries` (sale, commission, refund, payout).
+
+---|---|
 | **v1.1** | Push notifications · reviews & ratings · coupons / "spend X save Y" (Punguzo) · bank payment · document-based business verification · search suggestions & logs · crash reporting/analytics · SMS order updates · refunds table |
 | **v1.2** | Camera image search · "Because you ordered…" recommendations · back-in-stock / price-drop alerts · saved "usual order" lists · product variants |
 | **v2** | Seller portal & multi-vendor (payouts, commission) · in-app chat · delivery-agent app + live map · credit / "Lipa baadaye" for verified shops · loyalty & referrals · iOS release |

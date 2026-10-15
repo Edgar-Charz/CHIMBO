@@ -162,7 +162,7 @@ require __DIR__ . '/includes/header.php';
                 </thead>
                 <tbody>
                     <?php foreach ($refunds_due as $refund): ?>
-                        <tr>
+                        <tr class="row-link" data-href="<?= e(url('admin/order_details.php?id=' . $refund['order_id'])) ?>">
                             <td><a class="fw-semibold" href="<?= e(url('admin/order_details.php?id=' . $refund['order_id'])) ?>"><?= e($refund['order_number']) ?></a></td>
                             <td><?= e($refund['user_full_name'] ?? 'No name yet') ?><div class="small text-muted"><?= e(Phone::format($refund['user_phone'])) ?></div></td>
                             <td class="text-end text-nowrap fw-semibold" data-order="<?= e($refund['order_total']) ?>"><?= e(adminMoney((int) $refund['order_total'])) ?></td>

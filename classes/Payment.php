@@ -42,6 +42,8 @@ class Payment
                     => throw ApiException::conflict('PAYMENT_NOT_EXPECTED', 'Oda hii haisubiri malipo.'),
                 $order['order_payment_status'] === 'pending'
                     => throw ApiException::conflict('PAYMENT_UNDER_REVIEW', 'Tumepokea taarifa za malipo yako na tunazikagua. Tutakujulisha punde.'),
+                (bool) $order['is_awaiting_transport_price']
+                    => throw ApiException::conflict('DELIVERY_FEE_NOT_CONFIRMED', 'Subiri tuthibitishe bei ya usafiri kwanza. Tutakujulisha, kisha utalipa.'),
                 (bool) $order['is_past_payment_time']
                     => throw ApiException::conflict('PAYMENT_TIME_OVER', 'Muda wa kulipia oda hii umeisha. Kama umeshalipa, wasiliana na msaada.'),
                 default => null,
@@ -49,6 +51,14 @@ class Payment
 
             $details = $this->checkPaymentDetails($order['order_payment_method'], $input);
             $this->savePayment($order, $details, null);
+
+            $method_name = (new PaymentMethod($this->db))->getDetailsByCode($order['order_payment_method'])['payment_method_name'] ?? $order['order_payment_method'];
+            (new AdminNotification($this->db))->notify(
+                'payment.submitted',
+                "Payment to check: {$order['order_number']}",
+                "{$method_name} · " . number_format((int) $order['order_total']) . " TZS · from {$details['payment_payer_account']} · code {$details['payment_reference']}",
+                'payments.php?tab=review'
+            );
         });
 
         return $this->order_model->getOrder($user_id, $order_id);
@@ -440,7 +450,8 @@ class Payment
     {
         $order = $this->db->fetchOne(
             'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total,
-                    order_expires_at IS NOT NULL AND order_expires_at < UTC_TIMESTAMP() AS is_past_payment_time
+                    order_expires_at IS NOT NULL AND order_expires_at < UTC_TIMESTAMP() AS is_past_payment_time,
+                    order_delivery_fee_estimate IS NOT NULL AND order_delivery_fee_confirmed_at IS NULL AS is_awaiting_transport_price
              FROM orders WHERE order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );

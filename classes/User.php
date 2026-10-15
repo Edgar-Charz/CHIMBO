@@ -129,11 +129,22 @@ class User
         (new Region($this->db))->checkLocation($data['region_id'], $data['district_id'] ?? null);
 
         $this->db->transaction(function () use ($user_id, $data) {
+            $is_new_customer = !$this->db->fetchValue('SELECT 1 FROM business_profiles WHERE user_id = :user_id', ['user_id' => $user_id]);
             $this->db->execute(
                 'UPDATE users SET user_full_name = :user_full_name WHERE user_id = :user_id',
                 ['user_full_name' => $data['user_full_name'], 'user_id' => $user_id]
             );
             $this->saveBusiness($user_id, $data);
+
+            if ($is_new_customer) {
+                $region_name = (string) $this->db->fetchValue('SELECT region_name FROM regions WHERE region_id = :region_id', ['region_id' => $data['region_id']]);
+                (new AdminNotification($this->db))->notify(
+                    'customer.registered',
+                    "New customer: {$data['user_full_name']}",
+                    trim(($data['business_name'] ?? '') . ' · ' . $region_name, ' ·'),
+                    "customer_details.php?id={$user_id}"
+                );
+            }
         });
 
         return $this->getProfile($user_id);

@@ -2,6 +2,8 @@
  * Checkout: choose the address → the delivery methods that reach it (GET /checkout/options) → payment →
  * the server's totals (POST /checkout/preview) → "Thibitisha Oda" (POST /orders).
  * The usual choices are picked automatically, so a returning customer only has to confirm.
+ * Upcountry transport is the region's estimate: staff confirm it after measuring the load and only then the customer
+ * pays (so no cash on delivery for it). Bolt in Dar is paid to the rider (never in the total); pickup is free.
  * One Idempotency-Key per checkout (kept for this tab) means a double tap or a retry never makes two orders.
  */
 (() => {
@@ -24,6 +26,8 @@
     const choice = { addressId: null, deliveryMethodId: null, paymentMethod: null };
     let addresses = checkoutData.addresses;
     let paymentMethods = [];     // payment_method_details from GET /checkout/options
+    let deliveryMethods = [];    // delivery_methods from GET /checkout/options
+    let pickupPoint = null;      // {pickup_address, pickup_hours} for "Nitachukua mwenyewe dukani"
     let preview = null;          // the server's totals for the current choices
     let latestPreviewRequest = 0;
     let unsavedIdempotencyKey = null; // used only when the browser blocks sessionStorage
@@ -109,13 +113,13 @@
 
         try {
             const options = await api.get('/checkout/options', { query: { address_id: choice.addressId }, silent: true });
-            const methodIds = options.delivery_methods.map((method) => method.delivery_method_id);
+            deliveryMethods = options.delivery_methods;
+            pickupPoint = options.pickup_point;
+            const methodIds = deliveryMethods.map((method) => method.delivery_method_id);
             if (!methodIds.includes(choice.deliveryMethodId)) choice.deliveryMethodId = methodIds[0] ?? null;
             paymentMethods = options.payment_method_details;
-            const paymentCodes = paymentMethods.map((method) => method.payment_method_code);
-            if (!paymentCodes.includes(choice.paymentMethod)) choice.paymentMethod = paymentCodes[0] ?? null;
 
-            renderDeliveryMethods(options.delivery_methods);
+            renderDeliveryMethods();
             renderPaymentMethods();
             await loadPreview();
         } catch (error) {
@@ -123,7 +127,29 @@
         }
     }
 
-    function renderDeliveryMethods(methods) {
+    const chosenDeliveryMethod = () => deliveryMethods.find((method) => method.delivery_method_id === choice.deliveryMethodId);
+
+    /**
+     * "Bure", "TZS 5,000", "Unamlipa dereva" (Bolt), or for upcountry "~TZS 15,000" (an estimate) /
+     * "Bei itathibitishwa" (no estimate yet).
+     */
+    function deliveryFeeTag(method) {
+        if (method.delivery_fee_paid_to_rider) return 'Unamlipa dereva';
+        if (method.delivery_method_fee === null) return 'Bei itathibitishwa';
+        if (method.delivery_fee_needs_confirmation) return `~${formatTzs(method.delivery_method_fee)}`;
+        return method.delivery_method_fee === 0 ? 'Bure' : formatTzs(method.delivery_method_fee);
+    }
+
+    /** The line under a delivery option: how its price works, or where to collect. */
+    function deliveryMethodNote(method) {
+        if (method.delivery_fee_needs_confirmation) return ['Bei ni makadirio. Tutapima mzigo na kukuthibitishia bei kabla hujalipa.'];
+        if (method.delivery_fee_paid_to_rider) return ['Usafiri unamlipa dereva ukipokea mzigo — hauko kwenye jumla.'];
+        if (method.delivery_method_is_pickup && pickupPoint) return [`${pickupPoint.pickup_address} · ${pickupPoint.pickup_hours}`];
+        return [];
+    }
+
+    function renderDeliveryMethods() {
+        const methods = deliveryMethods;
         if (methods.length === 0) {
             deliveryList.replaceChildren(waitingNote('Samahani, bado hatufikishi kwenye mkoa huu. Chagua anwani nyingine.'));
             return;
@@ -132,19 +158,25 @@
             name: 'delivery_method_id',
             value: method.delivery_method_id,
             title: method.delivery_method_name, // already says how long, e.g. "Standard (siku 2–3)"
-            lines: [],
-            tag: method.delivery_method_fee === 0 ? 'Bure' : formatTzs(method.delivery_method_fee),
+            lines: deliveryMethodNote(method),
+            tag: deliveryFeeTag(method),
             iconName: 'truck',
             isChecked: method.delivery_method_id === choice.deliveryMethodId,
             onSelect: (value) => {
                 choice.deliveryMethodId = Number(value);
+                renderPaymentMethods(); // cash on delivery isn't offered while the transport price is to be confirmed
                 loadPreview();
             },
         })));
     }
 
     function renderPaymentMethods() {
-        paymentList.replaceChildren(...paymentMethods.map((method) => paymentChoiceCard(method, {
+        const priceToConfirm = chosenDeliveryMethod()?.delivery_fee_needs_confirmation ?? false;
+        const methods = paymentMethods.filter((method) => !(priceToConfirm && method.payment_method_type === 'cash'));
+        const codes = methods.map((method) => method.payment_method_code);
+        if (!codes.includes(choice.paymentMethod)) choice.paymentMethod = codes[0] ?? null;
+
+        paymentList.replaceChildren(...methods.map((method) => paymentChoiceCard(method, {
             isChecked: method.payment_method_code === choice.paymentMethod,
             onSelect: (value) => {
                 choice.paymentMethod = value;
@@ -182,19 +214,35 @@
     }
 
     function renderTotals() {
+        const priceToConfirm = preview.delivery_fee_needs_confirmation;
+        let deliveryText = preview.delivery_fee === 0 ? 'Bure' : formatTzs(preview.delivery_fee);
+        if (priceToConfirm) {
+            deliveryText = chosenDeliveryMethod()?.delivery_method_fee === null ? 'Tutakujulisha' : `~${formatTzs(preview.delivery_fee)}`;
+        } else if (preview.delivery_fee_paid_to_rider) {
+            deliveryText = 'Unamlipa dereva';
+        } else if (preview.delivery_method_is_pickup) {
+            deliveryText = 'Bure (dukani)';
+        }
         totalsBox.replaceChildren(...[
             totalRow(`Bidhaa (${formatPieces(preview.piece_count)})`, formatTzs(preview.subtotal)),
             preview.savings > 0 ? totalRow('Unaokoa', `−${formatTzs(preview.savings)}`, 'cart-summary__row--savings') : null,
-            totalRow('Usafirishaji', preview.delivery_fee === 0 ? 'Bure' : formatTzs(preview.delivery_fee)),
+            totalRow(priceToConfirm ? 'Usafiri (makadirio)' : 'Usafirishaji', deliveryText),
             preview.discount_total > 0 ? totalRow('Punguzo', `−${formatTzs(preview.discount_total)}`, 'cart-summary__row--savings') : null,
-            totalRow('Jumla kuu', formatTzs(preview.grand_total), 'cart-summary__row--total'),
+            totalRow(priceToConfirm ? 'Jumla (makadirio)' : 'Jumla kuu', formatTzs(preview.grand_total), 'cart-summary__row--total'),
         ].filter(Boolean));
-        const arrival = `Inafika ndani ya ${formatDays(preview.delivery_days_min, preview.delivery_days_max)}.`;
+        const arrival = preview.delivery_method_is_pickup
+            ? 'Tutakujulisha ikiwa tayari kuchukuliwa.'
+            : `Inafika ndani ya ${formatDays(preview.delivery_days_min, preview.delivery_days_max)}.`;
         const method = paymentMethods.find((candidate) => candidate.payment_method_code === choice.paymentMethod);
-        root.querySelector('[data-pay-note]').textContent = method?.payment_method_type === 'cash'
-            ? `Utalipa ${formatTzs(preview.grand_total)} ukipokea mzigo. ${arrival}`
-            : `Baada ya kuthibitisha utaona jinsi ya kulipa ${formatTzs(preview.grand_total)} kwa ${method?.payment_method_name ?? 'njia uliyochagua'}. Tunaanza kuandaa oda malipo yakithibitishwa.`;
-        placeOrderButton.disabled = false;
+        let payNote = `Baada ya kuthibitisha utaona jinsi ya kulipa ${formatTzs(preview.grand_total)} kwa ${method?.payment_method_name ?? 'njia uliyochagua'}. Tunaanza kuandaa oda malipo yakithibitishwa.`;
+        if (priceToConfirm) {
+            payNote = 'Usilipe sasa. Tutapima mzigo na kukutumia bei kamili ya usafiri; kisha utalipa jumla kamili kwa '
+                + `${method?.payment_method_name ?? 'njia uliyochagua'}. ${arrival}`;
+        } else if (method?.payment_method_type === 'cash') {
+            payNote = `Utalipa ${formatTzs(preview.grand_total)} ukipokea mzigo. ${arrival}`;
+        }
+        root.querySelector('[data-pay-note]').textContent = payNote;
+        placeOrderButton.disabled = choice.paymentMethod === null;
     }
 
     async function loadPreview() {

@@ -180,28 +180,33 @@ final class ShoppingTest extends TestCase
 
     // ------------------------------------------------------------------ checkout
 
-    public function testTotalsUseServerPricesAndTheDeliveryFee(): void
+    public function testTotalsUseServerPricesAndBoltIsPaidToTheRider(): void
     {
         $this->cart->addItem($this->user_id, ['product_id' => self::VASELINE, 'quantity' => 24]);
 
         $totals = $this->checkout->preview($this->user_id, ['delivery_method_id' => $this->deliveryMethodId('standard')]);
 
         $this->assertSame(24 * 4700, $totals['subtotal']);
-        $this->assertSame(5000, $totals['delivery_fee']);
-        $this->assertSame(24 * 4700 + 5000, $totals['grand_total']);
+        $this->assertSame(0, $totals['delivery_fee']);                 // the customer pays the Bolt rider directly
+        $this->assertTrue($totals['delivery_fee_paid_to_rider']);
+        $this->assertSame(24 * 4700, $totals['grand_total']);
         $this->assertSame(24 * 800, $totals['savings']);
     }
 
-    public function testExpressIsOnlyForDarEsSalaam(): void
+    public function testUpcountryGetsTheUpcountryOptionDarGetsBoltAndEveryoneCanCollect(): void
     {
         $this->cart->addItem($this->user_id, ['product_id' => self::VASELINE, 'quantity' => 2]);
         $mwanza_address = $this->address_model->createAddress($this->user_id, $this->addressForm(['region_id' => $this->regionId('Mwanza')]));
 
         $options = $this->checkout->getOptions($this->user_id, ['address_id' => $mwanza_address['address_id']]);
-        $this->assertSame(['standard'], array_column($options['delivery_methods'], 'delivery_method_code'));
+        $this->assertSame(['upcountry', 'pickup'], array_column($options['delivery_methods'], 'delivery_method_code'));
+
+        $dar_address = $this->address_model->createAddress($this->user_id, $this->addressForm());
+        $dar_options = $this->checkout->getOptions($this->user_id, ['address_id' => $dar_address['address_id']]);
+        $this->assertSame(['standard', 'pickup'], array_column($dar_options['delivery_methods'], 'delivery_method_code'));
 
         $this->assertApiError('VALIDATION_ERROR', fn () => $this->checkout->preview($this->user_id, [
-            'delivery_method_id' => $this->deliveryMethodId('express'),
+            'delivery_method_id' => $this->deliveryMethodId('standard'),   // Bolt is Dar only
             'address_id'         => $mwanza_address['address_id'],
         ]));
     }

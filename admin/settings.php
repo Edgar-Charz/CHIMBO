@@ -8,10 +8,21 @@ $settings      = new Settings($database);
 $delivery_method_model = new DeliveryMethod($database);
 $app_image_model       = new AppImage($database);
 
-// The settings form is saved at once (the class saves only the changed values and writes the audit log).
-// The delivery options' enable/disable button is a one-click switch.
+// One tab per subject. A tab with settings lists its groups from Settings::EDITABLE; its form saves only those.
+$tabs = [
+    'general'  => ['General',            'bi-sliders',       ['Support contacts', 'Pickup point', 'Legal texts (Kiswahili)']],
+    'orders'   => ['Orders & payments',  'bi-receipt',       ['Orders']],
+    'delivery' => ['Delivery',           'bi-truck',         []],
+    'login'    => ['Login (SMS)',        'bi-shield-lock',   ['Login codes (SMS)']],
+    'pictures' => ['App pictures',       'bi-image',         []],
+];
+$tab      = isset($tabs[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'general';
+$this_tab = url("admin/settings.php?tab={$tab}");
+
+// Settings: the class saves only the changed values of this tab's groups and writes the audit log.
+// Delivery: an option's enable/disable is a one-click switch; the region estimates are one form.
 // App pictures: upload or go back to the app's own picture (the class checks the file and writes the audit log).
-$form_error = adminHandleForm(function (string $form_action) use ($settings, $delivery_method_model, $app_image_model, $current_admin): void {
+$form_error = adminHandleForm(function (string $form_action) use ($settings, $delivery_method_model, $app_image_model, $current_admin, $tabs, $tab, $this_tab): void {
     $admin_id = (int) $current_admin['admin_id'];
     if ($form_action === 'upload_app_image' || $form_action === 'remove_app_image') {
         $slot = (string) ($_POST['app_image_slot'] ?? '');
@@ -27,7 +38,7 @@ $form_error = adminHandleForm(function (string $form_action) use ($settings, $de
             // A wrong file has no field of its own on this page, so its message comes back at the top
             Session::flash('error', adminErrorText($e));
         }
-        redirect(url('admin/settings.php#app-pictures'));
+        redirect($this_tab);
     }
     if ($form_action === 'toggle_delivery_method') {
         $method_id = adminActionRecordId();
@@ -35,22 +46,27 @@ $form_error = adminHandleForm(function (string $form_action) use ($settings, $de
         $is_active = !$method['delivery_method_is_active'];
         $delivery_method_model->setDeliveryMethodActive($method_id, $is_active, $admin_id);
         Session::flash('success', $method['delivery_method_name'] . ($is_active ? ' is offered at checkout again.' : ' is no longer offered at checkout.'));
-        redirect(url('admin/settings.php#delivery-options'));
+        redirect($this_tab);
     }
-    $settings->updateSettings($_POST, $admin_id);
+    if ($form_action === 'save_estimates') {
+        $delivery_method_model->saveRegionEstimates((array) ($_POST['region_transport_estimate'] ?? []), $admin_id);
+        Session::flash('success', 'Transport estimates saved. New checkouts show them; placed orders keep their price.');
+        redirect($this_tab . '#transport-estimates');
+    }
+    $settings->updateSettings($_POST, $admin_id, $tabs[$tab][2]);
     Session::flash('success', 'Settings saved.');
-    redirect(url('admin/settings.php'));
+    redirect($this_tab);
 });
+$errors = $form_error?->fields() ?? [];
 
-$setting_groups = $settings->getEditableSettings();
+$setting_groups = array_intersect_key($settings->getEditableSettings(), array_flip($tabs[$tab][2]));
 $saved_values   = [];
 foreach ($setting_groups as $group_settings) {
     foreach ($group_settings as $setting) {
         $saved_values[$setting['setting_key']] = $setting['setting_value'];
     }
 }
-$errors = $form_error?->fields() ?? [];
-$form   = adminFormValues($form_error, $saved_values);
+$form = adminFormValues($form_error, $saved_values);
 
 /** The input for one setting, chosen from its validation rule in Settings::EDITABLE (legal texts are long). */
 $input_type = function (string $setting_key): string {
@@ -66,110 +82,190 @@ $input_type = function (string $setting_key): string {
     };
 };
 
-$delivery_methods = $delivery_method_model->listForAdmin();
-$app_images       = $app_image_model->listForAdmin();
+if ($tab === 'delivery') {
+    $delivery_methods = $delivery_method_model->listForAdmin();
+    $region_estimates = $delivery_method_model->getRegionEstimates();
+    // After a failed save the typed amounts come back; otherwise the saved ones
+    $estimate_values  = $form_error !== null && ($_POST['form_action'] ?? '') === 'save_estimates'
+        ? (array) ($_POST['region_transport_estimate'] ?? [])
+        : array_column($region_estimates, 'region_transport_estimate', 'region_id');
+}
+if ($tab === 'pictures') {
+    $app_images = $app_image_model->listForAdmin();
+}
+
+/** Where a delivery option goes, in words: "Every region", "Only Dar es Salaam", "Every region except Dar es Salaam". */
+$where_text = fn (array $method): string => match ($method['delivery_method_area']) {
+    'only'   => 'Only ' . $method['region_name'],
+    'except' => 'Every region except ' . $method['region_name'],
+    default  => 'Every region',
+};
+
+/** The price column: the fee, "Region's estimate", "Paid to the rider" or "Free · pickup". */
+$price_text = fn (array $method): string => match (true) {
+    $method['delivery_method_pricing'] === 'region_estimate' => '<span class="text-muted">Region\'s estimate</span>',
+    $method['delivery_method_pricing'] === 'paid_to_rider'   => '<span class="text-muted">Paid to the rider</span>',
+    (bool) $method['delivery_method_is_pickup']              => '<span class="text-muted">Free · pickup</span>',
+    default                                                  => e(adminMoney((int) $method['delivery_method_fee'])),
+};
 
 $page_title  = 'Settings';
 $active_menu = 'settings';
 require __DIR__ . '/includes/header.php';
 ?>
 
+<nav class="page-tabs mb-3" aria-label="Settings sections">
+    <?php foreach ($tabs as $tab_key => [$tab_name, $tab_icon]): ?>
+        <a class="page-tab <?= $tab_key === $tab ? 'active' : '' ?>" href="<?= e(url("admin/settings.php?tab={$tab_key}")) ?>"
+           <?= $tab_key === $tab ? 'aria-current="page"' : '' ?>>
+            <i class="bi <?= e($tab_icon) ?>"></i> <?= e($tab_name) ?>
+        </a>
+    <?php endforeach; ?>
+</nav>
+
 <?php require __DIR__ . '/includes/form_alert.php'; ?>
 
-<form method="post" novalidate>
-    <?= Csrf::field() ?>
-    <div class="row g-3">
-        <?php foreach ($setting_groups as $group_title => $group_settings): ?>
-            <?php $is_long_text = $input_type($group_settings[0]['setting_key']) === 'textarea'; ?>
-            <div class="<?= $is_long_text ? 'col-12' : 'col-lg-6' ?>">
-                <section class="admin-panel h-100">
-                    <div class="admin-panel-header"><h2 class="admin-panel-title"><?= e($group_title) ?></h2></div>
-                    <div class="admin-panel-body">
-                        <?php foreach ($group_settings as $setting): ?>
-                            <?php $setting_key = $setting['setting_key']; ?>
-                            <div class="mb-3">
-                                <label class="form-label" for="<?= e($setting_key) ?>"><?= e($setting['label']) ?></label>
-                                <?php if ($input_type($setting_key) === 'textarea'): ?>
-                                    <textarea class="form-control settings-long-text<?= adminInvalidClass($errors, $setting_key) ?>" id="<?= e($setting_key) ?>"
-                                              name="<?= e($setting_key) ?>" rows="12"><?= e($form[$setting_key] ?? '') ?></textarea>
-                                <?php else: ?>
-                                    <input class="form-control<?= adminInvalidClass($errors, $setting_key) ?>" type="<?= e($input_type($setting_key)) ?>"
-                                           id="<?= e($setting_key) ?>" name="<?= e($setting_key) ?>" value="<?= e($form[$setting_key] ?? '') ?>">
-                                <?php endif; ?>
-                                <?= adminFieldError($errors, $setting_key) ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </section>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
-    <div class="admin-save-bar">
-        <span class="small text-muted me-auto">Only the values you changed are saved; every change goes to the audit log.</span>
-        <button class="btn btn-chimbo" type="submit" name="form_action" value="save">Save settings</button>
-    </div>
-</form>
-
-<div class="admin-page-actions mt-4" id="delivery-options">
-    <p class="text-muted mb-0">Delivery options customers choose at checkout. A fee change applies to new checkouts only.</p>
-    <a class="btn btn-chimbo" href="<?= e(url('admin/delivery_method_edit.php')) ?>"><i class="bi bi-plus-lg"></i> Add delivery option</a>
-</div>
-
-<div class="admin-panel admin-table-panel">
-    <table class="table admin-table w-100" data-datatable data-title="Delivery options" data-icon="bi-truck"
-           data-order='[]' data-search-placeholder="Search delivery options" data-empty-message="No delivery options yet.">
-        <thead>
-            <tr>
-                <th>Option</th>
-                <th>Region</th>
-                <th class="text-end">Fee</th>
-                <th class="text-end">Delivery time</th>
-                <th class="text-end">Order</th>
-                <th>Status</th>
-                <th class="text-end" data-orderable="false">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($delivery_methods as $method): ?>
-                <tr class="row-link">
-                    <td>
-                        <a class="stretched-link fw-semibold" href="<?= e(url('admin/delivery_method_edit.php?id=' . $method['delivery_method_id'])) ?>">
-                            <?= e($method['delivery_method_name']) ?>
-                        </a>
-                        <div class="small text-muted"><?= e($method['delivery_method_code']) ?></div>
-                    </td>
-                    <td><?= e($method['region_name'] ?? 'All regions') ?></td>
-                    <td class="text-end text-nowrap" data-order="<?= e($method['delivery_method_fee']) ?>"><?= e(adminMoney((int) $method['delivery_method_fee'])) ?></td>
-                    <td class="text-end text-nowrap" data-order="<?= e($method['delivery_method_eta_max_days']) ?>">
-                        <?= e($method['delivery_method_eta_min_days']) ?>–<?= e($method['delivery_method_eta_max_days']) ?> days
-                    </td>
-                    <td class="text-end"><?= e($method['delivery_method_sort_order']) ?></td>
-                    <td><?= adminStatusBadge($method['delivery_method_is_active'] ? 'active' : 'hidden') ?></td>
-                    <td class="text-end">
-                        <?= adminRowActions(
-                            adminActionLink('bi-pencil', 'Edit', url('admin/delivery_method_edit.php?id=' . $method['delivery_method_id'])),
-                            $method['delivery_method_is_active']
-                                ? adminActionButton('bi-pause-circle', 'Stop offering at checkout', 'toggle_delivery_method', (int) $method['delivery_method_id'])
-                                : adminActionButton('bi-play-circle', 'Offer at checkout', 'toggle_delivery_method', (int) $method['delivery_method_id']),
-                        ) ?>
-                    </td>
-                </tr>
+<?php if ($setting_groups !== []): ?>
+    <form method="post" novalidate>
+        <?= Csrf::field() ?>
+        <div class="row g-3">
+            <?php foreach ($setting_groups as $group_title => $group_settings): ?>
+                <?php $is_long_text = $input_type($group_settings[0]['setting_key']) === 'textarea'; ?>
+                <div class="<?= $is_long_text ? 'col-12' : 'col-lg-6' ?>">
+                    <section class="admin-panel h-100">
+                        <div class="admin-panel-header"><h2 class="admin-panel-title"><?= e($group_title) ?></h2></div>
+                        <div class="admin-panel-body">
+                            <?php foreach ($group_settings as $setting): ?>
+                                <?php $setting_key = $setting['setting_key']; ?>
+                                <div class="mb-3">
+                                    <label class="form-label" for="<?= e($setting_key) ?>"><?= e($setting['label']) ?></label>
+                                    <?php if ($input_type($setting_key) === 'textarea'): ?>
+                                        <textarea class="form-control settings-long-text<?= adminInvalidClass($errors, $setting_key) ?>" id="<?= e($setting_key) ?>"
+                                                  name="<?= e($setting_key) ?>" rows="12"><?= e($form[$setting_key] ?? '') ?></textarea>
+                                    <?php else: ?>
+                                        <input class="form-control<?= adminInvalidClass($errors, $setting_key) ?>" type="<?= e($input_type($setting_key)) ?>"
+                                               id="<?= e($setting_key) ?>" name="<?= e($setting_key) ?>" value="<?= e($form[$setting_key] ?? '') ?>">
+                                    <?php endif; ?>
+                                    <?= adminFieldError($errors, $setting_key) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </section>
+                </div>
             <?php endforeach; ?>
-        </tbody>
-    </table>
-</div>
 
-<section class="mt-4" id="app-pictures">
-    <div class="admin-page-actions">
-        <div>
-            <h2 class="h5 mb-1">App pictures</h2>
-            <p class="text-muted mb-0">
-                Pictures on the app's welcome, login and order screens. Until one is uploaded the app shows its own.
-                Home's pictures come from <a href="<?= e(url('admin/categories.php')) ?>">Categories</a> and <a href="<?= e(url('admin/banners.php')) ?>">Banners</a>.
-            </p>
+            <?php if ($tab === 'orders'): ?>
+                <div class="col-lg-6">
+                    <section class="admin-panel h-100">
+                        <div class="admin-panel-header"><h2 class="admin-panel-title">Payment methods</h2></div>
+                        <div class="admin-panel-body">
+                            <p class="text-muted">Which ways to pay customers see, and the account numbers they pay to.</p>
+                            <a class="btn btn-light" href="<?= e(url('admin/payments.php?tab=methods')) ?>"><i class="bi bi-wallet2"></i> Open payment methods</a>
+                        </div>
+                    </section>
+                </div>
+            <?php endif; ?>
         </div>
+
+        <div class="admin-save-bar">
+            <span class="small text-muted me-auto">Only the values you changed are saved; every change goes to the audit log.</span>
+            <button class="btn btn-chimbo" type="submit" name="form_action" value="save">Save settings</button>
+        </div>
+    </form>
+<?php endif; ?>
+
+<?php if ($tab === 'delivery'): ?>
+    <div class="admin-page-actions">
+        <p class="text-muted mb-0">
+            Delivery options customers choose at checkout. A fixed fee is charged as it is; a region's estimate is
+            confirmed by staff after measuring the load, and only then the customer pays; "paid to the rider" (Bolt) is
+            never in CHIMBO's total. Pickup options are collected at the shop (address in General). Changes apply to new checkouts only.
+        </p>
+        <a class="btn btn-chimbo" href="<?= e(url('admin/delivery_method_edit.php')) ?>"><i class="bi bi-plus-lg"></i> Add delivery option</a>
     </div>
+
+    <div class="admin-panel admin-table-panel">
+        <table class="table admin-table w-100" data-datatable data-title="Delivery options" data-icon="bi-truck"
+               data-order='[]' data-search-placeholder="Search delivery options" data-empty-message="No delivery options yet.">
+            <thead>
+                <tr>
+                    <th>Option</th>
+                    <th>Where</th>
+                    <th class="text-end">Price</th>
+                    <th class="text-end">Delivery time</th>
+                    <th class="text-end">Order</th>
+                    <th>Status</th>
+                    <th class="text-end" data-orderable="false">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($delivery_methods as $method): ?>
+                    <tr data-href="<?= e(url('admin/delivery_method_edit.php?id=' . $method['delivery_method_id'])) ?>">
+                        <td>
+                            <span class="fw-semibold"><?= e($method['delivery_method_name']) ?></span>
+                            <div class="small text-muted"><?= e($method['delivery_method_code']) ?></div>
+                        </td>
+                        <td><?= e($where_text($method)) ?></td>
+                        <td class="text-end text-nowrap" data-order="<?= e($method['delivery_method_pricing'] === 'fixed' ? $method['delivery_method_fee'] : -1) ?>">
+                            <?= $price_text($method) ?>
+                        </td>
+                        <td class="text-end text-nowrap" data-order="<?= e($method['delivery_method_eta_max_days']) ?>">
+                            <?= e($method['delivery_method_eta_min_days']) ?>–<?= e($method['delivery_method_eta_max_days']) ?> days
+                        </td>
+                        <td class="text-end"><?= e($method['delivery_method_sort_order']) ?></td>
+                        <td><?= adminStatusBadge($method['delivery_method_is_active'] ? 'active' : 'hidden') ?></td>
+                        <td class="text-end">
+                            <?= adminRowActions(
+                                adminActionLink('bi-pencil', 'Edit', url('admin/delivery_method_edit.php?id=' . $method['delivery_method_id'])),
+                                $method['delivery_method_is_active']
+                                    ? adminActionButton('bi-pause-circle', 'Stop offering at checkout', 'toggle_delivery_method', (int) $method['delivery_method_id'])
+                                    : adminActionButton('bi-play-circle', 'Offer at checkout', 'toggle_delivery_method', (int) $method['delivery_method_id']),
+                            ) ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <form class="admin-panel mt-4" id="transport-estimates" method="post" novalidate>
+        <?= Csrf::field() ?>
+        <div class="admin-panel-header">
+            <h2 class="admin-panel-title">Upcountry transport estimates</h2>
+        </div>
+        <div class="admin-panel-body">
+            <p class="text-muted">
+                The usual transport price to each region, shown at checkout for options priced by the region's estimate.
+                Leave a region empty when there is no usual price: the customer sees "tutakujulisha bei" and staff set it after measuring.
+            </p>
+            <div class="row g-3">
+                <?php foreach ($region_estimates as $region): ?>
+                    <?php $field = "region_transport_estimate[{$region['region_id']}]"; ?>
+                    <div class="col-sm-6 col-lg-4 col-xl-3">
+                        <label class="form-label small mb-1" for="estimate-<?= e($region['region_id']) ?>"><?= e($region['region_name']) ?></label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text">TZS</span>
+                            <input class="form-control<?= adminInvalidClass($errors, $field) ?>" type="number" min="0" step="500"
+                                   id="estimate-<?= e($region['region_id']) ?>" name="<?= e($field) ?>"
+                                   value="<?= e($estimate_values[$region['region_id']] ?? '') ?>" placeholder="No estimate">
+                        </div>
+                        <?= adminFieldError($errors, $field) ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <div class="admin-panel-footer">
+            <span class="small text-muted me-auto">Placed orders keep the price they were given; every change goes to the audit log.</span>
+            <button class="btn btn-chimbo" type="submit" name="form_action" value="save_estimates">Save estimates</button>
+        </div>
+    </form>
+<?php endif; ?>
+
+<?php if ($tab === 'pictures'): ?>
+    <p class="text-muted">
+        Pictures on the app's welcome, login and order screens. Until one is uploaded the app shows its own.
+        Home's pictures come from <a href="<?= e(url('admin/categories.php')) ?>">Categories</a> and <a href="<?= e(url('admin/banners.php')) ?>">Banners</a>.
+    </p>
     <div class="row g-3">
         <?php foreach ($app_images as $app_image): ?>
             <?php $slot = $app_image['app_image_slot']; ?>
@@ -213,6 +309,6 @@ require __DIR__ . '/includes/header.php';
             </div>
         <?php endforeach; ?>
     </div>
-</section>
+<?php endif; ?>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

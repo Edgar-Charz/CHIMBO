@@ -11,6 +11,10 @@ $default_settings = [
     'support_whatsapp'            => '+255700000000',
     'support_hours'               => 'Jumatatu - Jumamosi, 08:00 - 18:00',
 
+    // "Nitachukua mwenyewe dukani": where and when customers collect (fill in the real address)
+    'pickup_address'              => 'Kariakoo, Dar es Salaam',
+    'pickup_hours'                => 'Jumatatu - Jumamosi, 08:00 - 18:00',
+
     // One-time login codes
     'otp_lifetime_seconds'        => '300',   // a code works for 5 minutes
     'otp_max_attempts'            => '5',     // wrong guesses before the code is blocked

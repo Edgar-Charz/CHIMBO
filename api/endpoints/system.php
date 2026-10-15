@@ -28,9 +28,12 @@ $router->get('/health', function (Request $request) {
     ], $is_healthy ? 200 : 503);
 });
  
-// GET /api/v1/support — "Msaada": support phone, WhatsApp (with a ready wa.me link) and hours
+// GET /api/v1/support — "Msaada": support phone, WhatsApp (with a ready wa.me link), hours and the common questions
 $router->get('/support', function (Request $request) {
-    return Response::success((new Settings(Database::instance()))->getSupportContacts());
+    $database = Database::instance();
+    return Response::success((new Settings($database))->getSupportContacts() + [
+        'help_questions' => (new HelpQuestions($database))->getQuestions(),   // [{question, answer}], same as the website
+    ]);
 });
 
 // GET /api/v1/pages/{page_name} — legal texts: "terms" (Vigezo na Masharti) or "privacy" (Sera ya Faragha)

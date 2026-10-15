@@ -100,6 +100,16 @@ function redirect(string $url): never
     exit;
 }
 
+/** A list the Swahili way: ["A"] → "A", ["A", "B"] → "A au B", ["A", "B", "C"] → "A, B au C". */
+function swahiliList(array $items): string
+{
+    if (count($items) < 2) {
+        return (string) ($items[0] ?? '');
+    }
+    $last = array_pop($items);
+    return implode(', ', $items) . ' au ' . $last;
+}
+
 /** True when the page was submitted with POST (a form was sent). */
 function isPostRequest(): bool
 {

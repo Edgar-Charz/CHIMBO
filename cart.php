@@ -47,7 +47,7 @@ require __DIR__ . '/includes/header.php';
                 <p class="order-summary__hint"><i class="bi bi-person-check" aria-hidden="true"></i> Utaingia kwa namba ya simu kabla ya kulipa — kikapu chako kitabaki.</p>
             <?php endif; ?>
             <ul class="order-summary__promises">
-                <li><i class="bi bi-cash-coin" aria-hidden="true"></i> Lipa pesa taslimu ukipokea</li>
+                <li><i class="bi bi-shield-check" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                 <li><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Agiza tena kwa kubofya mara moja</li>
             </ul>
             <button class="btn btn-link order-summary__clear" type="button" data-cart-clear>

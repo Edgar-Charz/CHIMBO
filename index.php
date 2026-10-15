@@ -55,7 +55,7 @@ require __DIR__ . '/includes/header.php';
             <div class="hero-banner__copy">
                 <p class="hero-banner__eyebrow">Soko la jumla kwa wenye maduka</p>
                 <h2 class="hero-banner__title">Bei za jumla kwa duka lako</h2>
-                <p class="hero-banner__text">Nunua zaidi, lipa kidogo — kisha lipa ukipokea mzigo.</p>
+                <p class="hero-banner__text">Nunua zaidi, lipa kidogo. <?= e(paymentOptions()['short']) ?>.</p>
                 <span class="btn btn-buy btn-lg">Anza kununua</span>
             </div>
         </a>
@@ -112,7 +112,11 @@ require __DIR__ . '/includes/header.php';
 <section class="container-xl" aria-label="Faida za CHIMBO">
     <ul class="trust-strip">
         <li class="trust-strip__item"><i class="bi bi-tags" aria-hidden="true"></i><span><strong>Bei za jumla</strong> Nunua zaidi, lipa kidogo</span></li>
-        <li class="trust-strip__item"><i class="bi bi-cash-coin" aria-hidden="true"></i><span><strong>Lipa ukipokea</strong> Hakuna malipo ya mapema</span></li>
+        <?php if (paymentOptions()['cash_only']) : ?>
+            <li class="trust-strip__item"><i class="bi bi-cash-coin" aria-hidden="true"></i><span><strong>Lipa ukipokea</strong> Hakuna malipo ya mapema</span></li>
+        <?php else : ?>
+            <li class="trust-strip__item"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong>Malipo salama</strong> Tunathibitisha malipo yako kabla ya kutuma mzigo</span></li>
+        <?php endif; ?>
         <li class="trust-strip__item"><i class="bi bi-patch-check" aria-hidden="true"></i><span><strong>Wauzaji waliothibitishwa</strong> Bidhaa halisi</span></li>
         <li class="trust-strip__item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong>Tunakuletea dukani</strong> Fuatilia oda yako</span></li>
     </ul>

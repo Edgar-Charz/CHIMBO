@@ -48,7 +48,9 @@
                 <div class="col-6 col-lg-2">
                     <h2 class="site-footer__heading">Malipo</h2>
                     <ul class="site-footer__links site-footer__links--plain">
-                        <li><i class="bi bi-cash-coin" aria-hidden="true"></i> Lipa ukipokea</li>
+                        <?php foreach (paymentOptions()['methods'] as $payment_method) : // the methods switched on in the admin ?>
+                            <li><i class="bi bi-<?= e(['mobile_money' => 'phone', 'bank' => 'bank', 'cash' => 'cash-coin'][$payment_method['payment_method_type']] ?? 'wallet2') ?>" aria-hidden="true"></i> <?= e($payment_method['payment_method_name']) ?></li>
+                        <?php endforeach; ?>
                         <li><i class="bi bi-shield-check" aria-hidden="true"></i> Malipo salama</li>
                     </ul>
                 </div>

@@ -54,6 +54,36 @@ class Report
         ];
     }
 
+    /**
+     * Only the summary numbers for the chosen days (date_from, date_to) — the dashboard's "today" and "last 7 days".
+     * The same calculation as the Reports page, so the two always agree.
+     */
+    public function getSummaryForDays(array $filters): array
+    {
+        [, , $params] = $this->dateRange($filters);
+        return $this->getSummary($params);
+    }
+
+    /**
+     * Orders and revenue for EVERY day from date_from to date_to (days without orders as 0), oldest first:
+     * [['sales_date' => '2026-10-09', 'order_count' => 3, 'revenue' => 121600], …] — for charts.
+     */
+    public function getDailySales(array $filters): array
+    {
+        [$date_from, $date_to, $params] = $this->dateRange($filters);
+        $sales_by_date = array_column($this->getSalesByDay($params), null, 'sales_date');
+
+        $days = [];
+        $day  = new DateTimeImmutable($date_from);
+        $last = new DateTimeImmutable($date_to);
+        while ($day <= $last) {
+            $date   = $day->format('Y-m-d');
+            $days[] = $sales_by_date[$date] ?? ['sales_date' => $date, 'order_count' => 0, 'revenue' => 0];
+            $day    = $day->modify('+1 day');
+        }
+        return $days;
+    }
+
     /** One section as a CSV file (opens in Excel). $section is one of SECTIONS. */
     public function exportCsv(string $section, array $filters): array
     {

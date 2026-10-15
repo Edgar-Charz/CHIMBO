@@ -13,22 +13,40 @@ if ($customer === null) {
 
 $can_manage_customer = Admin::can($current_admin, 'customers.manage');
 
-// "Lazimisha kubadili PIN": locks the PIN and logs the customer out on every device (the class writes the audit log)
+// Staff actions (permission customers.manage). The classes write the audit log and notify the customer.
+//   force_pin_reset            "Lazimisha kubadili PIN": locks the PIN and logs the customer out on every device
+//   set_business_verification  Verify / reject (with a reason) / reset the shop's verification
+//   set_customer_status        Suspend (with a reason; logs them out everywhere) / reactivate
 $form_error = adminHandleForm(function (string $form_action) use ($user_id, $current_admin, $can_manage_customer): void {
-    if ($form_action !== 'force_pin_reset' || !$can_manage_customer) {
+    if (!$can_manage_customer) {
         throw ApiException::forbidden('Your role cannot do this.');
     }
-    try {
-        (new CustomerPin(Database::instance()))->forcePinReset($user_id, (int) $current_admin['admin_id']);
-        Session::flash('success', 'Mteja atalazimika kuweka PIN mpya atakapoingia tena.');
-    } catch (ApiException $e) {
-        if ($e->errorCode() !== 'NOT_FOUND') {
-            throw $e;
+    $admin_id = (int) $current_admin['admin_id'];
+
+    if ($form_action === 'force_pin_reset') {
+        try {
+            (new CustomerPin(Database::instance()))->forcePinReset($user_id, $admin_id);
+            Session::flash('success', 'Mteja atalazimika kuweka PIN mpya atakapoingia tena.');
+        } catch (ApiException $e) {
+            if ($e->errorCode() !== 'NOT_FOUND') {
+                throw $e;
+            }
+            Session::flash('error', $e->getMessage());   // "This customer has no PIN to reset."
         }
-        Session::flash('error', $e->getMessage());   // "This customer has no PIN to reset."
+    } elseif ($form_action === 'set_business_verification') {
+        (new Customer(Database::instance()))->setBusinessVerification($user_id, $_POST, $admin_id);
+        Session::flash('success', 'Business verification updated.');
+    } elseif ($form_action === 'set_customer_status') {
+        (new Customer(Database::instance()))->setCustomerStatus($user_id, $_POST, $admin_id);
+        Session::flash('success', ($_POST['user_status'] ?? '') === 'suspended'
+            ? 'Account suspended. The customer was logged out everywhere.'
+            : 'Account active again. The customer can log in.');
+    } else {
+        throw ApiException::forbidden('Your role cannot do this.');
     }
     redirect(url("admin/customer_details.php?id={$user_id}"));
 });
+$errors = $form_error?->fields() ?? [];
 
 $pin_status = Database::instance()->fetchOne(
     'SELECT user_pin_hash IS NOT NULL AS user_has_pin,
@@ -69,11 +87,43 @@ require __DIR__ . '/includes/header.php';
         <div class="d-flex gap-2">
             <?= adminStatusBadge($customer['user_status']) ?>
             <?php if ($customer['business_verification_status']): ?>
-                <?= adminStatusBadge($customer['business_verification_status']) ?>
+                <?= adminVerificationBadge($customer['business_verification_status']) ?>
             <?php endif; ?>
         </div>
     </div>
 </div>
+
+<?php if ($can_manage_customer && $customer['user_status'] !== 'deleted'): ?>
+    <div class="admin-panel mb-3">
+        <div class="admin-panel-body">
+            <?php if ($customer['user_status'] === 'suspended'): ?>
+                <form class="d-flex flex-wrap align-items-center gap-3" method="post"
+                      data-confirm="Reactivate this account? The customer will be able to log in again.">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="user_status" value="active">
+                    <span class="text-danger"><i class="bi bi-slash-circle"></i> This account is suspended — the customer cannot log in.</span>
+                    <button class="btn btn-success ms-auto" type="submit" name="form_action" value="set_customer_status">
+                        <i class="bi bi-play-circle"></i> Reactivate account
+                    </button>
+                </form>
+            <?php else: ?>
+                <form method="post" data-confirm="Suspend this account? The customer will be logged out everywhere and cannot log in until reactivated. Their orders are not changed.">
+                    <?= Csrf::field() ?>
+                    <input type="hidden" name="user_status" value="suspended">
+                    <label class="form-label small" for="user_status_reason">Suspend — reason (staff only, kept in the audit log)</label>
+                    <div class="input-group">
+                        <input class="form-control<?= adminInvalidClass($errors, 'user_status_reason') ?>" id="user_status_reason"
+                               name="user_status_reason" maxlength="255" placeholder="e.g. Fake orders, refused deliveries">
+                        <button class="btn btn-outline-danger" type="submit" name="form_action" value="set_customer_status">
+                            <i class="bi bi-slash-circle"></i> Suspend account
+                        </button>
+                    </div>
+                    <?= adminFieldError($errors, 'user_status_reason') ?>
+                </form>
+            <?php endif; ?>
+        </div>
+    </div>
+<?php endif; ?>
 
 <div class="row g-3">
     <div class="col-lg-6">
@@ -118,12 +168,52 @@ require __DIR__ . '/includes/header.php';
                         <dt>Shop name</dt>      <dd><?= e($customer['business_name'] ?? '—') ?></dd>
                         <dt>Region</dt>         <dd><?= e($customer['region_name'] ?? '—') ?></dd>
                         <dt>District</dt>       <dd><?= e($customer['district_name'] ?? '—') ?></dd>
-                        <dt>Verification</dt>   <dd><?= adminStatusBadge($customer['business_verification_status']) ?></dd>
+                        <dt>Verification</dt>   <dd><?= adminVerificationBadge($customer['business_verification_status']) ?></dd>
                         <?php if ($customer['business_verified_at']): ?>
                             <dt>Verified</dt>
                             <dd><?= e(adminDateTime($customer['business_verified_at'])) ?> by <?= e($customer['verified_by_admin_name'] ?? '—') ?></dd>
                         <?php endif; ?>
                     </dl>
+
+                    <?php if ($can_manage_customer): ?>
+                        <?php $verification_status = $customer['business_verification_status']; ?>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            <?php if ($verification_status !== 'verified'): ?>
+                                <form method="post" data-confirm="Thibitisha biashara hii? Mteja ataona alama ya 'Biashara Imethibitishwa'.">
+                                    <?= Csrf::field() ?>
+                                    <input type="hidden" name="business_verification_status" value="verified">
+                                    <button class="btn btn-success" type="submit" name="form_action" value="set_business_verification">
+                                        <i class="bi bi-patch-check"></i> Verify business
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            <?php if ($verification_status !== 'unverified'): ?>
+                                <form method="post" data-confirm="Remove the verification decision and set this business back to not verified?">
+                                    <?= Csrf::field() ?>
+                                    <input type="hidden" name="business_verification_status" value="unverified">
+                                    <button class="btn btn-outline-secondary" type="submit" name="form_action" value="set_business_verification">
+                                        <i class="bi bi-arrow-counterclockwise"></i> Set back to not verified
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($verification_status !== 'rejected'): ?>
+                            <form class="mt-3" method="post">
+                                <?= Csrf::field() ?>
+                                <input type="hidden" name="business_verification_status" value="rejected">
+                                <label class="form-label small" for="business_verification_note">Reject — reason for the customer (Kiswahili)</label>
+                                <div class="input-group">
+                                    <input class="form-control<?= adminInvalidClass($errors, 'business_verification_note') ?>" id="business_verification_note"
+                                           name="business_verification_note" maxlength="255" placeholder="mfano: Jina la duka halilingani na leseni.">
+                                    <button class="btn btn-outline-danger" type="submit" name="form_action" value="set_business_verification">
+                                        <i class="bi bi-x-circle"></i> Reject
+                                    </button>
+                                </div>
+                                <?= adminFieldError($errors, 'business_verification_note') ?>
+                            </form>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

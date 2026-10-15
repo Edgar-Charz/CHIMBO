@@ -47,6 +47,13 @@ const ORDER_STATUS_TONES = [ // colour of the status pill
     'expired'         => 'muted',
 ];
 const ORDER_TRACKING_STEPS = ['confirmed', 'packed', 'dispatched', 'in_transit', 'delivered'];
+// A pickup order ("Nitachukua mwenyewe dukani", R-26): same statuses, its own words, never sent
+const PICKUP_STATUS_LABELS = ['packed' => 'Tayari kuchukuliwa', 'delivered' => 'Imechukuliwa'];
+const PICKUP_STATUS_MESSAGES = [
+    'packed'    => 'Oda yako iko tayari — njoo uichukue dukani.',
+    'delivered' => 'Umechukua oda yako. Asante kwa kununua CHIMBO!',
+];
+const PICKUP_TRACKING_STEPS = ['confirmed', 'packed', 'delivered'];
 const ORDER_STOPPED_STATUSES = ['cancelled', 'expired'];
 const ORDER_REORDER_STATUSES = ['delivered', 'cancelled']; // "Agiza Tena" only once an order is finished
 const ORDER_CARD_PHOTOS = 4; // product photos shown on an order in "Oda Zangu"
@@ -186,6 +193,32 @@ function productSuggestions(array $product, array $related_products, ?array $par
     return array_slice(array_values($suggestions), 0, PRODUCT_SUGGESTION_COUNT);
 }
 
+function isPickupOrder(array $order): bool
+{
+    return $order['delivery_method']['delivery_method_is_pickup'];
+}
+
+/** "Imepakiwa" — or "Tayari kuchukuliwa" for a pickup order. */
+function orderStatusLabel(array $order, ?string $status = null): string
+{
+    $status ??= $order['order_status'];
+    $labels = isPickupOrder($order) ? PICKUP_STATUS_LABELS + ORDER_STATUS_LABELS : ORDER_STATUS_LABELS;
+    return $labels[$status] ?? $status;
+}
+
+/** The sentence under "Fuatilia Oda". */
+function orderStatusMessage(array $order): string
+{
+    $messages = isPickupOrder($order) ? PICKUP_STATUS_MESSAGES + ORDER_STATUS_MESSAGES : ORDER_STATUS_MESSAGES;
+    return $messages[$order['order_status']] ?? '';
+}
+
+/** The transport line: "Unamlipa dereva" (Bolt), "Unachukua dukani", "Bure" or the amount. */
+function orderDeliveryFeeText(array $order): string
+{
+    return Order::deliveryFeeWords($order) ?? ($order['order_delivery_fee'] === 0 ? 'Bure' : formatTzs($order['order_delivery_fee']));
+}
+
 /**
  * "Fuatilia Oda": the timeline steps with their state — done (reached, with its time), current, todo,
  * or stopped (the order was cancelled/expired: only the steps it reached, then how it ended).
@@ -196,14 +229,15 @@ function orderTimeline(array $order): array
     $status = $order['order_status'];
     $is_stopped = in_array($status, ORDER_STOPPED_STATUSES, true);
 
-    $steps = array_key_exists('pending_payment', $reached_at) ? ['pending_payment', ...ORDER_TRACKING_STEPS] : ORDER_TRACKING_STEPS;
+    $tracking_steps = isPickupOrder($order) ? PICKUP_TRACKING_STEPS : ORDER_TRACKING_STEPS;
+    $steps = array_key_exists('pending_payment', $reached_at) ? ['pending_payment', ...$tracking_steps] : $tracking_steps;
     if ($is_stopped) {
         $steps = [...array_values(array_filter($steps, fn (string $step): bool => array_key_exists($step, $reached_at))), $status];
     }
 
     return array_map(fn (string $step): array => [
         'status'  => $step,
-        'label'   => ORDER_STATUS_LABELS[$step],
+        'label'   => orderStatusLabel($order, $step),
         'time'    => isset($reached_at[$step]) ? localDateTime($reached_at[$step], 'd/m/Y, H:i') : null,
         'state'   => match (true) {
             $step === $status && $is_stopped => 'stopped',
@@ -378,12 +412,48 @@ function shopCategories(): array
     return $categories ??= (new Category(Database::instance()))->getCategoryTree();
 }
 
+/**
+ * How customers can pay, worked out from the payment methods switched on in the admin (Payments → Payment methods),
+ * so every payment text on the website changes by itself when a method is switched on or off:
+ *   'methods'   the switched-on methods (name + type), for lists such as the footer
+ *   'names'     "M-Pesa, Airtel Money au Benki" (without "Lipa ukipokea")
+ *   'short'     one line for strips and promises: "Lipa kwa M-Pesa au Mixx" · "Lipa ukipokea mzigo" · "Malipo salama"
+ *   'has_cash'  "Lipa ukipokea" is switched on · 'cash_only': it is the only method
+ */
+function paymentOptions(): array
+{
+    static $options = null;
+    if ($options !== null) {
+        return $options;
+    }
+
+    $methods   = (new PaymentMethod(Database::instance()))->getActiveMethods();
+    $has_cash  = in_array('cash', array_column($methods, 'payment_method_type'), true);
+    $non_cash  = array_values(array_filter($methods, fn (array $method): bool => $method['payment_method_type'] !== 'cash'));
+    $names     = swahiliList(array_column($non_cash, 'payment_method_name'));
+
+    $short = match (true) {
+        $non_cash === [] && $has_cash => 'Lipa ukipokea mzigo',
+        $non_cash === []              => 'Malipo salama',
+        $has_cash                     => "Lipa kwa {$names} au ukipokea mzigo",
+        default                       => "Lipa kwa {$names}",
+    };
+
+    return $options = [
+        'methods'   => $methods,
+        'names'     => $names,
+        'short'     => $short,
+        'has_cash'  => $has_cash,
+        'cash_only' => $has_cash && $non_cash === [],
+    ];
+}
+
 /** Fills in the page settings every layout partial reads. */
 function pageSettings(array $page): array
 {
     return $page + [
         'title'        => SHOP_NAME,
-        'description'  => 'CHIMBO — soko la jumla la vipodozi na urembo kwa wenye maduka Tanzania. Bei za jumla, lipa ukipokea.',
+        'description'  => 'CHIMBO — soko la jumla la vipodozi na urembo kwa wenye maduka Tanzania. Bei za jumla. ' . paymentOptions()['short'] . '.',
         'image'        => url('assets/img/logo-mark.webp'),
         'nav'          => '',     // active bottom-nav tab: home, explore, cart, orders, account
         'scripts'      => [],     // page scripts in assets/js/, loaded after the shared ones

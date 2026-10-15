@@ -23,7 +23,8 @@ adminDataTablesJson($pagination, function (array $offer) use ($list_page): array
     $percent  = (int) $offer['product_offer_percent'];
     $status   = $offer['product_offer_status'];
 
-    return [
+    // The row opens the offer (running / scheduled) or, for an ended one, its product
+    return adminRowLink($status !== 'ended' ? url("admin/offer_edit.php?id={$offer_id}") : url('admin/product_edit.php?id=' . $offer['product_id'])) + [
         'product' => '<a class="fw-semibold" href="' . e(url('admin/product_edit.php?id=' . $offer['product_id'])) . '">' . e($offer['product_name']) . '</a>',
         'percent' => '<span class="status-badge status-danger">−' . e($percent) . '%</span>',
         'price'   => e(adminOfferPrice((int) $offer['product_price'], $percent))
@@ -45,4 +46,4 @@ adminDataTablesJson($pagination, function (array $offer) use ($list_page): array
             },
         ),
     ];
-}, '');   // plain rows: the product link and the buttons are separate
+});

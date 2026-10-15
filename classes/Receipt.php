@@ -1,11 +1,13 @@
 <?php
 
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /**
- * Order receipts as PDF ("Pakua Risiti").
- * The layout is the HTML template classes/views/receipt.php; Dompdf turns it into a PDF.
+ * Order PDFs: the receipt ("Pakua Risiti") and the staff packing slip.
+ * The layouts are HTML templates in classes/views/; Dompdf turns them into PDFs.
  *
  * How to use it:
  *   $receipt = (new Receipt(Database::instance()))->createReceiptForCustomer($user_id, $order_id);
@@ -66,20 +68,50 @@ class Receipt
         return $this->createReceipt($order, $order['customer']);
     }
 
+    /**
+     * Staff packing slip: what to pack (no prices), where it goes, the cash to collect for cash on delivery,
+     * and the order number as a QR code. Returns ['pdf' => bytes, 'file_name' => …]. 404 if the order is missing.
+     */
+    public function createPackingSlip(int $order_id): array
+    {
+        $order = (new OrderManager($this->db))->getOrderForAdmin($order_id);
+
+        return [
+            'pdf'       => $this->renderPdf($this->renderHtml('packing_slip', [
+                'order'       => $order,
+                'qr_code_uri' => $this->qrCodeDataUri($order['order_number']),
+            ])),
+            'file_name' => "Kupakia-{$order['order_number']}.pdf",
+        ];
+    }
+
     private function createReceipt(array $order, array $customer): array
     {
         return [
-            'pdf'       => $this->renderPdf($this->renderHtml($order, $customer)),
+            'pdf'       => $this->renderPdf($this->renderHtml('receipt', ['order' => $order, 'customer' => $customer])),
             'file_name' => "Risiti-{$order['order_number']}.pdf",
         ];
     }
 
-    /** Fills the HTML template with the order (the template escapes every value with e()). */
-    private function renderHtml(array $order, array $customer): string
+    /** Fills a template in classes/views/ with these variables (the templates escape every value with e()). */
+    private function renderHtml(string $template, array $variables): string
     {
+        extract($variables);
         ob_start();
-        require BASE_PATH . '/classes/views/receipt.php';
+        require BASE_PATH . "/classes/views/{$template}.php";
         return (string) ob_get_clean();
+    }
+
+    /** A QR code of the text as a PNG data URI, drawn here (nothing is sent to any website). */
+    private function qrCodeDataUri(string $text): string
+    {
+        $options = new QROptions([
+            'outputType'   => QRCode::OUTPUT_IMAGE_PNG,
+            'outputBase64' => true,    // "data:image/png;base64,…", ready for <img src>
+            'scale'        => 8,       // pixels per square: sharp when printed
+            'quietzoneSize' => 2,
+        ]);
+        return (new QRCode($options))->render($text);
     }
 
     private function renderPdf(string $html): string

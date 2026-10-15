@@ -22,7 +22,7 @@ This file lists only endpoints that **exist and are tested**. The full plan is i
 ## Support and legal pages (public)
 | Method | Path | Answer |
 |---|---|---|
-| GET | `/support` | `{support_phone, support_whatsapp, support_whatsapp_url, support_hours}` — "Msaada": call button `tel:`, WhatsApp button = `support_whatsapp_url` |
+| GET | `/support` | `{support_phone, support_whatsapp, support_whatsapp_url, support_hours, help_questions: [{question, answer}]}` (the same "Maswali ya mara kwa mara" as the website; "Ninalipaje?" follows the switched-on payment methods) — "Msaada": call button `tel:`, WhatsApp button = `support_whatsapp_url` |
 | GET | `/app-images` | `[{app_image_slot, app_image_url, updated_at}]` — pictures staff uploaded for the app's fixed screens. Slots: `onboarding_products`, `onboarding_wholesale`, `onboarding_delivery`, `auth_welcome`, `auth_verify`, `auth_business`, `order_success`. A slot missing from the list → use the picture built into the app. A new upload always has a new URL (cache by URL) |
 | GET | `/pages/terms` · `/pages/privacy` | `{page_title, page_body, updated_at}` — `page_body` is plain text, paragraphs separated by an empty line (escape it, then split on `\n\n`). Other names → 404 `NOT_FOUND` |
 
@@ -213,9 +213,11 @@ Everything on the card, plus:
 Address: `{address_id, address_recipient_name, address_phone, region_id, region_name, district_id, district_name, address_street, address_landmark, address_is_default}`.
 
 ## Checkout · 🔒 all
-- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_days_min, delivery_days_max, region_id}], "payment_methods": ["mpesa", "cod"], "payment_method_details": [ …payment method objects… ]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the codes staff switched on; `payment_method_details` = the same methods with their name and "pay to" details (show the name in the list; show the pay-to box after ordering).
+- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, delivery_days_min, delivery_days_max, delivery_method_area, region_id}], "pickup_point": {"pickup_address", "pickup_hours"}, "payment_methods": ["mpesa", "cod"], "payment_method_details": [ …payment method objects… ]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the codes staff switched on; `payment_method_details` = the same methods with their name and "pay to" details (show the name in the list; show the pay-to box after ordering).
 - **Payment method object** (also `GET /payment-methods`, public): `{payment_method_code, payment_method_name, payment_method_type (mobile_money | bank | cash), payment_method_account_name, payment_method_account_number (Lipa Namba / phone / bank account), payment_method_bank_name, payment_method_instructions}`.
-- `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` → `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, discount_total, grand_total, delivery_days_min, delivery_days_max}`. Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
+- **Dar by Bolt and pickup (R-26):** `delivery_fee_paid_to_rider` true ("Bolt (Dar es Salaam)") → the customer pays the rider directly: show "Unamlipa dereva" (never "Bure" or an amount) with "Usafiri unamlipa dereva ukipokea mzigo — hauko kwenye jumla."; the fee is 0 in every total. `delivery_method_is_pickup` true ("Nitachukua mwenyewe dukani", every region, free) → show `pickup_point` (address · hours) under it.
+- **Upcountry transport (R-25):** `delivery_method_area` is `all`, `only` (just `region_id`) or `except` (every region but `region_id`); today Dar es Salaam gets Bolt, every other region gets "Usafiri wa mikoani", and every region can choose pickup. When `delivery_fee_needs_confirmation` is true the fee is **the region's estimate** — show it as "~TZS 15,000" with "Bei ni makadirio. Tutapima mzigo na kukuthibitishia bei kabla hujalipa." `delivery_method_fee` = `null` means the region has no estimate yet → show "Bei itathibitishwa" (the order is placed with transport 0 and staff set the price). Such an option needs `address_id`, and cash on delivery is refused for it (`VALIDATION_ERROR` on `payment_method`) — hide cash methods while it is chosen.
+- `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` → `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, discount_total, grand_total, delivery_days_min, delivery_days_max}` (with `delivery_fee_needs_confirmation` true, label the totals "Usafiri (makadirio)" / "Jumla (makadirio)"). Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
 
 ## Orders — Oda · 🔒 all
 | Method | Path | Body / returns |
@@ -241,7 +243,10 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
  "order_delivered_at": null, "order_cancelled_at": null, "order_cancel_reason": null, "order_customer_note": null,
  "order_expires_at": null, "can_cancel": true, "item_count": 2, "piece_count": 14,
  "delivery_method": {"delivery_method_id": 1, "delivery_method_name": "Standard (siku 2–3)", "delivery_method_fee": 5000,
-                     "delivery_days_min": 2, "delivery_days_max": 3},
+                     "delivery_days_min": 2, "delivery_days_max": 3,
+                     "delivery_fee_status": "fixed", "delivery_fee_estimate": null, "delivery_fee_note": null,
+                     "delivery_fee_paid_to_rider": false, "delivery_method_is_pickup": false},
+ "pickup_point": null,
  "address": {"address_recipient_name": "Joyce Joseph", "address_phone": "+255712345678", "region_id": 2,
              "region_name": "Dar es Salaam", "district_name": null, "address_street": "Kariakoo, Lumumba St", "address_landmark": null},
  "items": [{"order_item_id": 1, "product_id": 1, "product_name": "Vaseline Petroleum Jelly 400ml", "product_image_url": null,
@@ -267,6 +272,16 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 3. After sending: `order_payment_status` = `pending`, `latest_payment.payment_status` = `submitted` → show "Tunakagua malipo yako". Cancelling is blocked while it is checked (`can_cancel` false).
 4. Staff confirm → order `confirmed`, payment `paid` (notification "Oda imethibitishwa"). Staff reject → payment `unpaid` again, `latest_payment.payment_status` = `rejected` with `payment_review_note` (show it), notification type `payment`, and the form is shown again.
 5. A paid order that is cancelled is refunded by staff → `order_payment_status` = `refunded` (notification "Pesa imerudishwa").
+
+**Bolt (paid to the rider) and pickup orders (R-26)**
+- `delivery_method.delivery_fee_paid_to_rider`: the transport line reads "Unamlipa dereva"; `order_total` is the products only (that's all CHIMBO is paid).
+- `delivery_method.delivery_method_is_pickup`: show `pickup_point` {pickup_address, pickup_hours} instead of the delivery address and the expected date. The same statuses, other words: `packed` = "**Tayari kuchukuliwa**" ("Oda yako iko tayari — njoo uichukue dukani."), `delivered` = "**Imechukuliwa**"; the timeline is Imethibitishwa → Tayari kuchukuliwa → Imechukuliwa (never dispatched / in transit). Notification when ready: "Oda #… iko tayari. Njoo uichukue: {address} ({hours})."
+
+**Upcountry transport — the price is confirmed before paying (R-25)**
+- `delivery_method.delivery_fee_status`: `fixed` (nothing to confirm) · `awaiting_confirmation` · `confirmed`.
+- `awaiting_confirmation`: `order_delivery_fee` is the estimate (`delivery_fee_estimate`, 0 = none), `order_expires_at` is null and `payment.can_submit_payment` is false. Instead of the pay box show **"Tunapima mzigo wako"** — "Tunathibitisha bei ya usafiri hadi {region}. Makadirio ni TZS …; mzigo ukiwa mkubwa bei inaweza kuongezeka. Usilipe bado — tutakujulisha bei kamili, kisha utalipa hapa." Totals: "Usafiri (makadirio)" / "Jumla (makadirio)". The customer may still cancel. `POST /orders/{id}/payment` answers `DELIVERY_FEE_NOT_CONFIRMED` (409).
+- Staff confirm (Admin → order → Transport price) → `confirmed`: `order_delivery_fee` and `order_total` are final, `delivery_fee_note` says why it changed (show it under the transport line), `order_expires_at` starts now, and the normal pay box appears. Notification (type `order_status`): "Usafiri umethibitishwa — Usafiri wa oda #CHB…: 20,000 TZS (Mzigo mkubwa, katoni 6). Jumla: 60,000 TZS — lipa sasa."
+- When the order is placed the customer gets "Oda imepokelewa — Tunapima mzigo wa oda #CHB… ili kuthibitisha bei ya usafiri. Tutakujulisha, kisha utalipa." 
 
 `POST /orders/{id}/payment` errors: `VALIDATION_ERROR` (`payment_payer_account`: not a Tanzanian mobile number; `payment_reference`: 6–30 letters/digits, or already used) · `PAYMENT_UNDER_REVIEW` (409, already sent) · `PAYMENT_TIME_OVER` (409) · `PAYMENT_NOT_EXPECTED` (409: cash order or not waiting for payment) · `NOT_FOUND`.
 `POST /orders/{id}/cancel` can also answer `PAYMENT_UNDER_REVIEW` (409).

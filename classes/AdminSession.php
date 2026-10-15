@@ -33,8 +33,12 @@ class AdminSession
         Session::destroy();
     }
 
-    /** The logged-in admin, or null (not logged in, idle too long, or account disabled). */
-    public static function currentAdmin(): ?array
+    /**
+     * The logged-in admin, or null (not logged in, idle too long, or account disabled).
+     * $is_activity = false for checks the page makes by itself (e.g. the notification badge every minute):
+     * they don't reset the idle timer, so an admin who walks away is still logged out after 30 minutes.
+     */
+    public static function currentAdmin(bool $is_activity = true): ?array
     {
         $admin_id      = Session::get('admin_id');
         $last_activity = (int) Session::get('admin_last_activity', 0);
@@ -55,7 +59,9 @@ class AdminSession
             return null;
         }
 
-        Session::set('admin_last_activity', time());
+        if ($is_activity) {
+            Session::set('admin_last_activity', time());
+        }
         return $admin;
     }
 
@@ -80,10 +86,11 @@ class AdminSession
     /**
      * The same check for admin/ajax/ files, which answer with JSON instead of a page:
      * logged out → 401, not allowed → 403 (the page's JavaScript then reloads or shows the message).
+     * $is_activity: see currentAdmin().
      */
-    public static function requireAjaxLogin(string $permission): array
+    public static function requireAjaxLogin(string $permission, bool $is_activity = true): array
     {
-        $admin = self::currentAdmin();
+        $admin = self::currentAdmin($is_activity);
 
         $refusal = match (true) {
             $admin === null                  => [401, 'Your session has ended. Please log in again.'],

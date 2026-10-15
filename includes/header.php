@@ -26,7 +26,7 @@ require __DIR__ . '/head.php';
     <div class="announcement-bar">
         <div class="container-xl announcement-bar__inner">
             <span><i class="bi bi-tags" aria-hidden="true"></i> Nunua zaidi, lipa kidogo</span>
-            <span class="d-none d-md-inline"><i class="bi bi-cash-coin" aria-hidden="true"></i> Lipa ukipokea mzigo</span>
+            <span class="d-none d-md-inline"><i class="bi bi-<?= paymentOptions()['cash_only'] ? 'cash-coin' : 'phone' ?>" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></span>
             <span class="d-none d-lg-inline"><i class="bi bi-patch-check" aria-hidden="true"></i> Wauzaji waliothibitishwa</span>
         </div>
     </div>
@@ -67,6 +67,7 @@ require __DIR__ . '/head.php';
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="<?= e(url('account.php')) ?>"><i class="bi bi-person" aria-hidden="true"></i> Wasifu</a></li>
                             <li><a class="dropdown-item" href="<?= e(url('orders.php')) ?>"><i class="bi bi-box-seam" aria-hidden="true"></i> Oda Zangu</a></li>
+                            <li><a class="dropdown-item" href="<?= e(url('payments.php')) ?>"><i class="bi bi-wallet2" aria-hidden="true"></i> Malipo yangu</a></li>
                             <li><a class="dropdown-item" href="<?= e(url('wishlist.php')) ?>"><i class="bi bi-heart" aria-hidden="true"></i> Vipendwa</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><button class="dropdown-item text-danger" type="button" data-logout><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Toka</button></li>

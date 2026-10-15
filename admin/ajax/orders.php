@@ -21,8 +21,10 @@ adminDataTablesJson($pagination, fn (array $order): array => [
         . '<div class="small text-muted">' . e($channel_names[$order['order_channel']] ?? $order['order_channel']) . '</div>',
     'customer' => '<div class="fw-semibold">' . e($order['user_full_name'] ?? 'No name yet') . '</div>'
         . '<div class="small text-muted">' . e(Phone::format($order['user_phone'])) . '</div>',
-    'region'   => e($order['order_ship_region_name']),
-    'status'   => adminStatusBadge($order['order_status']),
+    'region'   => e($order['order_ship_region_name'])
+        . ($order['order_is_pickup'] ? '<div class="small text-muted"><i class="bi bi-shop"></i> Pickup</div>' : ''),
+    'status'   => adminStatusBadge($order['order_status'], (bool) $order['order_is_pickup'])
+        . ($order['is_transport_to_confirm'] ? '<div class="small order-fee-to-confirm"><i class="bi bi-truck"></i> Transport price to confirm</div>' : ''),
     'payment'  => adminStatusBadge($order['order_payment_status'])
         . '<div class="small text-muted">' . e(adminPaymentMethodName($order['order_payment_method'])) . '</div>',
     'items'    => e(number_format((int) $order['item_count'])),
@@ -31,5 +33,6 @@ adminDataTablesJson($pagination, fn (array $order): array => [
     'actions'  => adminRowActions(
         adminActionLink('bi-eye', 'View order', url('admin/order_details.php?id=' . $order['order_id'])),
         adminActionLink('bi-printer', 'Print receipt', url('admin/order_receipt.php?id=' . $order['order_id']), new_tab: true),
+        adminActionLink('bi-box-seam', 'Packing slip', url('admin/order_packing_slip.php?id=' . $order['order_id']), new_tab: true),
     ),
 ]);

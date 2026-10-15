@@ -8,19 +8,7 @@ require __DIR__ . '/includes/init.php';
 
 $settings = new Settings(Database::instance());
 $support = $settings->getSupportContacts();
-$cash_on_delivery_limit = $settings->getInt('cod_max_order_total', 0);
-
-$questions = [
-    ['question' => 'Ninaagizaje?', 'answer' => 'Chagua bidhaa, weka idadi unayotaka, kisha bofya "Ongeza kikapuni". Ukimaliza, fungua kikapu na ubofye "Endelea kwenye Malipo". Utaingia kwa namba yako ya simu, utachagua anwani na njia ya usafirishaji, kisha "Thibitisha Oda".'],
-    ['question' => 'Bei za jumla zinafanyaje kazi?', 'answer' => 'Kila bidhaa ina ngazi za bei. Kadri unavyoagiza vipande vingi, ndivyo bei ya kila kipande inavyoshuka. Kikapu kinakuonyesha bei ya ngazi uliyofikia na unachohitaji kuongeza ili kufikia bei nafuu zaidi.'],
-    ['question' => 'MOQ ni nini?', 'answer' => 'MOQ ni idadi ndogo kabisa unayoweza kuagiza ya bidhaa hiyo. Inaonyeshwa kwenye kila bidhaa.'],
-    ['question' => 'Ninalipaje?', 'answer' => 'Kwa sasa unalipa pesa taslimu mzigo ukifika dukani kwako (lipa ukipokea)' . ($cash_on_delivery_limit > 0 ? ', kwa oda zisizozidi ' . formatTzs($cash_on_delivery_limit) : '') . '. Malipo kwa simu yanakuja hivi karibuni.'],
-    ['question' => 'Mzigo unafika baada ya muda gani?', 'answer' => 'Kila bidhaa inaonyesha siku za kufika. Kwenye malipo unachagua njia ya usafirishaji, na tarehe inayotarajiwa inaonyeshwa kabla ya kuthibitisha oda.'],
-    ['question' => 'Nitajuaje oda yangu imefika wapi?', 'answer' => 'Fungua "Oda Zangu" kisha "Fuatilia". Utaona kila hatua — imethibitishwa, imepakiwa, imetumwa, inasafirishwa, imewasili — pamoja na namba ya wakala anayekuletea. Pia tunakutumia arifa kila hatua.'],
-    ['question' => 'Naweza kughairi oda?', 'answer' => 'Ndiyo, kabla oda haijaanza kupakiwa. Fungua oda kwenye "Oda Zangu" na ubofye "Ghairi oda".'],
-    ['question' => 'Nimesahau PIN yangu', 'answer' => 'Kwenye ukurasa wa kuingia, weka namba yako kisha ubofye "Umesahau PIN?". Tutakutumia namba ya siri kwa SMS, kisha utaweka PIN mpya.'],
-    ['question' => 'Naweza kutumia tovuti na programu ya simu pamoja?', 'answer' => 'Ndiyo. Ukiingia kwa namba ile ile, kikapu, oda, vipendwa na anwani zako ni vile vile kwenye tovuti na kwenye programu.'],
-];
+$questions = (new HelpQuestions(Database::instance()))->getQuestions();   // the same questions as the app
 
 $page = [
     'title'       => 'Msaada',

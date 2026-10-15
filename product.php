@@ -36,7 +36,7 @@ if ($product === null) {
 
 $page = [
     'title'       => $product['product_name'] ?? 'Bidhaa haipatikani',
-    'description' => ($product['product_description'] ?? null) ?: 'Bei za jumla, MOQ na upatikanaji wa bidhaa hii kwenye CHIMBO. Lipa ukipokea.',
+    'description' => ($product['product_description'] ?? null) ?: 'Bei za jumla, MOQ na upatikanaji wa bidhaa hii kwenye CHIMBO. ' . paymentOptions()['short'] . '.',
     'image'       => ($product['product_image_url'] ?? null) ?: url('assets/img/logo-mark.webp'),
     'nav'         => 'explore',
     'scripts'     => $product === null ? [] : ['product_card.js', 'product.js'],
@@ -172,7 +172,7 @@ require __DIR__ . '/includes/header.php';
 
                     <ul class="product-promises">
                         <li><i class="bi bi-truck" aria-hidden="true"></i> Inafika ndani ya siku <?= e($product['product_delivery_days_min']) ?>–<?= e($product['product_delivery_days_max']) ?></li>
-                        <li><i class="bi bi-cash-coin" aria-hidden="true"></i> Lipa pesa taslimu ukipokea</li>
+                        <li><i class="bi bi-shield-check" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                         <?php if ($product['seller_is_verified']) : ?>
                             <li><i class="bi bi-patch-check" aria-hidden="true"></i> Muuzaji amethibitishwa na CHIMBO</li>
                         <?php endif; ?>

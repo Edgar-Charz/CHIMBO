@@ -9,6 +9,7 @@ require __DIR__ . '/includes/init.php';
 
 const ACCOUNT_LINKS = [
     ['href' => 'orders.php',        'icon' => 'box-seam', 'label' => 'Oda Zangu'],
+    ['href' => 'payments.php',      'icon' => 'wallet2',  'label' => 'Malipo yangu'],
     ['href' => 'wishlist.php',      'icon' => 'heart',    'label' => 'Vipendwa'],
     ['href' => 'notifications.php', 'icon' => 'bell',     'label' => 'Arifa'],
     ['href' => 'addresses.php',     'icon' => 'geo-alt',  'label' => 'Anwani zangu'],

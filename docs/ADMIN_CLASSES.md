@@ -172,7 +172,7 @@ Permissions: `payments.manage` (finance + super admin) for reviewing, recording 
 | `recordPaymentByStaff($order_id, $_POST, $admin_id)` | on the **order page**, for phone orders: fields `payment_payer_account, payment_reference`; saved and confirmed at once. Show the form only when `getOrderForAdmin()['can_record_payment']` is true |
 
 `OrderManager::getOrderForAdmin()` now also returns `payments` (every payment of the order, newest first, with `reviewed_by_admin_name`) and `can_record_payment`. Cancelling an order whose payment is waiting for review answers `PAYMENT_UNDER_REVIEW` — confirm or reject it first.
-`Dashboard::getSummaryCounts()` now also returns `payments_awaiting_review` and `refunds_due`.
+The dashboard's "Needs attention" bar shows payments to check and refunds due (`Dashboard::getAttentionCounts()`).
 
 ### `PaymentMethod` — a "Payment methods" tab on payments.php (or in Settings) · `payment_methods.manage`
 | Method | Use |
@@ -208,3 +208,85 @@ A page **offers.php** (menu "Offers", under Products) with tabs Running · Sched
 | `endOffer($id, $admin_id)` | **End now** (running) / **Cancel** (scheduled). Confirm dialog |
 
 Prices are applied by the backend everywhere (shop, cart, checkout, staff orders, receipts). The audit log is written by the class. `OrderManager::getManualOrderOptions()` products now carry `product_offer_percent` and their `price_tiers` already include the offer. Banners may now target the collection `offers`.
+
+## Business verification — `Customer::setBusinessVerification()` — added 2026-10-09 · `customers.manage`
+
+| Method | Use |
+|---|---|
+| `setBusinessVerification($user_id, $_POST, $admin_id)` | fields `business_verification_status` (`verified` / `rejected` / `unverified`) and `business_verification_note` (required for `rejected`, Kiswahili, shown to the customer). Sets / clears `business_verified_at` and who verified. Notifies the customer (verified / rejected) and writes the audit log. `NO_BUSINESS` (409) when the customer hasn't filled in business details. |
+
+Built on customer_details.php (Business panel): **Verify business**, **Reject** (with reason), **Set back to not verified**.
+
+## Suspend / reactivate — `Customer::setCustomerStatus()` — added 2026-10-09 · `customers.manage`
+
+| Method | Use |
+|---|---|
+| `setCustomerStatus($user_id, $_POST, $admin_id)` | fields `user_status` (`suspended` / `active`) and `user_status_reason` (required for `suspended`; staff-only, audit log). Suspending revokes every app token and ends website sessions; login (SMS code, PIN, `/auth/start`) answers "Akaunti yako imesimamishwa". Orders are not changed. `CUSTOMER_DELETED` (409) for deleted accounts. |
+
+Built on customer_details.php: a panel under the header — **Suspend account** (reason) or, when suspended, **Reactivate account**.
+
+## Overdue unpaid orders — added 2026-10-09 · `orders.manage`
+
+| Method | Use |
+|---|---|
+| `OrderManager::getOrdersForAdmin(['overdue' => 1, …])` | only unpaid mobile money / bank orders past `order_expires_at` with no payment being checked |
+| `OrderManager::countOverdueOrders()` | the number for the filter, the button and the dashboard card |
+| `OrderManager::expireOverdueOrders($admin_id)` | marks them all **expired** (stock back, timeline "Muda wa kulipa umeisha", customer notified, audit log `orders.expired_overdue`) → how many. `null` = the scheduled job |
+
+Built: Orders page — "Overdue unpaid (N)" filter and **Expire N overdue order(s)** button; dashboard card "Overdue unpaid".
+Scheduled job ready for the server: `cron/expire_unpaid_orders.php` (every 15 minutes; refuses to run from a browser, folder blocked).
+
+## Upcountry transport — added 2026-10-09 (blueprint R-25, §12.7)
+
+| Method | Use |
+|---|---|
+| `DeliveryMethod::createMethod / updateMethod($id, $input, $admin_id)` | now with **Where** `delivery_method_area` (`all` · `only` · `except` + `region_id`) and **Price** `delivery_method_pricing` (`fixed` uses `delivery_method_fee`; `region_estimate` uses the region's estimate) · `settings.manage` |
+| `DeliveryMethod::getRegionEstimates()` / `saveRegionEstimates([region_id => amount or ""], $admin_id)` | each region's usual transport price (empty = "tutakujulisha bei"); only changed regions are saved; audit `transport_estimates.updated` · `settings.manage` |
+| `OrderManager::confirmDeliveryFee($order_id, ['order_delivery_fee' => 20000, 'order_delivery_fee_note' => '…'], $admin_id)` | staff measured the load: sets the final transport price (a reason is required when it differs from the estimate), recomputes the total, starts the time to pay, tells the customer; audit `order.delivery_fee_confirmed`. Error `DELIVERY_FEE_NOT_WAITING` · `orders.manage` |
+| `OrderManager::getOrdersForAdmin(['transport_to_confirm' => 1, …])` / `countTransportToConfirm()` | upcountry orders still waiting for their transport price |
+
+Built: **Settings in tabs** (General · Orders & payments · Delivery · Login (SMS) · App pictures; each tab saves only its own settings — `Settings::updateSettings($input, $admin_id, $group_titles)`). Delivery tab: the options table (Where, Price) and the **Upcountry transport estimates** form (one box per region). Option form: Where + Price. Order page: the orange **Transport price** box (estimate filled in, reason, "Confirm price and let the customer pay"). Orders page: "Transport to confirm (N)" filter and a "Transport price to confirm" line in the Status column. The bell: `delivery.to_confirm` notification and a "transport price(s) to confirm" line in Waiting for you.
+
+## Dar by Bolt and pickup at the shop — added 2026-10-15 (blueprint R-26, §12.8)
+
+| Method / helper | Use |
+|---|---|
+| `DeliveryMethod` Price `paid_to_rider` · switch `delivery_method_is_pickup` | "Customer pays the rider (not CHIMBO)" — never in the total; "Pickup at the shop" — collected, never sent |
+| `Settings::getPickupPoint()` | `{pickup_address, pickup_hours}` (Settings → General → Pickup point) |
+| `OrderManager::allowedNextStatuses($status, $is_pickup)` | a pickup order goes packed → delivered (or cancelled); never dispatched |
+| `Order::deliveryFeeWords($order)` | "Unamlipa dereva" / "Unachukua dukani" / null — receipts, slips, website |
+| `adminStatusName($status, $is_pickup)` / `adminStatusBadge(…)` / `adminDeliveryFee($order)` | admin words: "Ready for pickup", "Picked up", "Paid to the rider", "Pickup at the shop" |
+
+Built: Settings → General "Pickup point"; Delivery tab Price column ("Paid to the rider", "Free · pickup"); option form: third price type + "Pickup at the shop" switch. Order page: "Pickup at the shop" panel / Bolt note, pickup words in the badge, timeline and "Move the order". Orders list: "Pickup" under the region. Packing slip: "ANACHUKUA DUKANI — usitume" or "mteja anamlipa dereva (Bolt)"; receipt transport line in words.
+
+## Dashboard sales and low stock — added 2026-10-09 · `dashboard.view`
+
+| Method | Use |
+|---|---|
+| `Dashboard::getSales()` | `['today' => summary, 'last_7_days' => summary]` — `order_count, revenue, average_order, pieces_sold, delivery_fees, cancelled_count`; Tanzania days, cancelled / expired left out (`Report::getSummaryForDays`, same numbers as Reports) |
+| `Dashboard::getLowStock()` | `['items' => up to 10 products with stock ≤ ProductEditor::LOW_STOCK_THRESHOLD (fewest first), 'low_count', 'out_count']` — the Stock page's rule |
+
+Built on index.php: a "Sales" row (revenue only for `reports.view`), the existing cards under "Today's work", and a "Low stock" table.
+
+## Packing slip — `Receipt::createPackingSlip()` — added 2026-10-09 · `orders.view`
+
+| Method | Use |
+|---|---|
+| `Receipt::createPackingSlip($order_id)` | `['pdf', 'file_name' => 'Kupakia-CHB….pdf']` — order number + QR code (the order number only), customer (name, shop, phone), delivery details and note, items sorted by name with tick boxes (no prices), total pieces, "KUSANYA: TZS …" for unpaid cash on delivery, signature line |
+
+Built: admin/order_packing_slip.php (opens in the browser), "Packing slip" button on the order page and in the Orders list.
+QR codes are drawn locally by `chillerlan/php-qrcode` (Composer); nothing is sent to any website. Templates: `classes/views/packing_slip.php`, shared styles `classes/views/partials/pdf_styles.php`.
+
+## Staff notifications (the bell) — `AdminNotification` — added 2026-10-09
+
+The bell in the top bar (header.php) shows unread notifications (badge refreshed every minute without counting as activity, so the 30-minute idle logout still works). Clicking it opens a dialog: **Waiting for you** (`adminAttentionItems()`, the old dashboard "Needs attention") + the **10 latest** notifications (long text → "Read more"), **Mark all as read**, **View all** (admin/notifications.php, paged, "Unread only").
+
+| Method | Use |
+|---|---|
+| `notify($type, $title, $body, $link)` | saves a notification; `$type` from `AdminNotification::TYPES` decides which staff see it (e.g. `payment.submitted` → `payments.manage`); `$link` = an admin page like `order_details.php?id=12` |
+| `getLatest($admin, 10)` / `search($admin, $filters)` / `countUnread($admin)` | only notifications for the staff member's role; `is_read` is per staff member |
+| `open($admin, $id)` | marks it read and returns the page to open (admin/notification_open.php) |
+| `markAllRead($admin)` | "Mark all as read" |
+| `AdminNotification::safeLink($link)` | only pages inside admin/ can be opened; anything else → the dashboard |
+
+Created automatically: new order (`order.placed`), customer cancelled (`order.cancelled`, plus `refund.due` when it was paid), "Nimelipa" (`payment.submitted`), stock drops to low or sold out (`stock.low`, once per drop), a new customer finished registering (`customer.registered`), the scheduled job expired unpaid orders (`orders.expired`). Read state: `admin_notification_reads` (migration 011).

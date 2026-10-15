@@ -76,6 +76,7 @@ body {
 }
 
 .admin-sidebar-brand {
+  flex-shrink: 0; /* the logo keeps its size; only the menu under it scrolls */
   padding: 1.25rem 1.5rem;
   font-size: 1.5rem;
   font-weight: 800;
@@ -91,7 +92,12 @@ body {
 
 .admin-sidebar .nav {
   flex-wrap: nowrap;
-  overflow-y: auto; /* the menu scrolls on short screens */
+  /* The menu takes the height left under the logo and scrolls inside it. Without min-height: 0 a flex item never
+     gets shorter than its content, so a long menu ran off the bottom of the screen instead of scrolling. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain; /* scrolling the menu doesn't scroll the page behind it */
   padding-bottom: 1rem;
 }
 
@@ -492,31 +498,53 @@ body {
   z-index: 2;
 }
 
-/* The "Actions" column: icon buttons side by side, each a link or a tiny form */
-.row-actions {
-  display: inline-flex;
-  gap: 0.25rem;
-  white-space: nowrap;
-}
-
-.row-actions form {
-  margin: 0;
-}
-
-.row-actions .btn {
+/* The "Actions" column: a ⋮ button that opens the list of actions (icon + name) */
+.row-actions__toggle {
   --bs-btn-padding-x: 0.45rem;
   --bs-btn-padding-y: 0.2rem;
   border: 1px solid var(--chimbo-border);
 }
 
-.row-actions .btn:hover {
+.row-actions__toggle:hover,
+.row-actions__toggle[aria-expanded="true"] {
   border-color: var(--chimbo-green);
   color: var(--chimbo-green);
 }
 
-.row-actions .btn.text-danger:hover {
-  border-color: var(--status-danger);
-  color: var(--status-danger) !important;
+.row-actions__toggle::after {
+  display: none; /* no Bootstrap caret next to the dots */
+}
+
+.row-actions__menu {
+  min-width: 12rem;
+  max-width: calc(100vw - 1rem);
+  font-size: 0.9rem;
+}
+
+.row-actions__menu form {
+  margin: 0;
+}
+
+.row-actions__menu .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+
+.row-actions__menu .dropdown-item .bi {
+  width: 1rem;
+  text-align: center;
+  color: var(--status-neutral);
+}
+
+.row-actions__menu .dropdown-item.text-danger .bi {
+  color: inherit;
+}
+
+.row-actions__menu .dropdown-item.text-danger:active {
+  background: var(--status-danger);
+  color: #fff !important;
 }
 
 .btn-verified {
@@ -1092,4 +1120,271 @@ body {
 .order-item-row:last-child {
   padding-bottom: 0;
   border-bottom: 0;
+}
+
+/* ---------------------------------------------------------------- Dashboard */
+
+/* A "Waiting for you" chip in the bell (count + what it is), a link to where it's done */
+.attention-bar__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--chimbo-border);
+  border-radius: 999px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.attention-bar__item:hover {
+  border-color: var(--chimbo-green);
+  color: var(--chimbo-green);
+}
+
+.dashboard-tabs .nav-link {
+  color: var(--status-neutral);
+}
+
+.dashboard-tabs .nav-link.active {
+  color: var(--chimbo-green);
+  font-weight: 600;
+}
+
+/* Charts get their height from adminChart() so the page doesn't jump while they draw */
+.dashboard-chart {
+  position: relative;
+}
+
+/* The "#" (S/N) column every table gets (admin.js): narrow, muted, lined up on the right */
+.admin-table .serial-column {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+  color: var(--status-neutral);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rows of number cards (adminStatCards()): 6 per row in the tabs, 4 in the top strip, fewer on smaller screens.
+   Long numbers shrink or wrap, never overflow. */
+.stat-grid {
+  --stat-columns: 6;
+  display: grid;
+  grid-template-columns: repeat(var(--stat-columns), minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.stat-grid--4 {
+  --stat-columns: 4;
+}
+
+@media (max-width: 1399.98px) {
+  .stat-grid--6 { --stat-columns: 3; }
+}
+
+@media (max-width: 991.98px) {
+  .stat-grid--4 { --stat-columns: 2; }
+}
+
+@media (max-width: 767.98px) {
+  .stat-grid--6 { --stat-columns: 2; }
+}
+
+@media (max-width: 479.98px) {
+  .stat-grid--6,
+  .stat-grid--4 { --stat-columns: 1; }
+}
+
+/* A number never breaks in the middle (big money is shortened to "260.5M" instead) */
+.stat-grid .stat-number {
+  white-space: nowrap;
+}
+
+/* "524,100 TZS": the amount is the number to read; TZS stays visible but small */
+.stat-grid .stat-currency {
+  font-size: 0.5em;
+  font-weight: 600;
+  color: var(--status-neutral);
+  letter-spacing: 0.02em;
+}
+
+.stat-grid .stat-card {
+  position: relative;
+}
+
+.stat-grid .stat-icon {
+  flex-shrink: 0;
+}
+
+.stat-grid .stat-value {
+  font-size: clamp(1.2rem, 0.9rem + 0.8vw, 1.6rem);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-grid .min-w-0 {
+  min-width: 0;
+}
+
+/* Small headings between the dashboard card rows */
+.dashboard-section-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--status-neutral);
+}
+
+.dashboard-section-title span {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------------------------------------------------------------- The bell (staff notifications) */
+
+.notification-bell {
+  position: relative;
+  margin-right: 0.5rem;
+}
+
+.notification-bell__badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: var(--status-danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+/* The dialog opens on the right, under the bell, on wide screens */
+@media (min-width: 576px) {
+  .modal-dialog-end {
+    margin-right: 1rem;
+    margin-left: auto;
+    max-width: 420px;
+  }
+}
+
+.notification-attention {
+  padding: 1rem;
+  background: var(--table-row-hover, #faf7f1);
+  border-bottom: 1px solid var(--chimbo-border);
+}
+
+.notification-section-title {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--status-neutral);
+}
+
+.notification-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--chimbo-border);
+}
+
+.notification-item:last-child {
+  border-bottom: 0;
+}
+
+.notification-item.is-unread {
+  background: #fffaf0;
+}
+
+.notification-item__icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: grid;
+  place-items: center;
+  background: var(--chimbo-cream, #f6efe3);
+  color: var(--chimbo-green);
+}
+
+.notification-item__text {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-item__title {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.notification-item.is-unread .notification-item__title {
+  font-weight: 700;
+}
+
+.notification-item__title:hover {
+  color: var(--chimbo-green);
+  text-decoration: underline;
+}
+
+.notification-item__body {
+  font-size: 0.875rem;
+  color: var(--status-neutral);
+  overflow-wrap: anywhere;
+}
+
+.notification-item__time {
+  font-size: 0.75rem;
+  color: var(--status-neutral);
+}
+
+/* Orange dot on the bell: nothing unread, but work is waiting */
+.notification-bell__dot {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--chimbo-orange);
+}
+
+.notification-bell__dot[hidden],
+.notification-bell__badge[hidden] {
+  display: none;
+}
+
+.notification-item__dot {
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin-top: 0.4rem;
+  border-radius: 50%;
+  background: var(--chimbo-orange);
+}
+
+
+/* A box waiting for staff on a record page (e.g. the order's "Transport price" to confirm) */
+.admin-panel-attention {
+  border-color: var(--chimbo-orange);
+  box-shadow: inset 4px 0 0 var(--chimbo-orange);
+}
+
+.order-fee-to-confirm {
+  color: var(--status-warning);
 }

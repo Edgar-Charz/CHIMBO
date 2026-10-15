@@ -48,7 +48,12 @@ require __DIR__ . '/includes/header.php';
             <h1 class="success-card__title">Oda Imepokelewa!</h1>
             <p class="success-card__text">
                 Asante <?= e(customerFirstName() ?? '') ?>, tumepokea oda yako.
-                <?= $order['payment']['can_submit_payment'] ? 'Ilipie sasa — tutaanza kuiandaa mara tukithibitisha malipo.' : 'Tunaanza kuiandaa na tutakujulisha kila hatua.' ?>
+                <?= match (true) {
+                    $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation'
+                        => 'Tunapima mzigo ili kuthibitisha bei ya usafiri. Tutakujulisha, kisha utalipa.',
+                    $order['payment']['can_submit_payment'] => 'Ilipie sasa — tutaanza kuiandaa mara tukithibitisha malipo.',
+                    default                                 => 'Tunaanza kuiandaa na tutakujulisha kila hatua.',
+                } ?>
             </p>
 
             <dl class="success-facts">
@@ -64,7 +69,7 @@ require __DIR__ . '/includes/header.php';
                     <dt>Malipo</dt>
                     <dd><?= e($order['payment']['payment_method']['payment_method_name']) ?></dd>
                 </div>
-                <?php if ($order['order_estimated_delivery_date'] !== null) : ?>
+                <?php if ($order['order_estimated_delivery_date'] !== null && !isPickupOrder($order)) : ?>
                     <div>
                         <dt>Inatarajiwa kufika</dt>
                         <dd><?= e(swahiliDate($order['order_estimated_delivery_date'])) ?></dd>
@@ -79,11 +84,19 @@ require __DIR__ . '/includes/header.php';
             <?php require __DIR__ . '/includes/payment_box.php'; ?>
 
             <div class="success-card__details">
-                <h2 class="success-card__subtitle">Itapelekwa kwa</h2>
-                <p>
-                    <?= e($address['address_recipient_name']) ?> · <?= e($address['address_phone']) ?><br>
-                    <?= e(implode(', ', array_filter([$address['address_street'], $address['district_name'], $address['region_name']]))) ?>
-                </p>
+                <?php if (isPickupOrder($order)) : ?>
+                    <h2 class="success-card__subtitle">Utaichukua dukani</h2>
+                    <?php require __DIR__ . '/includes/pickup_point.php'; ?>
+                <?php else : ?>
+                    <h2 class="success-card__subtitle">Itapelekwa kwa</h2>
+                    <p>
+                        <?= e($address['address_recipient_name']) ?> · <?= e($address['address_phone']) ?><br>
+                        <?= e(implode(', ', array_filter([$address['address_street'], $address['district_name'], $address['region_name']]))) ?>
+                    </p>
+                    <?php if ($order['delivery_method']['delivery_fee_paid_to_rider']) : ?>
+                        <p><i class="bi bi-cash-coin" aria-hidden="true"></i> Usafiri unamlipa dereva ukipokea mzigo.</p>
+                    <?php endif; ?>
+                <?php endif; ?>
 
                 <h2 class="success-card__subtitle">Bidhaa (<?= e(formatPieces($order['piece_count'])) ?>)</h2>
                 <ul class="success-items">

@@ -115,6 +115,105 @@ class Customer
     }
 
     /**
+     * Staff decision on the customer's shop ("Biashara Imethibitishwa" badge in the apps).
+     * Input: business_verification_status (verified | rejected | unverified), business_verification_note
+     * (required when rejecting — the customer sees it). The customer gets a notification; the audit log keeps it.
+     */
+    public function setBusinessVerification(int $user_id, array $input, int $admin_id): void
+    {
+        $data = Validator::validate($input, [
+            'business_verification_status' => 'required|in:verified,rejected,unverified',
+            'business_verification_note'   => 'nullable|string|max:255',
+        ]);
+        $status = $data['business_verification_status'];
+        $note   = $data['business_verification_note'] ?? null;
+        if ($status === 'rejected' && ($note === null || mb_strlen($note) < 5)) {
+            throw ApiException::validation(['business_verification_note' => 'Say why, in Kiswahili — the customer will see it.']);
+        }
+
+        $this->db->transaction(function (Database $db) use ($user_id, $status, $note, $admin_id) {
+            $business = $db->fetchOne(
+                'SELECT business_verification_status FROM business_profiles WHERE user_id = :user_id FOR UPDATE',
+                ['user_id' => $user_id]
+            );
+            if ($business === null) {
+                throw ApiException::conflict('NO_BUSINESS', 'This customer has not filled in their business details yet.');
+            }
+            if ($business['business_verification_status'] === $status) {
+                return;
+            }
+
+            $db->execute(
+                'UPDATE business_profiles
+                 SET business_verification_status = :status,
+                     business_verified_at = IF(:is_verified, UTC_TIMESTAMP(), NULL),
+                     business_verified_by_admin_id = IF(:is_verified_again, :admin_id, NULL)
+                 WHERE user_id = :user_id',
+                [
+                    'status'            => $status,
+                    'is_verified'       => (int) ($status === 'verified'),
+                    'is_verified_again' => (int) ($status === 'verified'),
+                    'admin_id'          => $admin_id,
+                    'user_id'           => $user_id,
+                ]
+            );
+
+            if ($status !== 'unverified') {
+                [$title, $body] = $status === 'verified'
+                    ? ['Biashara imethibitishwa', 'Hongera! Biashara yako imethibitishwa na CHIMBO.']
+                    : ['Biashara haijathibitishwa', "Hatukuweza kuthibitisha biashara yako: {$note}"];
+                (new Notification($db))->notifyUser($user_id, 'system', $title, $body);
+            }
+
+            (new AuditLog($db))->record('admin', $admin_id, 'customer.business_verification', 'user', $user_id,
+                ['business_verification_status' => $business['business_verification_status']],
+                ['business_verification_status' => $status, 'business_verification_note' => $note]);
+        });
+    }
+
+    /**
+     * Suspend or reactivate an account. Input: user_status (suspended | active), user_status_reason
+     * (required when suspending; staff-only, kept in the audit log).
+     * Suspending logs the customer out everywhere (app tokens and website sessions); logging in is refused
+     * until staff reactivate them. Their orders are left as they are — staff decide each one.
+     * Deleted accounts can't be changed here.
+     */
+    public function setCustomerStatus(int $user_id, array $input, int $admin_id): void
+    {
+        $data = Validator::validate($input, [
+            'user_status'        => 'required|in:suspended,active',
+            'user_status_reason' => 'nullable|string|max:255',
+        ]);
+        $status = $data['user_status'];
+        $reason = $data['user_status_reason'] ?? null;
+        if ($status === 'suspended' && ($reason === null || mb_strlen($reason) < 5)) {
+            throw ApiException::validation(['user_status_reason' => 'Say why the account is suspended (staff only).']);
+        }
+
+        $this->db->transaction(function (Database $db) use ($user_id, $status, $reason, $admin_id) {
+            $old_status = $db->fetchValue('SELECT user_status FROM users WHERE user_id = :user_id FOR UPDATE', ['user_id' => $user_id]);
+            if ($old_status === null) {
+                throw ApiException::notFound('Customer not found.');
+            }
+            if ($old_status === 'deleted') {
+                throw ApiException::conflict('CUSTOMER_DELETED', 'This account was deleted and cannot be changed.');
+            }
+            if ($old_status === $status) {
+                return;
+            }
+
+            $db->execute('UPDATE users SET user_status = :status WHERE user_id = :user_id', ['status' => $status, 'user_id' => $user_id]);
+            if ($status === 'suspended') {
+                (new AuthToken($db))->revokeAllTokensForUser($user_id);
+                (new User($db))->revokeWebsiteSessions($user_id);
+            }
+
+            (new AuditLog($db))->record('admin', $admin_id, $status === 'suspended' ? 'customer.suspended' : 'customer.reactivated', 'user', $user_id,
+                ['user_status' => $old_status], ['user_status' => $status, 'user_status_reason' => $reason]);
+        });
+    }
+
+    /**
      * Up to 10 active customers matching a name, shop or phone (any format), each with their saved addresses
      * — for the customer picker when staff take an order by phone. Fewer than 2 characters finds nothing.
      */

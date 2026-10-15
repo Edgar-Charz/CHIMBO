@@ -14,7 +14,7 @@ $extra_item_count = max(0, count($order['items']) - ORDER_CARD_PHOTOS);
             <a class="order-card__number" href="<?= e($order_link) ?>"><?= e($order['order_number']) ?></a>
             <p class="order-card__date"><?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
         </div>
-        <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(ORDER_STATUS_LABELS[$order['order_status']] ?? $order['order_status']) ?></span>
+        <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(orderStatusLabel($order)) ?></span>
     </header>
 
     <div class="order-card__photos" aria-hidden="true">

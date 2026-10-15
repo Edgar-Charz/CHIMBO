@@ -12,26 +12,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
 <html lang="sw">
 <head>
 <meta charset="utf-8">
-<style>
-    @page { margin: 28px 32px; }
-    body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #1f2a24; }
-    .header { background: #0e3b2a; color: #fff; padding: 16px 20px; }
-    .brand { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
-    .brand-orange { color: #f39200; }
-    .tagline { font-size: 8px; letter-spacing: 1px; margin-top: 2px; color: #d7e4dc; }
-    .title { font-size: 16px; font-weight: bold; text-align: right; }
-    .muted { color: #6b7570; }
-    .section { margin-top: 16px; }
-    .box-title { font-size: 9px; font-weight: bold; color: #6b7570; text-transform: uppercase; margin-bottom: 4px; }
-    table { width: 100%; border-collapse: collapse; }
-    .items th { background: #fbf6ee; text-align: left; font-size: 9px; text-transform: uppercase; color: #6b7570; padding: 7px 6px; }
-    .items td { padding: 7px 6px; border-bottom: 1px solid #ece6db; vertical-align: top; }
-    .right, .items th.right { text-align: right; }
-    .totals td { padding: 4px 6px; }
-    .grand-total td { font-size: 13px; font-weight: bold; border-top: 2px solid #0e3b2a; padding-top: 8px; }
-    .stamp { color: #b42318; border: 2px solid #b42318; padding: 4px 10px; font-weight: bold; display: inline-block; }
-    .footer { margin-top: 28px; text-align: center; font-size: 9px; color: #6b7570; }
-</style>
+<?php require __DIR__ . '/partials/pdf_styles.php'; ?>
 </head>
 <body>
 
@@ -104,7 +85,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
 
 <table class="totals section" style="width: 45%; margin-left: 55%;">
     <tr><td>Bidhaa (<?= e($order['item_count']) ?>)</td><td class="right"><?= e($money($order['order_subtotal'])) ?></td></tr>
-    <tr><td>Usafirishaji</td><td class="right"><?= e($money($order['order_delivery_fee'])) ?></td></tr>
+    <tr><td>Usafirishaji</td><td class="right"><?= e(Order::deliveryFeeWords($order) ?? $money($order['order_delivery_fee'])) ?></td></tr>
     <?php if ($order['order_discount_total'] > 0): ?>
         <tr><td>Punguzo</td><td class="right">− <?= e($money($order['order_discount_total'])) ?></td></tr>
     <?php endif; ?>

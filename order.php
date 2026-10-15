@@ -22,7 +22,7 @@ if ($order === null) {
     $timeline = orderTimeline($order);
     $address = $order['address'];
     $agent = $order['delivery_agent'];
-    $status_message = ORDER_STATUS_MESSAGES[$order['order_status']] ?? '';
+    $status_message = orderStatusMessage($order);
 }
 
 $page = [
@@ -50,7 +50,7 @@ require __DIR__ . '/includes/header.php';
                 <h1 class="page-title order-page__title"><?= e($order['order_number']) ?></h1>
                 <p class="order-page__placed">Iliagizwa <?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
             </div>
-            <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(ORDER_STATUS_LABELS[$order['order_status']] ?? $order['order_status']) ?></span>
+            <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(orderStatusLabel($order)) ?></span>
         </header>
 
         <div class="order-layout">
@@ -76,7 +76,7 @@ require __DIR__ . '/includes/header.php';
                     </ol>
 
                     <?php if ($order['order_status'] === 'delivered' && $order['order_delivered_at'] !== null) : ?>
-                        <p class="order-panel__note"><i class="bi bi-calendar-check" aria-hidden="true"></i> Imefika <?= e(localDateTime($order['order_delivered_at'], 'd/m/Y, H:i')) ?></p>
+                        <p class="order-panel__note"><i class="bi bi-calendar-check" aria-hidden="true"></i> <?= isPickupOrder($order) ? 'Ilichukuliwa' : 'Imefika' ?> <?= e(localDateTime($order['order_delivered_at'], 'd/m/Y, H:i')) ?></p>
                     <?php elseif (!in_array($order['order_status'], ORDER_STOPPED_STATUSES, true) && $order['order_estimated_delivery_date'] !== null) : ?>
                         <p class="order-panel__note"><i class="bi bi-calendar-event" aria-hidden="true"></i> Inatarajiwa kufika: <strong><?= e(swahiliDate($order['order_estimated_delivery_date'])) ?></strong></p>
                     <?php endif; ?>
@@ -126,11 +126,19 @@ require __DIR__ . '/includes/header.php';
                     <h2 class="order-summary__title" id="payment-title">Malipo</h2>
                     <dl class="cart-summary checkout-totals">
                         <div class="cart-summary__row"><dt>Bidhaa</dt><dd><?= e(formatTzs($order['order_subtotal'])) ?></dd></div>
-                        <div class="cart-summary__row"><dt>Usafirishaji</dt><dd><?= $order['order_delivery_fee'] === 0 ? 'Bure' : e(formatTzs($order['order_delivery_fee'])) ?></dd></div>
+                        <?php $fee_status = $order['delivery_method']['delivery_fee_status']; // fixed · awaiting_confirmation · confirmed ?>
+                        <?php if ($fee_status === 'awaiting_confirmation') : ?>
+                            <div class="cart-summary__row"><dt>Usafiri (makadirio)</dt><dd><?= $order['order_delivery_fee'] === 0 ? 'Tutakujulisha' : '~' . e(formatTzs($order['order_delivery_fee'])) ?></dd></div>
+                        <?php else : ?>
+                            <div class="cart-summary__row"><dt>Usafirishaji</dt><dd><?= e(orderDeliveryFeeText($order)) ?></dd></div>
+                            <?php if ($fee_status === 'confirmed' && $order['delivery_method']['delivery_fee_note']) : ?>
+                                <p class="order-summary__note mb-0"><?= e($order['delivery_method']['delivery_fee_note']) ?></p>
+                            <?php endif; ?>
+                        <?php endif; ?>
                         <?php if ($order['order_discount_total'] > 0) : ?>
                             <div class="cart-summary__row cart-summary__row--savings"><dt>Punguzo</dt><dd>−<?= e(formatTzs($order['order_discount_total'])) ?></dd></div>
                         <?php endif; ?>
-                        <div class="cart-summary__row cart-summary__row--total"><dt>Jumla kuu</dt><dd><?= e(formatTzs($order['order_total'])) ?></dd></div>
+                        <div class="cart-summary__row cart-summary__row--total"><dt><?= $fee_status === 'awaiting_confirmation' ? 'Jumla (makadirio)' : 'Jumla kuu' ?></dt><dd><?= e(formatTzs($order['order_total'])) ?></dd></div>
                     </dl>
                     <p class="order-summary__note">
                         <?= e($order['payment']['payment_method']['payment_method_name']) ?> ·
@@ -153,13 +161,20 @@ require __DIR__ . '/includes/header.php';
                 </section>
 
                 <section class="order-summary" aria-labelledby="delivery-title">
-                    <h2 class="order-summary__title" id="delivery-title">Usafirishaji</h2>
-                    <p class="order-detail-text">
-                        <strong><?= e($address['address_recipient_name']) ?></strong> · <?= e($address['address_phone']) ?><br>
-                        <?= e(implode(', ', array_filter([$address['address_street'], $address['address_landmark']]))) ?><br>
-                        <?= e(implode(', ', array_filter([$address['district_name'], $address['region_name']]))) ?>
-                    </p>
-                    <p class="order-detail-text"><i class="bi bi-truck" aria-hidden="true"></i> <?= e($order['delivery_method']['delivery_method_name']) ?></p>
+                    <h2 class="order-summary__title" id="delivery-title"><?= isPickupOrder($order) ? 'Kuchukua dukani' : 'Usafirishaji' ?></h2>
+                    <?php if (isPickupOrder($order)) : ?>
+                        <?php require __DIR__ . '/includes/pickup_point.php'; ?>
+                    <?php else : ?>
+                        <p class="order-detail-text">
+                            <strong><?= e($address['address_recipient_name']) ?></strong> · <?= e($address['address_phone']) ?><br>
+                            <?= e(implode(', ', array_filter([$address['address_street'], $address['address_landmark']]))) ?><br>
+                            <?= e(implode(', ', array_filter([$address['district_name'], $address['region_name']]))) ?>
+                        </p>
+                        <p class="order-detail-text"><i class="bi bi-truck" aria-hidden="true"></i> <?= e($order['delivery_method']['delivery_method_name']) ?></p>
+                        <?php if ($order['delivery_method']['delivery_fee_paid_to_rider']) : ?>
+                            <p class="order-detail-text"><i class="bi bi-cash-coin" aria-hidden="true"></i> Usafiri unamlipa dereva ukipokea mzigo.</p>
+                        <?php endif; ?>
+                    <?php endif; ?>
                     <?php if ($order['order_customer_note']) : ?>
                         <p class="order-detail-text"><i class="bi bi-chat-left-text" aria-hidden="true"></i> <?= e($order['order_customer_note']) ?></p>
                     <?php endif; ?>

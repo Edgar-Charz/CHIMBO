@@ -41,8 +41,8 @@ final class AdminToolsTest extends TestCase
                 $product
             );
         }
-        $this->db->execute("DELETE FROM delivery_methods WHERE delivery_method_code NOT IN ('standard', 'express')");
-        $this->db->execute("UPDATE delivery_methods SET delivery_method_fee = 5000 WHERE delivery_method_code = 'standard'");
+        $this->db->execute("DELETE FROM delivery_methods WHERE delivery_method_code NOT IN ('standard', 'upcountry', 'pickup')");
+        $this->db->execute("UPDATE delivery_methods SET delivery_method_fee = 0, delivery_method_pricing = 'paid_to_rider' WHERE delivery_method_code = 'standard'");
         Settings::clearCache();
     }
 
@@ -119,10 +119,11 @@ final class AdminToolsTest extends TestCase
 
         $report = (new Report($this->db))->getSalesReport([]);
 
-        $this->assertSame(['order_count' => 1, 'revenue' => 45000, 'delivery_fees' => 5000, 'pieces_sold' => 8, 'cancelled_count' => 1, 'average_order' => 45000], $report['summary']);
+        // Dar by Bolt: the customer pays the rider, so CHIMBO's money is the products only
+        $this->assertSame(['order_count' => 1, 'revenue' => 40000, 'delivery_fees' => 0, 'pieces_sold' => 8, 'cancelled_count' => 1, 'average_order' => 40000], $report['summary']);
         $this->assertSame(40000, $report['top_products'][0]['revenue']);
         $this->assertSame('Cosmetics', $report['by_category'][0]['category_name']);
-        $this->assertSame([['order_payment_method' => 'cod', 'order_count' => 1, 'revenue' => 45000, 'paid_total' => 0]], $report['by_payment_method']);
+        $this->assertSame([['order_payment_method' => 'cod', 'order_count' => 1, 'revenue' => 40000, 'paid_total' => 0]], $report['by_payment_method']);
         $this->assertSame(1, $report['by_day'][0]['order_count']);
     }
 
@@ -132,11 +133,154 @@ final class AdminToolsTest extends TestCase
 
         $file = (new Report($this->db))->exportCsv('by_region', []);
         $this->assertStringContainsString("Region,Orders,\"Revenue (TZS)\"", $file['content']);
-        $this->assertStringContainsString('"Dar es Salaam",1,45000', $file['content']);
+        $this->assertStringContainsString('"Dar es Salaam",1,40000', $file['content']);
 
         $this->assertFieldError('date_from', fn () => (new Report($this->db))->getSalesReport(['date_from' => '2026-10-02', 'date_to' => '2026-10-01']));
         $this->assertFieldError('date_from', fn () => (new Report($this->db))->getSalesReport(['date_from' => '2024-01-01', 'date_to' => '2026-01-01']));
         $this->assertFieldError('section', fn () => (new Report($this->db))->exportCsv('passwords', []));
+    }
+
+    // ------------------------------------------------------------------ dashboard
+
+    public function testDashboardSalesMatchTheReportsSummary(): void
+    {
+        $this->placeCashOrder(8);   // 45,000 today
+
+        $sales = (new Dashboard($this->db))->getSales();
+
+        $this->assertSame([1, 40000], [$sales['today']['order_count'], $sales['today']['revenue']]);
+        $this->assertSame([1, 40000], [$sales['last_7_days']['order_count'], $sales['last_7_days']['revenue']]);
+        $this->assertSame((new Report($this->db))->getSalesReport([])['summary']['revenue'], $sales['last_7_days']['revenue']);
+    }
+
+    public function testAllTimeTotalsLeaveCancelledOrdersOutOfTheMoney(): void
+    {
+        $this->placeCashOrder(8);                    // 45,000
+        $cancelled = $this->placeCashOrder(2);       // 16,000, then cancelled
+        $this->db->execute("UPDATE orders SET order_status = 'cancelled' WHERE order_id = " . $cancelled['order_id']);
+
+        $totals = (new Dashboard($this->db))->getAllTimeTotals();
+
+        $this->assertSame(2, $totals['orders']);              // every order ever placed
+        $this->assertSame(40000, $totals['revenue']);         // the cancelled one isn't money
+        $this->assertSame(40000, $totals['average_order']);
+        $this->assertSame(8, $totals['pieces_sold']);
+        $this->assertSame(2, $totals['customers']);
+    }
+
+    public function testDailySalesListEveryDayWithZerosForQuietDays(): void
+    {
+        $this->placeCashOrder(8);   // 45,000 today
+
+        $days = (new Dashboard($this->db))->getDailySales(7);
+
+        $this->assertCount(7, $days);
+        $this->assertSame(['order_count' => 0, 'revenue' => 0], array_intersect_key($days[0], ['order_count' => 0, 'revenue' => 0]));
+        $this->assertSame([1, 40000], [end($days)['order_count'], end($days)['revenue']]);   // today is last
+        $this->assertSame(40000, array_sum(array_column($days, 'revenue')));
+
+        try {
+            (new Dashboard($this->db))->getDailySales(5);
+            $this->fail('Expected a validation error');
+        } catch (ApiException $e) {
+            $this->assertArrayHasKey('days', $e->fields());
+        }
+    }
+
+    public function testAttentionCountsWhatNeedsSomeoneNow(): void
+    {
+        $this->placeCashOrder(8);   // a cash order starts "confirmed" → one order to pack
+
+        $counts = (new Dashboard($this->db))->getAttentionCounts();
+
+        $this->assertSame(1, $counts['orders_to_pack']);
+        $this->assertSame(0, $counts['payments_to_check']);
+        $this->assertSame(0, $counts['overdue_unpaid']);
+        $this->assertSame(['payments_to_check', 'refunds_due', 'orders_to_pack', 'transport_to_confirm', 'businesses_to_verify', 'low_stock', 'overdue_unpaid'], array_keys($counts));
+    }
+
+    public function testOrdersTabShowsThePipelineWhatToPackAndWhoIsDelivering(): void
+    {
+        $to_pack     = $this->placeCashOrder(8);
+        $dispatched  = $this->placeCashOrder(2);
+        $agent_id    = $this->db->insert(
+            "INSERT INTO delivery_agents (delivery_agent_full_name, delivery_agent_phone) VALUES ('Juma Ali', '+255754999888')"
+        );
+        $manager = new OrderManager($this->db);
+        $manager->changeStatus($dispatched['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
+        $manager->changeStatus($dispatched['order_id'], ['order_status' => 'dispatched', 'delivery_agent_id' => $agent_id], self::ADMIN_ID);
+        $dashboard = new Dashboard($this->db);
+
+        $summary = $dashboard->getOrderPipeline();
+        $this->assertSame(['pending_payment' => 0, 'confirmed' => 1, 'packed' => 0, 'dispatched' => 1, 'in_transit' => 0], $summary['pipeline']);
+        $this->assertSame(['all' => 2, 'active' => 2, 'delivered' => 0, 'cancelled' => 0, 'expired' => 0], $summary['totals']);
+
+        $waiting = $dashboard->getOrdersWaitingToPack();
+        $this->assertSame([$to_pack['order_number']], array_column($waiting, 'order_number'));
+        $this->assertNotNull($waiting[0]['confirmed_at']);
+
+        $deliveries = $dashboard->getDeliveriesByAgent();
+        $this->assertSame(['Juma Ali', 1, $dispatched['order_total'], $dispatched['order_number']], [
+            $deliveries[0]['delivery_agent_full_name'], $deliveries[0]['order_count'],
+            $deliveries[0]['cash_to_collect'], $deliveries[0]['order_numbers'],
+        ]);
+
+        $this->db->execute('DELETE FROM order_deliveries');
+        $this->db->execute('DELETE FROM delivery_agents WHERE delivery_agent_id = ' . (int) $agent_id);
+    }
+
+    public function testSalesTabMatchesTheReportsPage(): void
+    {
+        $this->placeCashOrder(8);   // 8 Vaseline (Cosmetics), cash, Dar es Salaam: 45,000
+
+        $sales = (new Dashboard($this->db))->getSalesBreakdown(30);
+
+        $this->assertSame(40000, $sales['summary']['revenue']);
+        $this->assertSame([['category_name' => 'Cosmetics', 'quantity' => 8, 'revenue' => 40000]], $sales['by_category']);
+        $this->assertSame('cod', $sales['by_payment_method'][0]['order_payment_method']);
+        $this->assertSame(['Vaseline Petroleum Jelly 400ml'], array_column($sales['top_products'], 'product_name'));
+        $this->assertSame((new Report($this->db))->getSalesReport(['date_from' => $sales['date_from'], 'date_to' => $sales['date_to']])['summary'], $sales['summary']);
+    }
+
+    public function testCustomersTabCountsNewCustomersAndTopBuyers(): void
+    {
+        $this->placeCashOrder(8);   // a new customer who spends 45,000
+        $this->placeCashOrder(2);   // another new customer: 2 × 5,500 + 5,000 delivery = 16,000
+        $deleted_id = (new User($this->db))->findOrCreateUserIdByPhone('+255754000999');
+        $this->db->execute("UPDATE users SET user_status = 'deleted' WHERE user_id = {$deleted_id}");
+
+        $stats = (new Dashboard($this->db))->getCustomerStats(7);
+
+        $this->assertSame(2, $stats['counts']['new_in_period']);   // the deleted account isn't counted
+        $this->assertCount(7, $stats['new_per_day']);
+        $this->assertSame(2, end($stats['new_per_day'])['customer_count']);
+        $this->assertSame([40000, 11000], array_map('intval', array_column($stats['top_customers'], 'total_spent')));
+        $this->assertNotContains($deleted_id, array_map('intval', array_column($stats['newest_customers'], 'user_id')));
+    }
+
+    public function testStockTabShowsBestSellersAndSlowMovers(): void
+    {
+        $this->placeCashOrder(8);
+
+        $stock = (new Dashboard($this->db))->getStockStats();
+
+        $this->assertSame(['product_id' => self::VASELINE, 'pieces_sold' => 8], [
+            'product_id'  => (int) $stock['best_sellers'][0]['product_id'],
+            'pieces_sold' => $stock['best_sellers'][0]['pieces_sold'],
+        ]);
+        $this->assertNotContains(self::VASELINE, array_map('intval', array_column($stock['slow_movers'], 'product_id')));
+        $this->assertGreaterThan(0, $stock['counts']['in_shop']);
+    }
+
+    public function testLowStockFollowsTheStockPageRule(): void
+    {
+        $this->db->execute('UPDATE products SET product_stock_quantity = 0 WHERE product_id = ' . self::VASELINE);
+        $this->db->execute('UPDATE products SET product_stock_quantity = ' . ProductEditor::LOW_STOCK_THRESHOLD . ' WHERE product_id = 2');
+
+        $low_stock = (new Dashboard($this->db))->getLowStock();
+
+        $this->assertSame([1, 1], [$low_stock['out_count'], $low_stock['low_count']]);
+        $this->assertSame([self::VASELINE, 2], array_map('intval', array_column($low_stock['items'], 'product_id')));
     }
 
     // ------------------------------------------------------------------ settings
@@ -178,7 +322,7 @@ final class AdminToolsTest extends TestCase
         $standard_id = (int) $this->db->fetchValue("SELECT delivery_method_id FROM delivery_methods WHERE delivery_method_code = 'standard'");
         $standard    = $model->getMethodById($standard_id);
 
-        $model->updateMethod($standard_id, ['delivery_method_fee' => 6000, 'delivery_method_is_active' => '1'] + $standard, self::ADMIN_ID);
+        $model->updateMethod($standard_id, ['delivery_method_fee' => 6000, 'delivery_method_pricing' => 'fixed', 'delivery_method_is_active' => '1'] + $standard, self::ADMIN_ID);
         $model->createMethod(['delivery_method_name' => 'Pikipiki Mwanza', 'delivery_method_fee' => 3000, 'delivery_method_eta_min_days' => 0, 'delivery_method_eta_max_days' => 1], self::ADMIN_ID);
 
         $offered = (new Checkout($this->db))->getDeliveryMethods();

@@ -89,7 +89,7 @@ final class PaymentTest extends TestCase
         $this->assertSame('pending_payment', $order['order_status']);
         $this->assertSame('unpaid', $order['order_payment_status']);
         $this->assertTrue($order['payment']['can_submit_payment']);
-        $this->assertSame(45000, $order['payment']['payment_amount']);
+        $this->assertSame(40000, $order['payment']['payment_amount']);   // the rider is paid separately
         $this->assertSame('123456', $order['payment']['payment_method']['payment_method_account_number']);
         $this->assertSame($order['order_number'], $order['payment']['payment_note_hint']);
         $this->assertNull($order['payment']['latest_payment']);
@@ -289,6 +289,52 @@ final class PaymentTest extends TestCase
         $this->assertSame(1, $this->payment_model->searchPayments(['search' => $order['order_number']])['total']);
         $this->assertSame(1, $this->payment_model->searchPayments(['search' => '0712000111'])['total']);
         $this->assertSame(0, $this->payment_model->searchPayments(['payment_status' => 'confirmed'])['total']);
+    }
+
+    // ------------------------------------------------------------------ overdue unpaid orders
+
+    public function testOverdueUnpaidOrdersExpireAndReleaseTheirStock(): void
+    {
+        $stock_before = $this->stockOfVaseline();
+        $overdue      = $this->placeOrder('mpesa');
+        $this->makeOverdue($overdue['order_id']);
+        $manager = new OrderManager($this->db);
+
+        $this->assertSame(1, $manager->countOverdueOrders());
+        $this->assertSame([$overdue['order_id']], array_map('intval', array_column($manager->getOrdersForAdmin(['overdue' => '1'])['items'], 'order_id')));
+
+        $this->assertSame(1, $manager->expireOverdueOrders(self::ADMIN_ID));
+
+        $order = $this->order_model->getOrder($this->user_id, $overdue['order_id']);
+        $this->assertSame(['expired', 'cancelled'], [$order['order_status'], $order['order_payment_status']]);
+        $this->assertSame('Muda wa kulipa umeisha', end($order['events'])['status_note']);
+        $this->assertSame($stock_before, $this->stockOfVaseline());
+        $this->assertSame(0, $manager->countOverdueOrders());
+    }
+
+    public function testOrdersUnderReviewNotYetDueOrCashAreNotExpired(): void
+    {
+        $under_review = $this->placeOrder('mpesa');
+        $this->submit($under_review['order_id'], self::REFERENCE);
+        $this->makeOverdue($under_review['order_id']);
+        $not_yet_due = $this->placeOrder('mpesa');
+        $cash        = $this->placeOrder('cod');
+
+        $this->assertSame(0, (new OrderManager($this->db))->expireOverdueOrders(null));   // the scheduled job
+
+        foreach ([$under_review, $not_yet_due, $cash] as $order) {
+            $this->assertNotSame('expired', $this->order_model->getOrder($this->user_id, $order['order_id'])['order_status']);
+        }
+    }
+
+    private function makeOverdue(int $order_id): void
+    {
+        $this->db->execute('UPDATE orders SET order_expires_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE order_id = ' . $order_id);
+    }
+
+    private function stockOfVaseline(): int
+    {
+        return (int) $this->db->fetchValue('SELECT product_stock_quantity FROM products WHERE product_id = ' . self::VASELINE);
     }
 
     // ------------------------------------------------------------------ helpers

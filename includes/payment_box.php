@@ -3,7 +3,7 @@
 /**
  * Paying for an order by mobile money or bank (checked by CHIMBO staff): the pay-to details and the "Nimelipa"
  * form (+ "Badilisha njia ya malipo"), "Tunakagua malipo yako" while staff check, the reason when a payment was
- * rejected, or the final result.
+ * rejected, or the final result. Upcountry transport still to be confirmed by staff: "Tunapima mzigo wako" (no paying yet).
  * Expects $order (the API order shape). Shows nothing for cash on delivery. Form: assets/js/payment.js.
  */
 
@@ -13,6 +13,8 @@ $latest_payment = $payment['latest_payment'];
 $is_mobile_money = $method['payment_method_type'] === 'mobile_money';
 $payment_state = match (true) {
     $method['payment_method_type'] === 'cash'                 => null,
+    $order['order_status'] === 'pending_payment'
+        && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation' => 'transport_pending',
     $payment['can_submit_payment']                             => 'pay',
     ($latest_payment['payment_status'] ?? null) === 'submitted' => 'checking',
     $order['order_payment_status'] === 'paid'                  => 'paid',
@@ -35,19 +37,7 @@ $payment_state = match (true) {
         <p class="payment-box__amount">Lipa <strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa <?= e($method['payment_method_name']) ?></p>
 
         <dl class="payment-box__details">
-            <?php if ($method['payment_method_bank_name']) : ?>
-                <div><dt>Benki</dt><dd><?= e($method['payment_method_bank_name']) ?></dd></div>
-            <?php endif; ?>
-            <div>
-                <dt><?= $is_mobile_money ? 'Namba ya kulipia' : 'Namba ya akaunti' ?></dt>
-                <dd>
-                    <span class="payment-box__copy-value"><?= e($method['payment_method_account_number']) ?></span>
-                    <button class="btn btn-link payment-box__copy" type="button" data-copy="<?= e($method['payment_method_account_number']) ?>"><i class="bi bi-copy" aria-hidden="true"></i> Nakili</button>
-                </dd>
-            </div>
-            <?php if ($method['payment_method_account_name']) : ?>
-                <div><dt>Jina</dt><dd><?= e($method['payment_method_account_name']) ?></dd></div>
-            <?php endif; ?>
+            <?php require __DIR__ . '/payment_method_details.php'; ?>
             <div>
                 <dt>Maelezo ya malipo</dt>
                 <dd>
@@ -103,6 +93,15 @@ $payment_state = match (true) {
                 </div>
             </div>
         <?php endif; ?>
+    </section>
+<?php elseif ($payment_state === 'transport_pending') : ?>
+    <section class="payment-box payment-box--checking" aria-live="polite">
+        <h2 class="payment-box__title"><i class="bi bi-truck" aria-hidden="true"></i> Tunapima mzigo wako</h2>
+        <p class="mb-1">Tunathibitisha bei ya usafiri hadi <?= e($order['address']['region_name'] ?? 'mkoa wako') ?>.
+            <?= $order['delivery_method']['delivery_fee_estimate'] > 0
+                ? 'Makadirio ni ' . e(formatTzs($order['delivery_method']['delivery_fee_estimate'])) . '; mzigo ukiwa mkubwa bei inaweza kuongezeka.'
+                : 'Tutakutumia bei ya usafiri.' ?></p>
+        <p class="mb-0">Usilipe bado — tutakujulisha bei kamili, kisha utalipa hapa.</p>
     </section>
 <?php elseif ($payment_state === 'checking') : ?>
     <section class="payment-box payment-box--checking" aria-live="polite">

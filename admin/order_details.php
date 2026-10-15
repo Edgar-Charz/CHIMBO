@@ -13,7 +13,9 @@ $order_id = (int) ($_GET['id'] ?? 0);
 $order    = adminLoadOrRedirect(fn () => $order_manager->getOrderForAdmin($order_id), 'orders.php');
 
 // Each action checks its own permission: Finance may view orders but not move them
-$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database): void {
+$is_pickup = $order['delivery_method']['delivery_method_is_pickup'];   // collected at the shop (R-26)
+
+$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database, $is_pickup): void {
     $order_page = url("admin/order_details.php?id={$order_id}");
 
     // Payment actions (the classes notify the customer). Reject and refund come from dialogs, so their errors are flashed.
@@ -43,7 +45,10 @@ $form_error = adminHandleForm(function (string $form_action) use ($order_manager
         Session::flash('success', 'Payment recorded and confirmed — the order is paid.');
     } elseif ($form_action === 'change_status' && $can_change_status) {
         $order_manager->changeStatus($order_id, $_POST, $admin_id);
-        Session::flash('success', 'The order is now "' . adminStatusName((string) $_POST['order_status']) . '". The customer has been notified.');
+        Session::flash('success', 'The order is now "' . adminStatusName((string) $_POST['order_status'], $is_pickup) . '". The customer has been notified.');
+    } elseif ($form_action === 'confirm_delivery_fee' && $can_change_status) {
+        $order_manager->confirmDeliveryFee($order_id, $_POST, $admin_id);
+        Session::flash('success', 'Transport price confirmed — the customer has been told and can pay now.');
     } elseif ($form_action === 'confirm_cash' && $can_confirm_cash) {
         $order_manager->confirmCashCollected($order_id, $_POST, $admin_id);
         Session::flash('success', 'Cash received — the order is paid.');
@@ -60,6 +65,7 @@ $next_statuses   = $can_change_status ? $order['allowed_next_statuses'] : [];
 $delivery_agents = in_array('dispatched', $next_statuses, true) ? (new DeliveryAgent($database))->getActiveAgents() : [];
 $address         = $order['address'];
 $customer        = $order['customer'];
+$delivery_fee_status = $order['delivery_method']['delivery_fee_status'];   // fixed · awaiting_confirmation · confirmed (R-25)
 $refund_is_due   = $can_manage_payments && in_array($order['order_status'], ['cancelled', 'expired'], true)
     && $order['order_payment_status'] === 'paid';
 
@@ -82,11 +88,13 @@ require __DIR__ . '/includes/header.php';
             </div>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <?= adminStatusBadge($order['order_status']) ?>
+            <?= adminStatusBadge($order['order_status'], $is_pickup) ?>
             <?= adminStatusBadge($order['order_payment_status']) ?>
             <strong class="fs-5 ms-2"><?= e(adminMoney($order['order_total'])) ?></strong>
             <a class="btn btn-outline-secondary ms-2" href="<?= e(url('admin/order_receipt.php?id=' . $order['order_id'])) ?>"
                target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print receipt</a>
+            <a class="btn btn-outline-secondary ms-2" href="<?= e(url('admin/order_packing_slip.php?id=' . $order['order_id'])) ?>"
+               target="_blank" rel="noopener"><i class="bi bi-box-seam"></i> Packing slip</a>
         </div>
     </div>
 </div>
@@ -102,6 +110,7 @@ require __DIR__ . '/includes/header.php';
                 <table class="table admin-table mb-0">
                     <thead>
                         <tr>
+                            <th class="serial-column" title="Row number">#</th>
                             <th>Product</th>
                             <th class="text-end">Quantity</th>
                             <th class="text-end">Unit price</th>
@@ -109,8 +118,9 @@ require __DIR__ . '/includes/header.php';
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($order['items'] as $item): ?>
+                        <?php foreach ($order['items'] as $item_number => $item): ?>
                             <tr>
+                                <td class="serial-column"><?= e($item_number + 1) ?></td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         <?= adminThumbnailFromUrl($item['product_image_url'], 'bi-box-seam') ?>
@@ -134,7 +144,14 @@ require __DIR__ . '/includes/header.php';
                 <dt>Subtotal</dt>
                 <dd><?= e(adminMoney($order['order_subtotal'])) ?></dd>
                 <dt>Delivery · <?= e($order['delivery_method']['delivery_method_name']) ?></dt>
-                <dd><?= e(adminMoney($order['order_delivery_fee'])) ?></dd>
+                <dd>
+                    <?= e(adminDeliveryFee($order)) ?>
+                    <?php if ($delivery_fee_status === 'awaiting_confirmation'): ?>
+                        <div class="small order-fee-to-confirm">estimate · to confirm</div>
+                    <?php elseif ($delivery_fee_status === 'confirmed' && $order['delivery_method']['delivery_fee_note']): ?>
+                        <div class="small text-muted"><?= e($order['delivery_method']['delivery_fee_note']) ?></div>
+                    <?php endif; ?>
+                </dd>
                 <?php if ($order['order_discount_total'] > 0): ?>
                     <dt>Discount</dt>
                     <dd>− <?= e(adminMoney($order['order_discount_total'])) ?></dd>
@@ -151,7 +168,7 @@ require __DIR__ . '/includes/header.php';
                     <?php foreach (array_reverse($order['events']) as $event): ?>
                         <li>
                             <div class="d-flex flex-wrap align-items-center gap-2">
-                                <?= adminStatusBadge($event['order_status']) ?>
+                                <?= adminStatusBadge($event['order_status'], $is_pickup) ?>
                                 <span class="small text-muted"><?= e(adminDateTime($event['created_at'])) ?></span>
                             </div>
                             <?php if ($event['status_note']): ?>
@@ -165,6 +182,39 @@ require __DIR__ . '/includes/header.php';
     </div>
 
     <div class="col-lg-4">
+        <?php if ($order['can_confirm_delivery_fee'] && $can_change_status): ?>
+            <?php $estimate = $order['delivery_method']['delivery_fee_estimate']; ?>
+            <form class="admin-panel admin-panel-attention mb-3" method="post" novalidate>
+                <?= Csrf::field() ?>
+                <div class="admin-panel-header"><h2 class="admin-panel-title"><i class="bi bi-truck"></i> Transport price</h2></div>
+                <div class="admin-panel-body">
+                    <p class="small text-muted">
+                        Measure the load, then confirm the transport price to <?= e($address['region_name']) ?>.
+                        The customer can pay only after this.
+                        <?= $estimate > 0 ? 'Estimate given at checkout: ' . e(adminMoney($estimate)) . '.' : 'This region has no estimate — set the price.' ?>
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label" for="order_delivery_fee">Transport price</label>
+                        <div class="input-group">
+                            <span class="input-group-text">TZS</span>
+                            <input class="form-control<?= adminInvalidClass($errors, 'order_delivery_fee') ?>" type="number" min="0" step="500"
+                                   id="order_delivery_fee" name="order_delivery_fee" value="<?= e($posted['order_delivery_fee'] ?? ($estimate ?: '')) ?>" required>
+                        </div>
+                        <?= adminFieldError($errors, 'order_delivery_fee') ?>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="order_delivery_fee_note">Reason <span class="text-muted">(when the price differs — the customer sees it)</span></label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'order_delivery_fee_note') ?>" id="order_delivery_fee_note" name="order_delivery_fee_note"
+                               maxlength="255" value="<?= e($posted['order_delivery_fee_note'] ?? '') ?>" placeholder="e.g. Mzigo mkubwa, katoni 6">
+                        <?= adminFieldError($errors, 'order_delivery_fee_note') ?>
+                    </div>
+                    <button class="btn btn-chimbo w-100" type="submit" name="form_action" value="confirm_delivery_fee">
+                        Confirm price and let the customer pay
+                    </button>
+                </div>
+            </form>
+        <?php endif; ?>
+
         <?php if ($next_statuses): ?>
             <form class="admin-panel mb-3" method="post" novalidate>
                 <?= Csrf::field() ?>
@@ -174,7 +224,7 @@ require __DIR__ . '/includes/header.php';
                         <label class="form-label" for="order_status">Next status</label>
                         <select class="form-select<?= adminInvalidClass($errors, 'order_status') ?>" id="order_status" name="order_status">
                             <?php foreach ($next_statuses as $status): ?>
-                                <option value="<?= e($status) ?>" <?= adminSelected($posted, 'order_status', $status) ?>><?= e(adminStatusName($status)) ?></option>
+                                <option value="<?= e($status) ?>" <?= adminSelected($posted, 'order_status', $status) ?>><?= e(adminStatusName($status, $is_pickup)) ?></option>
                             <?php endforeach; ?>
                         </select>
                         <?= adminFieldError($errors, 'order_status') ?>
@@ -234,8 +284,16 @@ require __DIR__ . '/includes/header.php';
         </section>
 
         <section class="admin-panel mb-3">
-            <div class="admin-panel-header"><h2 class="admin-panel-title">Delivery</h2></div>
+            <div class="admin-panel-header"><h2 class="admin-panel-title"><?= $is_pickup ? 'Pickup at the shop' : 'Delivery' ?></h2></div>
             <div class="admin-panel-body">
+                <?php if ($is_pickup): ?>
+                    <p class="small mb-2">
+                        <i class="bi bi-shop"></i> The customer collects it — don't send it. "Ready for pickup" tells them to come;
+                        "Picked up" when they have it.
+                    </p>
+                <?php elseif ($order['delivery_method']['delivery_fee_paid_to_rider']): ?>
+                    <p class="small mb-2"><i class="bi bi-scooter"></i> The customer pays the rider (Bolt) for transport — not CHIMBO.</p>
+                <?php endif; ?>
                 <dl class="admin-details">
                     <dt>Recipient</dt>
                     <dd><?= e($address['address_recipient_name']) ?><br><span class="text-muted"><?= e(Phone::format($address['address_phone'])) ?></span></dd>

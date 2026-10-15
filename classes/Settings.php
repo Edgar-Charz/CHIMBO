@@ -20,6 +20,10 @@ class Settings
             'support_whatsapp' => ['Support WhatsApp', 'required|phone_tz'],
             'support_hours'    => ['Support hours (shown to customers)', 'required|string|max:100'],
         ],
+        'Pickup point' => [
+            'pickup_address' => ['Address where customers collect ("Nitachukua mwenyewe dukani")', 'required|string|max:200'],
+            'pickup_hours'   => ['Opening hours for collecting', 'required|string|max:100'],
+        ],
         'Orders' => [
             'cod_max_order_total'         => ['Largest cash-on-delivery order (TZS)', 'required|int|min:0|max:100000000'],
             'unpaid_order_expiry_minutes' => ['Time to pay before an unpaid order may be cancelled (minutes; 1440 = 24 hours)', 'required|int|min:30|max:10080'],
@@ -82,13 +86,17 @@ class Settings
     }
 
     /**
-     * Saves the whole Settings form (every EDITABLE key must be sent). Only changed values are written;
-     * the audit log keeps the old and new value of each. Throws a validation error (fields by setting_key).
+     * Saves the Settings form: every key of the given groups (EDITABLE titles; null = all groups) must be sent, so
+     * one tab of the Settings page saves only its own fields. Only changed values are written; the audit log keeps
+     * the old and new value of each. Throws a validation error (fields by setting_key).
      */
-    public function updateSettings(array $input, int $admin_id): void
+    public function updateSettings(array $input, int $admin_id, ?array $group_titles = null): void
     {
         $rules = [];
-        foreach (self::EDITABLE as $fields) {
+        foreach (self::EDITABLE as $group_title => $fields) {
+            if ($group_titles !== null && !in_array($group_title, $group_titles, true)) {
+                continue;
+            }
             foreach ($fields as $setting_key => [, $rule]) {
                 $rules[$setting_key] = $rule;
             }
@@ -132,6 +140,15 @@ class Settings
             'support_whatsapp'     => $whatsapp,
             'support_whatsapp_url' => $whatsapp === '' ? null : 'https://wa.me/' . ltrim($whatsapp, '+'),
             'support_hours'        => $this->get('support_hours'),
+        ];
+    }
+
+    /** Where and when customers collect a pickup order (R-26): {pickup_address, pickup_hours}. */
+    public function getPickupPoint(): array
+    {
+        return [
+            'pickup_address' => $this->get('pickup_address'),
+            'pickup_hours'   => $this->get('pickup_hours'),
         ];
     }
 

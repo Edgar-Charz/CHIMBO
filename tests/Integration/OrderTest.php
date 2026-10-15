@@ -56,7 +56,7 @@ final class OrderTest extends TestCase
         $this->assertMatchesRegularExpression('/^CHB\d{6}$/', $order['order_number']);
         $this->assertSame('confirmed', $order['order_status']);          // cash on delivery starts confirmed
         $this->assertSame('cod_pending', $order['order_payment_status']);
-        $this->assertSame(8 * 5000 + 6 * 8500 + 5000, $order['order_total']);
+        $this->assertSame(8 * 5000 + 6 * 8500, $order['order_total']);   // Bolt in Dar: transport paid to the rider
         $this->assertSame([5000, 8500], array_column($order['items'], 'order_item_unit_price'));
         $this->assertSame('Kariakoo, Lumumba Street', $order['address']['address_street']);
         $this->assertSame(['confirmed'], array_column($order['events'], 'order_status'));
@@ -221,7 +221,7 @@ final class OrderTest extends TestCase
         $order = $this->order_manager->getOrderForAdmin($order_id);
         $this->assertMatchesRegularExpression('/^CHB\d{6}$/', $order['order_number']);
         $this->assertSame('confirmed', $order['order_status']);
-        $this->assertSame(8 * 5000 + 5000, $order['order_total']);
+        $this->assertSame(8 * 5000, $order['order_total']);
         $this->assertSame(['confirmed'], array_column($order['events'], 'order_status'));
         $this->assertSame($this->originalStock(self::VASELINE) - 8, $this->currentStock(self::VASELINE));
         $this->assertSame(1, (new Notification($this->db))->getUnreadCount((int) $order['customer']['user_id']));

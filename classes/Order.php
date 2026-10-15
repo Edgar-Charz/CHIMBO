@@ -25,6 +25,12 @@ class Order
         'expired'         => ['Oda imeisha muda', 'Oda #{number} imesitishwa kwa sababu malipo hayakukamilika.'],
     ];
 
+    // A pickup order ("Nitachukua mwenyewe dukani", R-26) uses the same statuses with its own words
+    private const PICKUP_STATUS_MESSAGES = [
+        'packed'    => ['Oda iko tayari kuchukuliwa', 'Oda #{number} iko tayari. Njoo uichukue: {pickup_point}.'],
+        'delivered' => ['Oda imechukuliwa', 'Umechukua oda #{number}. Asante kwa kununua na CHIMBO!'],
+    ];
+
     public function __construct(private Database $db)
     {
     }
@@ -126,6 +132,22 @@ class Order
                 throw ApiException::conflict('ORDER_NOT_CANCELLABLE', 'Oda hii haiwezi kusitishwa tena kwa sababu imeshaanza kuandaliwa.');
             }
             $this->moveToStatus($order, 'cancelled', 'customer', $user_id, $data['order_cancel_reason'] ?? null);
+
+            $staff_notification = new AdminNotification($this->db);
+            $staff_notification->notify(
+                'order.cancelled',
+                "Order cancelled: {$order['order_number']}",
+                'Cancelled by the customer.' . (isset($data['order_cancel_reason']) ? " Reason: {$data['order_cancel_reason']}" : ''),
+                "order_details.php?id={$order_id}"
+            );
+            if ($order['order_payment_status'] === 'paid') {
+                $staff_notification->notify(
+                    'refund.due',
+                    "Refund due: {$order['order_number']}",
+                    number_format((int) $order['order_total']) . ' TZS was paid and the customer cancelled. Send the money back, then mark it refunded.',
+                    'payments.php?tab=refunds'
+                );
+            }
         });
 
         return $this->getOrder($user_id, $order_id);
@@ -212,7 +234,7 @@ class Order
     public function lockOrder(int $order_id, ?int $user_id = null): array
     {
         $order = $this->db->fetchOne(
-            'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total
+            'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total, order_is_pickup
              FROM orders WHERE order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );
@@ -272,10 +294,18 @@ class Order
         $status         = $is_cash ? 'confirmed' : 'pending_payment';
         $expiry_minutes = (new Settings($this->db))->getInt('unpaid_order_expiry_minutes', 30);
 
+        // Upcountry transport (R-25): the fee is the region's estimate until staff confirm it; the customer can only
+        // pay after that, so there's no time limit yet — and no cash on delivery with a price still to confirm.
+        $fee_needs_confirmation = $totals['delivery_fee_needs_confirmation'];
+        if ($fee_needs_confirmation && $is_cash) {
+            throw ApiException::validation(['payment_method' => 'Kwa usafiri wa mikoani lipa kwa simu au benki baada ya bei ya usafiri kuthibitishwa.']);
+        }
+
         $order_id = $this->db->insert(
             'INSERT INTO orders (
                 order_number, user_id, order_channel, order_status, order_payment_method, order_payment_status,
-                order_subtotal, order_delivery_fee, order_discount_total, order_total,
+                order_subtotal, order_delivery_fee, order_delivery_fee_estimate, order_delivery_paid_to_rider, order_is_pickup,
+                order_discount_total, order_total,
                 delivery_method_id, order_delivery_method_name, order_delivery_days_min, order_delivery_days_max,
                 order_estimated_delivery_date,
                 order_ship_recipient_name, order_ship_phone, region_id, order_ship_region_name, order_ship_district_name,
@@ -283,12 +313,13 @@ class Order
                 order_expires_at, order_placed_at
              ) VALUES (
                 :order_number, :user_id, :order_channel, :order_status, :order_payment_method, :order_payment_status,
-                :order_subtotal, :order_delivery_fee, :order_discount_total, :order_total,
+                :order_subtotal, :order_delivery_fee, :order_delivery_fee_estimate, :paid_to_rider, :is_pickup,
+                :order_discount_total, :order_total,
                 :delivery_method_id, :delivery_method_name, :delivery_days_min, :delivery_days_max,
                 UTC_DATE() + INTERVAL :days_until_delivery DAY,
                 :recipient_name, :ship_phone, :region_id, :region_name, :district_name,
                 :street, :landmark, :customer_note, :idempotency_key,
-                IF(:is_cash, NULL, UTC_TIMESTAMP() + INTERVAL :expiry_minutes MINUTE), UTC_TIMESTAMP()
+                IF(:no_time_limit, NULL, UTC_TIMESTAMP() + INTERVAL :expiry_minutes MINUTE), UTC_TIMESTAMP()
              )',
             [
                 'order_number'         => $this->newOrderNumber(),
@@ -299,6 +330,9 @@ class Order
                 'order_payment_status' => $is_cash ? 'cod_pending' : 'unpaid',
                 'order_subtotal'       => $totals['subtotal'],
                 'order_delivery_fee'   => $totals['delivery_fee'],
+                'order_delivery_fee_estimate' => $fee_needs_confirmation ? $totals['delivery_fee'] : null,
+                'paid_to_rider'        => (int) $totals['delivery_fee_paid_to_rider'],
+                'is_pickup'            => (int) $totals['delivery_method_is_pickup'],
                 'order_discount_total' => $totals['discount_total'],
                 'order_total'          => $totals['grand_total'],
                 'delivery_method_id'   => $totals['delivery_method_id'],
@@ -315,7 +349,7 @@ class Order
                 'landmark'             => $address['address_landmark'],
                 'customer_note'        => $data['order_customer_note'] ?? null,
                 'idempotency_key'      => $idempotency_key,
-                'is_cash'              => (int) $is_cash,
+                'no_time_limit'        => (int) ($is_cash || $fee_needs_confirmation),
                 'expiry_minutes'       => $expiry_minutes,
             ]
         );
@@ -323,7 +357,31 @@ class Order
         $this->saveItemsAndReserveStock($order_id, $totals['cart']);
         $this->recordStatus($order_id, $status, 'customer', $user_id, null);
         (new Cart($this->db))->clearCart($user_id);
-        $this->notifyCustomer(['order_id' => $order_id, 'user_id' => $user_id, 'order_number' => $this->orderNumberOf($order_id)], $status);
+        $order_number = $this->orderNumberOf($order_id);
+        if ($fee_needs_confirmation) {
+            (new Notification($this->db))->notifyUser($user_id, 'order_status', 'Oda imepokelewa',
+                "Tunapima mzigo wa oda #{$order_number} ili kuthibitisha bei ya usafiri. Tutakujulisha, kisha utalipa.",
+                ['order_id' => $order_id]);
+        } else {
+            $this->notifyCustomer(['order_id' => $order_id, 'user_id' => $user_id, 'order_number' => $order_number], $status);
+        }
+
+        $payment_method_name = (new PaymentMethod($this->db))->getDetailsByCode($data['payment_method'])['payment_method_name'] ?? $data['payment_method'];
+        $staff_notification  = new AdminNotification($this->db);
+        $staff_notification->notify(
+            'order.placed',
+            "New order {$order_number}",
+            "{$address['address_recipient_name']} · {$address['region_name']} · " . number_format($totals['grand_total']) . " TZS · {$payment_method_name}",
+            "order_details.php?id={$order_id}"
+        );
+        if ($fee_needs_confirmation) {
+            $staff_notification->notify(
+                'delivery.to_confirm',
+                "Transport price to confirm: {$order_number}",
+                "{$address['region_name']} · estimate " . number_format($totals['delivery_fee']) . ' TZS. Measure the load, then confirm or adjust the price so the customer can pay.',
+                "order_details.php?id={$order_id}"
+            );
+        }
 
         return $order_id;
     }
@@ -421,12 +479,20 @@ class Order
     /** Tells the customer about the order's new status (the bell). */
     public function notifyCustomer(array $order, string $status): void
     {
-        [$title, $body] = self::STATUS_MESSAGES[$status];
+        $is_pickup = !empty($order['order_is_pickup']);
+        [$title, $body] = $is_pickup && isset(self::PICKUP_STATUS_MESSAGES[$status])
+            ? self::PICKUP_STATUS_MESSAGES[$status]
+            : self::STATUS_MESSAGES[$status];
+        $pickup_point = $is_pickup ? (new Settings($this->db))->getPickupPoint() : null;
+
         (new Notification($this->db))->notifyUser(
             (int) $order['user_id'],
             'order_status',
             $title,
-            str_replace('{number}', $order['order_number'], $body),
+            strtr($body, [
+                '{number}'       => $order['order_number'],
+                '{pickup_point}' => $pickup_point === null ? '' : "{$pickup_point['pickup_address']} ({$pickup_point['pickup_hours']})",
+            ]),
             ['order_id' => (int) $order['order_id']]
         );
     }
@@ -517,7 +583,17 @@ class Order
                 'delivery_method_fee'  => (int) $row['order_delivery_fee'],
                 'delivery_days_min'    => (int) $row['order_delivery_days_min'],
                 'delivery_days_max'    => (int) $row['order_delivery_days_max'],
+                // Upcountry transport (R-25): "fixed" · "awaiting_confirmation" (the fee is the estimate; no paying yet)
+                // · "confirmed" (staff measured the load; delivery_fee_note says why the price changed, if it did)
+                'delivery_fee_status'   => self::deliveryFeeStatus($row),
+                'delivery_fee_estimate' => $row['order_delivery_fee_estimate'] === null ? null : (int) $row['order_delivery_fee_estimate'],
+                'delivery_fee_note'     => $row['order_delivery_fee_note'],
+                // R-26: transport paid by the customer to the rider (order_delivery_fee is 0) · collected at the shop
+                'delivery_fee_paid_to_rider' => (bool) $row['order_delivery_paid_to_rider'],
+                'delivery_method_is_pickup'  => (bool) $row['order_is_pickup'],
             ],
+            // Where and when to collect a pickup order (null for deliveries)
+            'pickup_point'                  => $row['order_is_pickup'] ? (new Settings($this->db))->getPickupPoint() : null,
             'address'                       => [   // a copy of the address at ordering time
                 'address_recipient_name' => $row['order_ship_recipient_name'],
                 'address_phone'          => $row['order_ship_phone'],
@@ -531,6 +607,7 @@ class Order
                 'order_item_id'                => (int) $item['order_item_id'],
                 'product_id'                   => (int) $item['product_id'],
                 'product_name'                 => $item['order_item_product_name'],
+                'order_item_sku'               => $item['order_item_sku'],
                 'product_image_url'            => $item['order_item_image_path'] ? url($item['order_item_image_path']) : null,
                 'order_item_unit_label'        => $item['order_item_unit_label'],
                 'order_item_quantity'          => (int) $item['order_item_quantity'],
@@ -557,11 +634,35 @@ class Order
      * The order's payment box: where to pay (the method's "pay to" details), the newest payment the customer
      * sent and its review, and whether the "Nimelipa" form should be shown.
      */
+    /**
+     * The words on the transport line instead of an amount, from a formatted order (receipts, slips, pages):
+     * "Unamlipa dereva" (Bolt — the customer pays the rider, R-26), "Unachukua dukani" (pickup), or null = show the fee.
+     */
+    public static function deliveryFeeWords(array $order): ?string
+    {
+        return match (true) {
+            $order['delivery_method']['delivery_fee_paid_to_rider'] => 'Unamlipa dereva',
+            $order['delivery_method']['delivery_method_is_pickup']  => 'Unachukua dukani',
+            default                                                 => null,
+        };
+    }
+
+    /** "fixed" (nothing to confirm), "awaiting_confirmation" or "confirmed" — from an order row. */
+    public static function deliveryFeeStatus(array $row): string
+    {
+        return match (true) {
+            $row['order_delivery_fee_estimate'] === null     => 'fixed',
+            $row['order_delivery_fee_confirmed_at'] === null => 'awaiting_confirmation',
+            default                                          => 'confirmed',
+        };
+    }
+
     private function formatPayment(array $row, ?array $latest_payment): array
     {
         $can_submit = $row['order_status'] === 'pending_payment'
             && $row['order_payment_status'] === 'unpaid'
             && $row['order_payment_method'] !== 'cod'
+            && self::deliveryFeeStatus($row) !== 'awaiting_confirmation'   // staff confirm the transport price first
             && ($row['order_expires_at'] === null || $row['order_expires_at'] > gmdate('Y-m-d H:i:s'));
 
         return [

@@ -242,10 +242,11 @@ class ProductEditor
                                 ?string $reference_type = null, ?int $reference_id = null): int
     {
         // FOR UPDATE: two changes at the same moment wait for each other, so none is lost
-        $current_stock = (int) $this->db->fetchValue(
-            'SELECT product_stock_quantity FROM products WHERE product_id = :product_id FOR UPDATE',
+        $product = $this->db->fetchOne(
+            'SELECT product_name, product_stock_quantity FROM products WHERE product_id = :product_id FOR UPDATE',
             ['product_id' => $product_id]
         );
+        $current_stock = (int) ($product['product_stock_quantity'] ?? 0);
 
         $new_stock = $current_stock + $quantity_change;
         if ($new_stock < 0) {
@@ -270,8 +271,22 @@ class ProductEditor
                 'admin_id'        => $admin_id,
             ]
         );
+        $this->notifyWhenStockRunsLow((int) $product_id, (string) ($product['product_name'] ?? ''), $current_stock, $new_stock);
 
         return $new_stock;
+    }
+
+    /** Tells the stock staff once, at the moment stock drops to "low" (≤ LOW_STOCK_THRESHOLD) or to 0. */
+    private function notifyWhenStockRunsLow(int $product_id, string $product_name, int $old_stock, int $new_stock): void
+    {
+        $title = match (true) {
+            $new_stock === 0 && $old_stock > 0                                                       => "Sold out: {$product_name}",
+            $new_stock > 0 && $new_stock <= self::LOW_STOCK_THRESHOLD && $old_stock > self::LOW_STOCK_THRESHOLD => "Low stock: {$product_name}",
+            default                                                                                  => null,
+        };
+        if ($title !== null) {
+            (new AdminNotification($this->db))->notify('stock.low', $title, "{$new_stock} left in stock.", "product_stock.php?id={$product_id}");
+        }
     }
 
     /** Checks the rules that need the database or several fields together. Returns the clean, sorted tiers. */

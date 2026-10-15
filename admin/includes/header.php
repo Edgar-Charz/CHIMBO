@@ -11,6 +11,8 @@
 
 // Payments customers sent that staff still have to check (the badge on the Payments menu item)
 $payments_waiting = Admin::can($current_admin, 'payments.manage') ? (new Payment(Database::instance()))->countWaitingForReview() : 0;
+$unread_notifications = (new AdminNotification(Database::instance()))->countUnread($current_admin);   // the bell's number
+$has_waiting_work     = adminAttentionItems($current_admin) !== [];   // the bell's orange dot when nothing is unread
 
 $success_message = Session::takeFlash('success');
 $error_message   = Session::takeFlash('error');
@@ -63,7 +65,17 @@ $error_message   = Session::takeFlash('error');
                 </button>
                 <h1 class="admin-page-title"><?= e($page_title) ?></h1>
 
-                <div class="dropdown ms-auto">
+                <!-- The bell: "Waiting for you" + the latest notifications in a dialog (admin.js loads it when opened) -->
+                <button class="btn btn-light notification-bell ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
+                        aria-label="Notifications" title="Notifications" data-notification-bell
+                        data-panel-url="<?= e(url('admin/ajax/notifications.php?part=panel')) ?>"
+                        data-count-url="<?= e(url('admin/ajax/notifications.php?part=count')) ?>">
+                    <i class="bi bi-bell"></i>
+                    <span class="notification-bell__badge" data-notification-count <?= $unread_notifications > 0 ? '' : 'hidden' ?>><?= e($unread_notifications > 99 ? '99+' : $unread_notifications) ?></span>
+                    <span class="notification-bell__dot" data-notification-dot title="Work is waiting for you" <?= $unread_notifications === 0 && $has_waiting_work ? '' : 'hidden' ?>></span>
+                </button>
+
+                <div class="dropdown">
                     <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
                         <i class="bi bi-person-circle"></i> <?= e($current_admin['admin_full_name']) ?>
                     </button>

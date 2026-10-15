@@ -23,7 +23,7 @@ adminDataTablesJson($pagination, function (array $payment) use ($list_page): arr
     $amount_differs = (int) $payment['payment_amount'] !== (int) $payment['order_total'];
     $is_waiting     = $payment['payment_status'] === 'submitted';
 
-    return [
+    return adminRowLink($order_link) + [
         'order'    => '<a class="fw-semibold" href="' . e($order_link) . '">' . e($payment['order_number']) . '</a>'
             . ($payment['submitted_by_admin_name'] ? '<div class="small text-muted">Recorded by ' . e($payment['submitted_by_admin_name']) . '</div>' : ''),
         'customer' => '<div>' . e($payment['user_full_name'] ?? 'No name yet') . '</div>'
@@ -44,4 +44,4 @@ adminDataTablesJson($pagination, function (array $payment) use ($list_page): arr
             adminActionLink('bi-eye', 'View order', $order_link),
         ),
     ];
-}, '');   // plain rows: they hold several links and buttons
+});

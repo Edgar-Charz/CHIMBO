@@ -17,7 +17,7 @@ require __DIR__ . '/includes/header.php';
             <select class="form-select" id="filter-user-status" name="user_status">
                 <option value="">All statuses</option>
                 <?php foreach (Customer::STATUSES as $status): ?>
-                    <option value="<?= e($status) ?>"><?= e(ucfirst($status)) ?></option>
+                    <option value="<?= e($status) ?>"><?= e(ADMIN_VERIFICATION_STATUSES[$status][1] ?? ucfirst($status)) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -26,7 +26,7 @@ require __DIR__ . '/includes/header.php';
             <select class="form-select" id="filter-verification" name="business_verification_status">
                 <option value="">Any verification</option>
                 <?php foreach (Customer::VERIFICATION_STATUSES as $status): ?>
-                    <option value="<?= e($status) ?>"><?= e(ucfirst($status)) ?></option>
+                    <option value="<?= e($status) ?>"><?= e(ADMIN_VERIFICATION_STATUSES[$status][1] ?? ucfirst($status)) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>

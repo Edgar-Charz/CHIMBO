@@ -50,7 +50,8 @@ function adminDataTablesJson(array $pagination, callable $render_row, string $ro
         'draw'            => (int) ($_GET['draw'] ?? 0),
         'recordsTotal'    => $pagination['total'],
         'recordsFiltered' => $pagination['total'],
-        'data'            => array_map(fn (array $row): array => $render_row($row) + ['DT_RowClass' => $row_class], $pagination['items']),
+        // A row from adminRowLink() brings its own class and data-href; the others get $row_class
+    'data'            => array_map(fn (array $row): array => $render_row($row) + ['DT_RowClass' => $row_class], $pagination['items']),
     ]);
 }
 
@@ -292,35 +293,51 @@ function adminAuditEntity(string $entity_type, ?int $entity_id): string
 }
 
 /**
- * The "Actions" cell of a table row: small icon buttons made with adminActionLink() / adminActionButton().
- * It sits above the row's stretched link, so its buttons stay clickable.
+ * The "Actions" cell of a table row: a ⋮ button that opens a menu of the actions made with adminActionLink() /
+ * adminActionButton() (icon + name). Empty items (actions the row doesn't have) are left out; no actions → nothing.
+ * The menu is placed against the screen, not the table (admin.js), so it is never cut off; it sits above the row's
+ * own link, so clicking it never opens the row.
  */
-function adminRowActions(string ...$buttons): string
+function adminRowActions(string ...$items): string
 {
-    return '<div class="row-actions">' . implode('', $buttons) . '</div>';
+    $items = array_filter($items, fn (string $item): bool => $item !== '');
+    if ($items === []) {
+        return '';
+    }
+    return '<div class="dropdown row-actions">'
+        . '<button class="btn btn-sm btn-light row-actions__toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"'
+        . ' title="Actions" aria-label="Actions"><i class="bi bi-three-dots-vertical"></i></button>'
+        . '<ul class="dropdown-menu dropdown-menu-end row-actions__menu">' . implode('', $items) . '</ul>'
+        . '</div>';
 }
 
-/** An icon button that opens a page (edit, view …); $new_tab for files such as a receipt. */
+/** A menu item that opens a page (edit, view …); $new_tab for files such as a receipt. */
 function adminActionLink(string $icon, string $label, string $url, bool $new_tab = false): string
 {
-    return '<a class="btn btn-sm btn-light" href="' . e($url) . '" title="' . e($label) . '" aria-label="' . e($label) . '"'
-        . ($new_tab ? ' target="_blank" rel="noopener"' : '') . '><i class="bi ' . e($icon) . '"></i></a>';
+    return '<li><a class="dropdown-item" href="' . e($url) . '"' . ($new_tab ? ' target="_blank" rel="noopener"' : '') . '>'
+        . '<i class="bi ' . e($icon) . '"></i> ' . e($label) . '</a></li>';
 }
 
 /**
- * An icon button that changes something: a tiny POST form (with the CSRF token) sending form_action + record_id
+ * A menu item that changes something: a tiny POST form (with the CSRF token) sending form_action + record_id
  * to $form_url (the list page; empty = the current page). $confirm asks first, e.g. before deleting.
  */
 function adminActionButton(string $icon, string $label, string $form_action, int $record_id, ?string $confirm = null,
                            string $form_url = '', bool $is_danger = false): string
 {
-    return '<form method="post"' . ($form_url !== '' ? ' action="' . e($form_url) . '"' : '')
+    return '<li><form method="post"' . ($form_url !== '' ? ' action="' . e($form_url) . '"' : '')
         . ($confirm !== null ? ' data-confirm="' . e($confirm) . '"' : '') . '>'
         . Csrf::field()
         . '<input type="hidden" name="record_id" value="' . e($record_id) . '">'
-        . '<button class="btn btn-sm btn-light' . ($is_danger ? ' text-danger' : '') . '" type="submit" name="form_action" value="' . e($form_action) . '"'
-        . ' title="' . e($label) . '" aria-label="' . e($label) . '"><i class="bi ' . e($icon) . '"></i></button>'
-        . '</form>';
+        . '<button class="dropdown-item' . ($is_danger ? ' text-danger' : '') . '" type="submit" name="form_action" value="' . e($form_action) . '">'
+        . '<i class="bi ' . e($icon) . '"></i> ' . e($label) . '</button>'
+        . '</form></li>';
+}
+
+/** For adminDataTablesJson() rows: the whole row opens $url (links and the actions menu inside still work). */
+function adminRowLink(string $url): array
+{
+    return ['DT_RowAttr' => ['data-href' => $url], 'DT_RowClass' => 'row-link'];
 }
 
 /** An ApiException as one line for a flash message: its field messages, or its message when it has none. */
@@ -339,9 +356,9 @@ function adminPaymentReviewButtons(array $payment, string $order_number, string 
     $payer  = adminPayerAccount($payment['payment_payer_account']);
     return adminActionButton('bi-check-lg', 'Confirm payment', 'confirm_payment', (int) $payment['payment_id'],
             "Did you see {$amount} from {$payer} with code {$payment['payment_reference']} on the statement?", $form_url)
-        . '<button class="btn btn-sm btn-light text-danger" type="button" title="Reject payment" aria-label="Reject payment"'
+        . '<li><button class="dropdown-item text-danger" type="button"'
         . ' data-open-modal="#reject-payment-modal" data-record-id="' . e($payment['payment_id']) . '"'
-        . ' data-record-label="' . e($order_number . ' · ' . $amount) . '"><i class="bi bi-x-lg"></i></button>';
+        . ' data-record-label="' . e($order_number . ' · ' . $amount) . '"><i class="bi bi-x-lg"></i> Reject payment</button></li>';
 }
 
 /** The number or account a payment came from, as shown to staff: phones as "+255 712 345 678", bank accounts unchanged. */
@@ -389,16 +406,42 @@ function adminDate(?string $utc_date_time): string
  * A coloured status pill, e.g. adminStatusBadge('verified').
  * Colours come from ADMIN_STATUS_TONES, so the same status looks the same on every page.
  */
-function adminStatusBadge(string $status): string
+function adminStatusBadge(string $status, bool $is_pickup = false): string
 {
     $tone = ADMIN_STATUS_TONES[$status] ?? 'neutral';
-    return '<span class="status-badge status-' . e($tone) . '">' . e(adminStatusName($status)) . '</span>';
+    return '<span class="status-badge status-' . e($tone) . '">' . e(adminStatusName($status, $is_pickup)) . '</span>';
 }
 
-/** 'cod_pending' → "Awaiting cash", 'packed' → "Packed" (ADMIN_STATUS_NAMES, or the status made readable). */
-function adminStatusName(string $status): string
+/**
+ * 'cod_pending' → "Awaiting cash", 'packed' → "Packed" (ADMIN_STATUS_NAMES, or the status made readable).
+ * A pickup order's packed / delivered read "Ready for pickup" / "Picked up" (R-26).
+ */
+function adminStatusName(string $status, bool $is_pickup = false): string
 {
+    if ($is_pickup && isset(ADMIN_PICKUP_STATUS_NAMES[$status])) {
+        return ADMIN_PICKUP_STATUS_NAMES[$status];
+    }
     return ADMIN_STATUS_NAMES[$status] ?? ucfirst(str_replace('_', ' ', $status));
+}
+
+/** The transport line on admin pages: "Paid to the rider" (Bolt), "Pickup at the shop", or the fee. */
+function adminDeliveryFee(array $order): string
+{
+    return match (true) {
+        $order['delivery_method']['delivery_fee_paid_to_rider'] => 'Paid to the rider',
+        $order['delivery_method']['delivery_method_is_pickup']  => 'Pickup at the shop',
+        default                                                 => adminMoney($order['order_delivery_fee']),
+    };
+}
+
+/**
+ * A business's verification state as a pill: Not checked / Waiting for check (orange) / Verified (green) / Rejected (red).
+ * Separate from adminStatusBadge() because "pending" means "Payment sent" there.
+ */
+function adminVerificationBadge(string $verification_status): string
+{
+    [$tone, $name] = ADMIN_VERIFICATION_STATUSES[$verification_status] ?? ['neutral', ucfirst($verification_status)];
+    return '<span class="status-badge status-' . e($tone) . '">' . e($name) . '</span>';
 }
 
 /**
@@ -428,6 +471,123 @@ function adminTimeLeft(?string $utc_deadline): string
     $minutes = intdiv($seconds_left % 3600, 60);
     $text    = ($hours > 0 ? "{$hours} h " : '') . "{$minutes} min left";
     return '<span class="' . ($hours === 0 ? 'text-warning-emphasis fw-semibold' : '') . '">' . e($text) . '</span>';
+}
+
+/**
+ * A row of dashboard number cards, all the same: an icon box, the number, the label under it, and optionally the
+ * page the card opens. $per_row: 6 (tabs) or 4 (the top strip); fewer on smaller screens (admin.css).
+ * $cards: [[label, value, icon, link or null], …] — value is formatted text ("1,240"), or adminCardMoney($amount)
+ * for shillings ("524,100 TZS" with a small TZS; from a million up "260.5M TZS", the exact amount on hover).
+ */
+function adminStatCards(array $cards, int $per_row = 6): string
+{
+    $html = '<div class="stat-grid stat-grid--' . ($per_row === 4 ? 4 : 6) . '">';
+    foreach ($cards as [$label, $value, $icon, $link]) {
+        $value_html = is_array($value)
+            ? '<span class="stat-number">' . e(adminShortAmount($value['money'])) . '</span> <span class="stat-currency">TZS</span>'
+            : '<span class="stat-number">' . e($value) . '</span>';
+        // A shortened amount ("260.5M") shows the exact one in a tooltip over the whole card (also over its link)
+        $exact_amount = is_array($value) && abs($value['money']) >= 1_000_000 ? number_format($value['money']) . ' TZS' : null;
+        $html .= '<div class="card stat-card h-100"'
+            . ($exact_amount !== null ? ' data-bs-toggle="tooltip" data-bs-title="' . e($exact_amount) . '"' : '') . '>'
+            . '<div class="card-body d-flex align-items-center gap-3">'
+            . '<div class="stat-icon"><i class="bi ' . e($icon) . '"></i></div>'
+            . '<div class="min-w-0"><div class="stat-value">' . $value_html . '</div><div class="small text-muted">' . e($label) . '</div></div>'
+            . ($link !== null ? '<a class="stretched-link" href="' . e($link) . '" aria-label="Open ' . e($label) . '"></a>' : '')
+            . '</div></div>';
+    }
+    return $html . '</div>';
+}
+
+/**
+ * A dashboard chart: the canvas and its numbers, drawn by assets/dashboard.js.
+ * $type 'daily' (a column per day) or 'bars' (a horizontal bar per item). $data: labels, values, format ('money' |
+ * 'count'), optional titles and tooltip lines. $description is read by screen readers; the tab also has a table view.
+ * Horizontal bars get a height that fits their number of items.
+ */
+function adminChart(string $id, string $type, array $data, string $description): string
+{
+    $height = $type === 'bars' ? max(120, count($data['values']) * 38 + 16) : 260;
+    return '<div class="dashboard-chart" style="height: ' . $height . 'px">'
+        . '<canvas data-chart="' . e($type) . '" data-chart-source="' . e($id) . '" role="img" aria-label="' . e($description) . '"></canvas>'
+        . '</div>'
+        . '<script type="application/json" id="' . e($id) . '">'
+        . json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR)
+        . '</script>';
+}
+
+/**
+ * An amount short enough for a card: below a million in full ("524,100"), then millions and billions with one
+ * decimal ("260.5M", "1.2B", "3M" when the decimal is 0).
+ */
+function adminShortAmount(int $amount): string
+{
+    if (abs($amount) < 1_000_000) {
+        return number_format($amount);
+    }
+    $millions = round($amount / 1_000_000, 1);
+    // 999,999,999 rounds to 1,000M: say "1B" instead
+    [$short, $letter] = abs($millions) < 1000 ? [$millions, 'M'] : [round($amount / 1_000_000_000, 1), 'B'];
+    return rtrim(rtrim(number_format($short, 1), '0'), '.') . $letter;
+}
+
+/** A card value in shillings for adminStatCards(): shown as "524,100 TZS" with TZS small. */
+function adminCardMoney(int $amount): array
+{
+    return ['money' => $amount];
+}
+
+/**
+ * "Waiting for you" in the bell: what needs someone right now, as [count, label, icon, page link] — only counts above 0
+ * that this staff member may act on (Dashboard::getAttentionCounts()).
+ */
+function adminAttentionItems(array $admin): array
+{
+    $counts = (new Dashboard(Database::instance()))->getAttentionCounts();
+    $items = [
+        ['payments_to_check',    'payment(s) to check',     'bi-cash-coin',              'payments.php?tab=review',  'payments.manage'],
+        ['overdue_unpaid',       'overdue unpaid order(s)', 'bi-hourglass-bottom',       'orders.php?overdue=1',     'orders.view'],
+        ['transport_to_confirm', 'transport price(s) to confirm', 'bi-truck',            'orders.php?transport_to_confirm=1', 'orders.manage'],
+        ['orders_to_pack',       'order(s) to pack',        'bi-box-seam',               'orders.php?order_status=confirmed', 'orders.view'],
+        ['refunds_due',          'refund(s) due',           'bi-arrow-counterclockwise', 'payments.php?tab=refunds', 'payments.manage'],
+        ['businesses_to_verify', 'business(es) to verify',  'bi-patch-question',         'customers.php',            'customers.view'],
+        ['low_stock',            'product(s) low on stock', 'bi-exclamation-triangle',   'stock.php',                'inventory.manage'],
+    ];
+    $visible = [];
+    foreach ($items as [$key, $label, $icon, $page, $permission]) {
+        if ($counts[$key] > 0 && Admin::can($admin, $permission)) {
+            $visible[] = [$counts[$key], $label, $icon, url('admin/' . $page)];
+        }
+    }
+    return $visible;
+}
+
+/** How long ago a UTC time was, for notifications: "just now", "5 min ago", "3 h ago", "2 days ago", then the date. */
+function adminTimeAgo(string $utc_time): string
+{
+    $seconds = max(0, time() - (new DateTimeImmutable($utc_time, new DateTimeZone('UTC')))->getTimestamp());
+    return match (true) {
+        $seconds < 60          => 'just now',
+        $seconds < 3600        => intdiv($seconds, 60) . ' min ago',
+        $seconds < 86400       => intdiv($seconds, 3600) . ' h ago',
+        $seconds < 7 * 86400   => intdiv($seconds, 86400) . (intdiv($seconds, 86400) === 1 ? ' day ago' : ' days ago'),
+        default                => adminDateTime($utc_time, 'j M Y'),
+    };
+}
+
+/** How long ago a UTC time was, for "waiting" columns: "3 days", "5 h", "12 min". Over 2 days it shows in red. */
+function adminWaitingFor(?string $utc_since): string
+{
+    if ($utc_since === null || $utc_since === '') {
+        return '<span class="text-muted">—</span>';
+    }
+    $seconds = max(0, time() - (new DateTimeImmutable($utc_since, new DateTimeZone('UTC')))->getTimestamp());
+    $text = match (true) {
+        $seconds >= 86400 => intdiv($seconds, 86400) . (intdiv($seconds, 86400) === 1 ? ' day' : ' days'),
+        $seconds >= 3600  => intdiv($seconds, 3600) . ' h',
+        default           => max(1, intdiv($seconds, 60)) . ' min',
+    };
+    return '<span class="' . ($seconds >= 2 * 86400 ? 'text-danger fw-semibold' : '') . '">' . e($text) . '</span>';
 }
 
 /**
@@ -551,8 +711,11 @@ const ADMIN_STATUS_TONES = [
 ];
 
 /** Statuses whose readable name is not simply the status with spaces. */
+const ADMIN_PICKUP_STATUS_NAMES = ['packed' => 'Ready for pickup', 'delivered' => 'Picked up'];
+
 const ADMIN_STATUS_NAMES = [
     'pending_payment' => 'Awaiting payment',
+    'confirmed'       => 'Confirmed · to pack',   // the next step is always packing
     'pending'         => 'Payment sent',
     'in_transit'      => 'On the way',
     'cod_pending'     => 'Awaiting cash',
@@ -575,6 +738,14 @@ const ADMIN_ENTITY_PAGES = [
     'seller'          => 'seller_edit.php?id=',
     'settings'        => 'settings.php',
     'user'            => 'customer_details.php?id=',
+];
+
+/** Business verification states (business_profiles.business_verification_status): status => [tone, name]. */
+const ADMIN_VERIFICATION_STATUSES = [
+    'unverified' => ['neutral', 'Not checked'],
+    'pending'    => ['warning', 'Waiting for check'],
+    'verified'   => ['success', 'Verified'],
+    'rejected'   => ['danger', 'Rejected'],
 ];
 
 /** Payment review states: status => [tone, name]. */

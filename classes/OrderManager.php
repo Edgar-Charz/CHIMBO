@@ -20,7 +20,19 @@ class OrderManager
         'dispatched'      => ['in_transit', 'delivered'],
         'in_transit'      => ['delivered'],
     ];
+    // A pickup order is collected at the shop: ready ("packed") → collected ("delivered"), never dispatched (R-26)
+    private const PICKUP_TRANSITIONS = [
+        'packed' => ['delivered', 'cancelled'],
+    ];
     public const PER_PAGE_OPTIONS = [10, 25, 50, 100];
+
+    // Upcountry orders whose transport price staff still have to confirm (R-25)
+    public const TRANSPORT_TO_CONFIRM_SQL = "o.order_status = 'pending_payment' AND o.order_delivery_fee_estimate IS NOT NULL
+                                             AND o.order_delivery_fee_confirmed_at IS NULL";
+
+    // Unpaid mobile money / bank orders past their time to pay, with no payment being checked
+    private const OVERDUE_SQL = "o.order_status = 'pending_payment' AND o.order_payment_status = 'unpaid'
+                                 AND o.order_expires_at IS NOT NULL AND o.order_expires_at < UTC_TIMESTAMP()";
     private const DEFAULT_PER_PAGE = 25;
 
     // Columns the admin order list can be sorted by. Only these fixed strings ever reach ORDER BY.
@@ -39,7 +51,7 @@ class OrderManager
 
     /**
      * One page of orders, newest first. Filters (optional): q (order number, customer name or phone),
-     * order_status, order_payment_status, page, per_page (10/25/50/100),
+     * order_status, order_payment_status, overdue (1 = unpaid and past the time to pay), page, per_page (10/25/50/100),
      * sort (order_placed_at | order_total | order_number) + direction (asc | desc, default desc). No sort = newest first.
      */
     public function getOrdersForAdmin(array $input): array
@@ -48,6 +60,8 @@ class OrderManager
             'q'                    => 'nullable|string|max:100',
             'order_status'         => 'nullable|in:pending_payment,confirmed,packed,dispatched,in_transit,delivered,cancelled,expired',
             'order_payment_status' => 'nullable|in:unpaid,pending,paid,cod_pending,refunded,failed,cancelled',
+            'overdue'              => 'nullable|bool',
+            'transport_to_confirm' => 'nullable|bool',
             'page'                 => 'nullable|int|min:1',
             'per_page'             => 'nullable|int|in:' . implode(',', self::PER_PAGE_OPTIONS),
             'sort'                 => 'nullable|in:' . implode(',', array_keys(self::SORT_COLUMNS)),
@@ -69,6 +83,12 @@ class OrderManager
                 $params[$column] = $filters[$column];
             }
         }
+        if (!empty($filters['overdue'])) {
+            $conditions[] = self::OVERDUE_SQL;
+        }
+        if (!empty($filters['transport_to_confirm'])) {
+            $conditions[] = self::TRANSPORT_TO_CONFIRM_SQL;
+        }
         $where_sql = implode(' AND ', $conditions);
 
         // The chosen column, then the order id as a tie-breaker so the order is always the same
@@ -79,7 +99,8 @@ class OrderManager
         $total = (int) $this->db->fetchValue("SELECT COUNT(*) FROM orders o JOIN users u ON u.user_id = o.user_id WHERE {$where_sql}", $params);
         $items = $this->db->fetchAll(
             "SELECT o.order_id, o.order_number, o.order_status, o.order_payment_method, o.order_payment_status,
-                    o.order_total, o.order_placed_at, o.order_ship_region_name, o.order_channel,
+                    o.order_total, o.order_placed_at, o.order_ship_region_name, o.order_channel, o.order_is_pickup,
+                    (" . self::TRANSPORT_TO_CONFIRM_SQL . ") AS is_transport_to_confirm,
                     u.user_id, u.user_full_name, u.user_phone,
                     (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.order_id) AS item_count
              FROM orders o
@@ -91,6 +112,64 @@ class OrderManager
         );
 
         return ['items' => $items, 'total' => $total, 'page' => $page, 'per_page' => $per_page];
+    }
+
+    /** How many upcountry orders wait for staff to confirm the transport price (filter chip). */
+    public function countTransportToConfirm(): int
+    {
+        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM orders o WHERE ' . self::TRANSPORT_TO_CONFIRM_SQL);
+    }
+
+    /** How many unpaid orders are past their time to pay (filter chip, dashboard). */
+    public function countOverdueOrders(): int
+    {
+        return (int) $this->db->fetchValue('SELECT COUNT(*) FROM orders o WHERE ' . self::OVERDUE_SQL);
+    }
+
+    /**
+     * Marks every unpaid order past its time to pay as "expired": the reserved stock goes back, the timeline
+     * gets a row and the customer is told ("… imesitishwa kwa sababu malipo hayakukamilika").
+     * Orders whose payment is being checked are never touched. Each order is its own transaction, so one
+     * problem can't stop the rest. $admin_id = the staff member who pressed the button; null = the scheduled job.
+     * Returns how many orders were expired.
+     */
+    public function expireOverdueOrders(?int $admin_id): int
+    {
+        $order_ids = array_map('intval', array_column(
+            $this->db->fetchAll('SELECT o.order_id FROM orders o WHERE ' . self::OVERDUE_SQL . ' ORDER BY o.order_id'),
+            'order_id'
+        ));
+        $actor_type = $admin_id === null ? 'system' : 'admin';
+
+        $expired_ids = [];
+        foreach ($order_ids as $order_id) {
+            $was_expired = $this->db->transaction(function (Database $db) use ($order_id, $actor_type, $admin_id) {
+                $order = $this->order_model->lockOrder($order_id);
+                // Check again under the lock: the customer may have just sent a payment
+                $still_overdue = $db->fetchValue('SELECT 1 FROM orders o WHERE o.order_id = :order_id AND ' . self::OVERDUE_SQL, ['order_id' => $order_id]);
+                if (!$still_overdue) {
+                    return false;
+                }
+                $this->order_model->moveToStatus($order, 'expired', $actor_type, $admin_id, 'Muda wa kulipa umeisha');
+                return true;
+            });
+            if ($was_expired) {
+                $expired_ids[] = $order_id;
+            }
+        }
+
+        if ($expired_ids !== []) {
+            (new AuditLog($this->db))->record($actor_type, $admin_id, 'orders.expired_overdue', 'order', null, null, ['order_ids' => $expired_ids]);
+            if ($admin_id === null) {
+                (new AdminNotification($this->db))->notify(
+                    'orders.expired',
+                    count($expired_ids) . ' unpaid order(s) expired',
+                    'Not paid in time; their stock is available again.',
+                    'orders.php'
+                );
+            }
+        }
+        return count($expired_ids);
     }
 
     /** Data needed by the staff form for an order placed on a customer's behalf. */
@@ -464,7 +543,9 @@ class OrderManager
             ['user_id' => $row['user_id']]
         );
         $order['delivery'] = $this->db->fetchOne('SELECT * FROM order_deliveries WHERE order_id = :order_id', ['order_id' => $order_id]);
-        $order['allowed_next_statuses'] = self::ALLOWED_TRANSITIONS[$order['order_status']] ?? [];
+        $order['allowed_next_statuses'] = self::allowedNextStatuses($order['order_status'], $order['delivery_method']['delivery_method_is_pickup']);
+        $order['can_confirm_delivery_fee'] = $order['order_status'] === 'pending_payment'
+            && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation';
         $order['payments'] = (new Payment($this->db))->getPaymentsForOrder($order_id);   // every payment sent, newest first
         $order['can_record_payment'] = $order['order_status'] === 'pending_payment'
             && $order['order_payment_status'] === 'unpaid'
@@ -492,7 +573,7 @@ class OrderManager
             $order = $this->order_model->lockOrder($order_id);
             $current_status = $order['order_status'];
 
-            if (!in_array($data['order_status'], self::ALLOWED_TRANSITIONS[$current_status] ?? [], true)) {
+            if (!in_array($data['order_status'], self::allowedNextStatuses($current_status, (bool) $order['order_is_pickup']), true)) {
                 throw ApiException::conflict('STATUS_CHANGE_NOT_ALLOWED', "An order that is \"{$current_status}\" can't become \"{$data['order_status']}\".");
             }
 
@@ -511,6 +592,69 @@ class OrderManager
 
             (new AuditLog($this->db))->record('admin', $admin_id, 'order.status_changed', 'order', $order_id,
                 ['order_status' => $current_status], ['order_status' => $data['order_status'], 'status_note' => $data['status_note'] ?? null]);
+        });
+    }
+
+    /** The statuses an order can move to next ("Move the order"); a pickup order skips dispatched / in transit. */
+    public static function allowedNextStatuses(string $status, bool $is_pickup): array
+    {
+        if ($is_pickup && isset(self::PICKUP_TRANSITIONS[$status])) {
+            return self::PICKUP_TRANSITIONS[$status];
+        }
+        return self::ALLOWED_TRANSITIONS[$status] ?? [];
+    }
+
+    /**
+     * Upcountry transport (R-25): staff measured the load and confirm the transport price — the estimate, more or
+     * less. Body: {"order_delivery_fee": 20000, "order_delivery_fee_note": "Mzigo mkubwa, katoni 6"} (the note is
+     * needed when the price differs from the estimate; the customer sees it). The order total is updated, the
+     * customer is told and can pay now: the time to pay starts here.
+     */
+    public function confirmDeliveryFee(int $order_id, array $input, int $admin_id): void
+    {
+        $data = Validator::validate($input, [
+            'order_delivery_fee'      => 'required|int|min:0|max:10000000',
+            'order_delivery_fee_note' => 'nullable|string|max:255',
+        ]);
+
+        $this->db->transaction(function (Database $db) use ($order_id, $data, $admin_id) {
+            $order = $db->fetchOne(
+                'SELECT order_id, order_number, user_id, order_status, order_subtotal, order_discount_total,
+                        order_delivery_fee, order_delivery_fee_estimate, order_delivery_fee_confirmed_at
+                 FROM orders WHERE order_id = :order_id FOR UPDATE',
+                ['order_id' => $order_id]
+            );
+            if ($order === null) {
+                throw ApiException::notFound('Order not found.');
+            }
+            if (Order::deliveryFeeStatus($order) !== 'awaiting_confirmation' || $order['order_status'] !== 'pending_payment') {
+                throw ApiException::conflict('DELIVERY_FEE_NOT_WAITING', 'This order has no transport price waiting to be confirmed.');
+            }
+
+            $fee  = $data['order_delivery_fee'];
+            $note = $data['order_delivery_fee_note'] ?? null;
+            if ($fee !== (int) $order['order_delivery_fee_estimate'] && ($note === null || mb_strlen($note) < 3)) {
+                throw ApiException::validation(['order_delivery_fee_note' => 'Say why the price differs from the estimate (the customer sees it).']);
+            }
+
+            $total          = (int) $order['order_subtotal'] + $fee - (int) $order['order_discount_total'];
+            $expiry_minutes = (new Settings($db))->getInt('unpaid_order_expiry_minutes', 30);
+            $db->execute(
+                'UPDATE orders
+                 SET order_delivery_fee = :fee, order_total = :total, order_delivery_fee_note = :note,
+                     order_delivery_fee_confirmed_at = UTC_TIMESTAMP(), order_delivery_fee_confirmed_by_admin_id = :admin_id,
+                     order_expires_at = UTC_TIMESTAMP() + INTERVAL ' . $expiry_minutes . ' MINUTE
+                 WHERE order_id = :order_id',
+                ['fee' => $fee, 'total' => $total, 'note' => $note, 'admin_id' => $admin_id, 'order_id' => $order_id]
+            );
+
+            (new Notification($db))->notifyUser((int) $order['user_id'], 'order_status', 'Usafiri umethibitishwa',
+                "Usafiri wa oda #{$order['order_number']}: " . number_format($fee) . ' TZS' . ($note !== null ? " ({$note})" : '')
+                    . '. Jumla: ' . number_format($total) . ' TZS — lipa sasa.',
+                ['order_id' => $order_id]);
+            (new AuditLog($db))->record('admin', $admin_id, 'order.delivery_fee_confirmed', 'order', $order_id,
+                ['order_delivery_fee' => (int) $order['order_delivery_fee'], 'order_total' => (int) $order['order_subtotal'] + (int) $order['order_delivery_fee'] - (int) $order['order_discount_total']],
+                ['order_delivery_fee' => $fee, 'order_total' => $total, 'order_delivery_fee_note' => $note]);
         });
     }
 

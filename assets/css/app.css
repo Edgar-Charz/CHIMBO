@@ -3478,6 +3478,19 @@ body.is-focused {
     font-size: var(--chimbo-text-lg);
 }
 
+/* Malipo yangu (payments.php): a payment uses the order card, plus its reference and rejection reason */
+.payment-card__reference {
+    margin: 0.5rem 0 0;
+    color: var(--chimbo-muted);
+    font-size: var(--chimbo-text-sm);
+}
+
+.payment-card__note {
+    margin: 0.5rem 0 0;
+    color: var(--chimbo-danger);
+    font-size: var(--chimbo-text-sm);
+}
+
 .order-card__actions {
     display: flex;
     gap: var(--chimbo-space-2);

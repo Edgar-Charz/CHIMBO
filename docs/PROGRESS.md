@@ -4,9 +4,10 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Current status
 - **Stage:** MVP features built on backend, admin, website and app (catalog, PIN login, cart, checkout, orders, cash on delivery + mobile money / bank checked by staff, notifications, receipts, admin tools, app pictures). Preparing for the first beta.
-- **Next (backend session):** staging server + scheduled jobs (cancel unpaid orders after the time to pay, send queued SMS) → real SMS provider for login codes.
+- **Next (backend session):** web, app and admin features complete for the MVP. Next: staging server + scheduled jobs → real SMS provider → payment aggregator (blueprint §13).
+- **Planned (designed, not built):** staff for one shop (blueprint §17.2) · smart QR link on the packing slip (blueprint R-24, §12.6) — build with the staging server; switching from ngrok to the real domain = changing `APP_URL`.
 - **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
-- **Uncommitted work:** everything since commit 6a9c091 (user commits when they choose)
+- **Committed:** everything up to 2026-10-15 on `main` in both repos (backend and app) — not pushed to GitHub yet
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
 - **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice · for push notifications: Firebase project + `google-services.json` + service-account key
 
@@ -23,8 +24,93 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-09-28 | D-4: Wasifu follows **PDF p.11** (the more modern design) |
 | 2026-09-28 | App language: Kiswahili only for now; English kept as a placeholder (shown as "Inakuja" in Mipangilio) |
 | 2026-09-30 | **Push notifications (FCM, R-11) moved forward from v1.1**, to be built in a later session — plan in the 2026-09-30 mobile entry ("Planned: push notifications") |
+| 2026-10-09 | **No cash on delivery.** Customers pay by phone or bank; the owner switches "Lipa ukipokea" off in the admin. |
+| 2026-10-09 | **Upcountry transport:** an estimate per region at checkout; staff confirm (or adjust, with a reason) after measuring the load; then the customer pays everything to CHIMBO (blueprint R-25, §12.7). Dar keeps its fixed fees for now. |
+| 2026-10-15 | **Dar by Bolt, paid to the rider:** one "Bolt (Dar es Salaam)" option replaces Standard / Haraka; the customer pays the rider directly, no price shown, nothing added to CHIMBO's total. **Pickup at the shop:** free, every region, paid first by phone/bank, one pickup point (blueprint R-26, §12.8). |
+| 2026-10-09 | **CHIMBO sells only its own products for now.** A marketplace for other sellers is planned for after launch (blueprint §17.1), decided once real customers show how they buy. |
 
 ## Session log
+
+### 2026-10-15 — Two fixes: business verification badge, FAQ in the app (backend session; admin and app files at the user's request)
+- Admin: business verification has its own badge (`adminVerificationBadge()`): "Not checked" · "Waiting for check" · "Verified" · "Rejected" — "pending" no longer reads "Payment sent". The Customers filter uses the same words.
+- FAQ: one list in `HelpQuestions` (classes/HelpQuestions.php) for the website Help page and `GET /support` → `help_questions`; `swahiliList()` moved to classes/core/helpers.php. App Msaada shows them as tap-to-open questions. Tests: `HelpQuestionsTest` (2), app support tests (+1) — 248 PHP / 146 app tests passing, analyze clean.
+
+### 2026-10-15 — Dar by Bolt (paid to the rider) and pickup at the shop (backend session; admin, website and app files at the user's request)
+- Decision (blueprint R-26, §12.8): in Dar the customer pays the Bolt rider directly — one "**Bolt (Dar es Salaam)**" option (Standard renamed; Haraka switched off), no price shown, nothing in CHIMBO's total. New "**Nitachukua mwenyewe dukani**": free, every region, paid first by phone/bank, one pickup point (Settings → General).
+- Migration 013: price type `paid_to_rider`, `delivery_methods.delivery_method_is_pickup`, orders `order_delivery_paid_to_rider` / `order_is_pickup`; settings `pickup_address`, `pickup_hours` (seed). Pickup orders: packed = "Tayari kuchukuliwa" (customer told where/when), delivered = "Imechukuliwa"; never dispatched.
+- Admin: pickup point settings, third price type + pickup switch, pickup/Bolt words on the order page, list, slip and receipt. Website: checkout tags/notes ("Unamlipa dereva", pickup address), order page / success / order cards with pickup words and timeline, Help "Usafiri unalipwaje?". App: the same (models, checkout, totals, timeline, tracking banner, pickup card).
+- Tests: `BoltAndPickupTest` (4); older tests now expect Dar orders without a CHIMBO transport fee — 246 PHP tests passing. App: `bolt_and_pickup_test.dart` (4), analyze clean, 145 tests passing.
+- **Before going live:** put the real pickup address and hours in Admin → Settings → General.
+
+### 2026-10-09 — Upcountry transport: estimate at checkout, staff confirm, then the customer pays (backend session; admin and website files at the user's request)
+- Migration 012: `regions.region_transport_estimate`; delivery options get **Where** (every region · only · every region except) and **Price** (fixed · region's estimate); orders keep the estimate, the confirmed time/staff and the reason. Standard and Haraka are now Dar es Salaam only; new option **"Usafiri wa mikoani"** for every other region (2–5 days).
+- Checkout: upcountry shows "~TZS 15,000" (the region's estimate) or "Bei itathibitishwa"; totals say "(makadirio)"; cash on delivery isn't offered with it. The order waits with no time limit; paying is blocked (`DELIVERY_FEE_NOT_CONFIRMED`) until staff confirm.
+- Admin: Settings now in **tabs** (General · Orders & payments · Delivery · Login (SMS) · App pictures). Delivery tab: the options with Where/Price + the per-region estimates form. Order page: **Transport price** box — confirm the estimate or change it with a reason the customer sees. Orders filter "Transport to confirm", bell notification + "Waiting for you" line.
+- Website: "Tunapima mzigo wako" box on the order instead of the pay box; the reason under the transport line after confirmation; order-success text.
+- Tests: `UpcountryTransportTest` (6) + updated checkout tests — 242 passing. Fill in the estimates in Admin → Settings → Delivery before going live (empty regions show "tutakujulisha bei").
+- Mobile app (done here at the user's request): the delivery option shows "~TZS 15,000" or "Bei itathibitishwa" with the estimate note; cash is hidden while it is chosen; totals say "(makadirio)" ("Tutakujulisha" when there is no estimate); the order and success screens show "Tunapima mzigo wako" instead of the pay box; the reason staff gave shows under the totals. The app also no longer crashes on a null fee. New `upcountry_transport_test.dart` (4); flutter analyze clean, 141 tests passing.
+
+### 2026-10-09 — Website payment text follows the payment methods switched on (backend session, website files at the user's request)
+- Decision: **no cash on delivery** — the owner switches "Lipa ukipokea" off in Admin → Payments → Payment methods.
+- 12 fixed "Lipa ukipokea" promises on the website now come from `paymentOptions()` (includes/storefront.php — the switched-on methods): top strip ("Lipa kwa M-Pesa au Mixx"), Home banner fallback, trust tile ("Malipo salama — tunathibitisha malipo yako kabla ya kutuma mzigo" unless cash is the only method), footer "Malipo" list (one line per method), cart and product promises, Help "Ninalipaje?" (explains "Nimelipa"), and the Google descriptions. Checked by loading the pages with cash on and off.
+- The app already showed cash only when the method is switched on.
+- Still to discuss: transport cost (upcountry first) — customers pay it to CHIMBO; idea: staff confirm the transport price before the customer pays.
+
+### 2026-10-09 — Smart QR link planned (backend session)
+- Design written to the blueprint (R-24, §12.6): a signed link `{APP_URL}/o/CHB…-code` that opens the admin order page for staff, the order for its customer, and a minimal public page (status, items count, cash to collect, support number — nothing personal) for anyone else. Not built yet; the slip keeps the order number until then.
+
+### 2026-10-09 — "Confirmed · to pack" + the bell's orange dot (backend session, admin files)
+- No new order status: in the admin, `confirmed` now reads **"Confirmed · to pack"** (customers still see "Imethibitishwa"). Orders page: a **To pack (N)** button; filters can be opened from a link (`?order_status=confirmed`, `?order_payment_status=…`, `?overdue=1`) — the bell's "order(s) to pack" / "overdue" and the dashboard's "Waiting to pack" open the filtered list. "Clear" now really empties link-opened filters and drops them from the address.
+- The bell: red number = unread notifications; an **orange dot** when nothing is unread but work is waiting ("Waiting for you"); both refreshed every minute (`ajax/notifications.php?part=count` → `has_waiting_work`).
+- Checked headlessly (6 checks: link filter sent, Clear, dot / number states). 236 PHP tests passing.
+
+### 2026-10-09 — Admin sidebar scrolls again (backend session)
+- The menu (`.admin-sidebar .nav`) now takes the height left under the logo (`flex: 1 1 auto; min-height: 0`) and scrolls; the logo doesn't shrink. Before, a flex item could not get shorter than its content, so the longer menu ran off the screen. Also on phones (the slide-in menu).
+
+### 2026-10-09 — Staff notifications: the bell in the admin top bar (backend session, admin files at the user's request)
+- Migration `011_admin_notifications.sql`, class `AdminNotification` (per-role visibility, read per staff member, safe links). Events: new order, customer cancelled, refund due, payment to check, stock low / sold out, new customer, unpaid orders expired by the scheduled job.
+- Bell with unread badge (refreshed every minute; `AdminSession::currentAdmin(is_activity: false)` so background checks don't keep an idle admin logged in). Dialog: "Waiting for you" (moved from the dashboard's "Needs attention" bar, now removed) + 10 latest with "Read more"; Mark all as read; View all → admin/notifications.php. Clicking a notification → notification_open.php marks it read and opens its page.
+- 7 new tests (236 passing); bell dialog + "Read more" checked headlessly (jsdom); the new pages refuse anyone not logged in.
+
+### 2026-10-09 — Dashboard: one card style everywhere + "All time" totals (backend session, admin files at the user's request)
+- `adminStatCards()` draws every row of number cards the same way (icon box, big number, label under it, optional link) on a grid that fits any count; long numbers shrink or wrap instead of overflowing. The inline mini stats are gone (top strip, Orders, Sales, Customers and Stock tabs all use the cards).
+- Card rows have fixed columns: **4 per row** in the top strip, **6 per row** in the tabs (6 → 3 → 2 → 1 and 4 → 2 → 1 on smaller screens). Money in cards reads "524,100 TZS" with a small TZS (`adminCardMoney()`); from 1,000,000 up it is shortened — "260.5M TZS", "1.3B TZS" (`adminShortAmount()`; the exact amount shows in a Bootstrap tooltip over the whole card, also when the card is a link — admin.js starts every `data-bs-toggle="tooltip"`); numbers never break mid-way. Tables and tooltips keep "TZS 524,100". Unit test `AdminShortAmountTest`.
+- Overview now starts with **All time** (since CHIMBO started, cancelled / expired left out of the money): customers, verified businesses, orders, delivered, revenue, average order, pieces sold, products in the shop, sellers. Money cards only with `reports.view`; a card links to its page only if the staff member may open it. `Dashboard::getAllTimeTotals()`, 1 new test (226 passing).
+
+### 2026-10-09 — "#" (S/N) column on every admin table (backend session, admin files at the user's request)
+- admin.js adds a first "#" column to every DataTables table (in-page and server-side) before it starts: rows numbered as shown, continuing across pages (page 2 → 11, 12 …), numbered again from 1 after a sort or search; not sortable; `data-serial="false"` leaves it out. The table's first sort (`data-order`, written without the # column) is moved along automatically, including the copy DataTables reads from the table.
+- Order page: the items table numbers its lines (#) in PHP.
+- Checked headlessly with the real jQuery + DataTables + admin.js (jsdom): 8 checks for in-page tables, 5 for server-side tables (sort sent to the server still names the right column, last page 31–35). The first run found the starting sort one column off — fixed.
+
+### 2026-10-09 — Admin dashboard with tabs, step 1: top bar + Overview (backend session, admin files at the user's request)
+- Plan agreed: tabs Overview · Orders · Sales · Customers · Stock, charts with Chart.js 4.4.7 stored in `admin/assets/vendor/chartjs` (MIT, no CDN), 7 / 14 / 30 / 90-day switch.
+- Top of the page: the 4 sales cards + a "Needs attention" bar (payments to check, overdue unpaid, orders to pack, refunds due, businesses to verify, low stock — only counts above 0 that the staff member may act on, each a link). The "Today's work" grid is replaced; its totals move into the tabs.
+- Overview tab (`admin/includes/dashboard/overview.php`): revenue per day bar chart (orders per day for staff without `reports.view`), day switch, "Show as a table", latest 10 orders (rows open the order). Chart code `admin/assets/dashboard.js`; bar colour #1d7a52 (validated: lightness, chroma, contrast).
+- Backend: `Report::getDailySales()` (every day, zeros included), `Dashboard::getDailySales()`, `getAttentionCounts()`. 2 new tests (221 passing).
+- Step 2, Orders tab (`admin/includes/dashboard/orders.php`, needs `orders.view`; operations staff open on it): totals (all / active / delivered / cancelled / expired), "Orders in progress" horizontal bar chart (one bar per stage, counts written at the bar ends, table view), "Waiting to pack" (longest waiting first, red after 2 days), "Out for delivery" by agent (orders, numbers, cash to collect). Backend `Dashboard::getOrderPipeline()`, `getOrdersWaitingToPack()`, `getDeliveriesByAgent()`; helper `adminWaitingFor()`. Tabs now have a permission each and a per-role default. 1 new test (222 passing).
+- Step 3, the last three tabs: **Sales** (`reports.view`; finance opens on it): period totals, revenue by category and by payment method (bar charts + tables), top 5 products and regions, link to the full report. **Customers** (`customers.view`): totals, new customers per day (chart + table), top 5 customers (spend only with `reports.view`), newest customers; deleted accounts left out. **Stock** (`products.manage`; catalog opens on it): totals, best sellers of 30 days (chart + table), low stock, slow movers, offers ending soonest. Every table row opens its record.
+- Shared pieces: one generic chart script (`data-chart="daily" | "bars"`, numbers + tooltip lines prepared in PHP), `adminChart()` helper, `includes/dashboard/day_switch.php` (Overview defaults to 14 days, the others 30). Backend `Dashboard::getSalesBreakdown()`, `getCustomerStats()`, `getStockStats()`; the old `getSummaryCounts()` removed. 3 new tests (225 passing).
+
+### 2026-10-09 — Admin tables: ⋮ actions menu and clickable rows (backend session, admin files at the user's request)
+- `adminRowActions()` now draws a ⋮ button opening a menu of the row's actions (icon + name); `adminActionLink()` / `adminActionButton()` / the payment review buttons are menu items. Every table changes at once; no page markup changed. Rows with no actions show nothing.
+- The menu is positioned against the screen (Popper `strategy: fixed`, boundary = the page, 8 px gap) so table boxes can't cut it off; it flips up / left near the edges and closes when the page scrolls (admin.js).
+- Rows open their page: new `adminRowLink($url)` for DataTables rows (`DT_RowAttr data-href`) and `<tr data-href>` for in-page rows; links, buttons and the menu inside a row keep their own action; Ctrl / middle click opens a new tab. Now also on: Offers list, payments list, refunds table.
+
+### 2026-10-09 — Pre-integration gaps, 1 of 6: business verification (backend session; admin page and app at the user's request)
+- Backend: `Customer::setBusinessVerification()` — verified / rejected (reason required, shown to the customer) / back to not verified; notification + audit log. 4 new tests (210 passing).
+- Admin: customer_details.php Business panel — Verify business, Reject with reason, Set back to not verified.
+- App: Wasifu card shows the "Imethibitishwa" badge when the business is verified (`BusinessProfile.isVerified`). Website already showed it.
+- Gap 2 done: `Customer::setCustomerStatus()` — suspend (reason required, staff-only; logs the customer out of app and website) / reactivate; orders left as they are. Admin customer page: Suspend / Reactivate panel. 3 new tests (213 passing).
+- Gap 3 done: overdue unpaid orders → "expired" (`OrderManager::expireOverdueOrders`, never orders under review), Orders page filter + "Expire overdue" button, dashboard card, `cron/expire_unpaid_orders.php` ready for the server. 2 new tests (215 passing). Running the job locally expired the old test order CHB707586 (Mixx, placed 2026-10-06).
+- Gap 4 done: dashboard — orders and revenue today and for the last 7 days (`Dashboard::getSales`, same calculation as Reports; money only for `reports.view`), low-stock table (`Dashboard::getLowStock`, Stock page rule). 2 new tests (217 passing).
+- Gap 5 done: packing slip PDF with a QR code of the order number (`Receipt::createPackingSlip`, new Composer package `chillerlan/php-qrcode` ^5.0 — run `composer install` after pulling), admin "Packing slip" buttons; order items now include `order_item_sku`; PDF styles shared between receipt and slip. 2 new tests (219 passing).
+- Gap 6 done: website **Malipo yangu** (payments.php) — tabs Historia (newest 20, status pill, reason, link to the order) and Njia za malipo (pay-to details with "Nakili"); links in Wasifu and the header menu. The pay-to rows are now one partial (`includes/payment_method_details.php`) shared with the order's pay-to box. Checked by loading both tabs as a logged-in test customer, the order page, and the guest redirect.
+- **All six pre-integration gaps are done.** Remaining before beta: real SMS + payment providers, staging server (+ scheduled job `cron/expire_unpaid_orders.php`), push notifications (Firebase), English (decided: later).
+
+### 2026-10-08 — Mobile: faster image loading
+- `AppNetworkImage` now shows a soft branded loading background instead of icons while photos download, fades in quickly, and can display a lower-resolution preview while the full image loads. Product cards decode/cache at a smaller size.
+- Product galleries preload thumbnails first, then medium-resolution images, and use cached previews while large/zoom images load. The shared pre-cache helper also powers replaceable app-image slots.
+- Verified: `flutter analyze` clean; **135 Flutter tests pass**.
 
 ### 2026-10-08 — Mobile: delivery address management
 - Wasifu → **Anwani za Usafirishaji** now lists saved addresses, supports adding and editing through the shared form, setting the default, and deleting after confirmation. Successful changes update the shared addresses controller, so checkout sees the same current list.
