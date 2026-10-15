@@ -34,7 +34,7 @@ $page = [
         default            => "{$chip['category_name']} — {$category['category_name']}",
     },
     'description' => $category['category_tagline'] ?? 'Bidhaa za jumla kwa duka lako: bei hushuka ukinunua zaidi. ' . paymentOptions()['short'] . '.',
-    'image'       => $category['category_image_url'] ?? url('assets/img/logo-mark.webp'),
+    'image'       => $category['category_image_url'] ?? shareImageUrl(),
     'nav'         => 'explore',
     'scripts'     => $category === null ? [] : ['product_card.js', 'catalog.js'],
 ];

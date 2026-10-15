@@ -13,6 +13,14 @@ const HOME_TIER_EXAMPLE_MIN_TIERS = 3; // the wholesale example needs a product 
 $customer = currentCustomer();
 $home = (new Home(Database::instance()))->getHome($customer['user_id'] ?? null);
 
+// A logged-in customer's active order near the top: the one waiting for their payment first, else the latest
+$attention_order = null;
+if ($customer !== null) {
+    $active_orders   = (new Order(Database::instance()))->getOrders($customer['user_id'], ['group' => 'active'])['items'];
+    $attention_order = array_values(array_filter($active_orders, fn (array $order): bool => $order['payment']['can_submit_payment']))[0]
+        ?? $active_orders[0] ?? null;
+}
+
 $product_tabs = array_values(array_filter([
     ['key' => 'best_sellers', 'label' => 'Zinazouzwa Zaidi', 'products' => $home['best_sellers']],
     ['key' => 'new',          'label' => 'Mpya',             'products' => $home['new_arrivals']],
@@ -48,6 +56,21 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <h1 class="visually-hidden"><?= e(SHOP_NAME) ?> — soko la jumla la vipodozi na urembo kwa wenye maduka</h1>
+
+<?php if ($attention_order !== null) : ?>
+    <?php $needs_payment = $attention_order['payment']['can_submit_payment']; ?>
+    <section class="container-xl" aria-label="Oda yako">
+        <a class="home-order-attention<?= $needs_payment ? ' home-order-attention--pay' : '' ?>"
+           href="<?= e(url('order.php?id=' . $attention_order['order_id']) . ($needs_payment ? '#payment-box' : '')) ?>">
+            <i class="bi <?= $needs_payment ? 'bi-wallet2' : 'bi-truck' ?>" aria-hidden="true"></i>
+            <span class="home-order-attention__text">
+                <strong><?= $needs_payment ? 'Malizia malipo ya oda yako' : 'Oda yako inaendelea' ?></strong>
+                <span>Oda #<?= e($attention_order['order_number']) ?> · <?= e(orderStatusLabel($attention_order)) ?></span>
+            </span>
+            <span class="btn btn-sm <?= $needs_payment ? 'btn-buy' : 'btn-primary' ?>"><?= $needs_payment ? 'Lipa sasa' : 'Fuatilia' ?></span>
+        </a>
+    </section>
+<?php endif; ?>
 
 <section class="container-xl home-hero" aria-label="Matangazo">
     <?php if ($home['banners'] === []) : ?>

@@ -495,10 +495,46 @@ function logoUrl(): string
     return (new SiteLogo(Database::instance()))->getUrl() ?? asset('img/logo-mark.webp');
 }
 
+/**
+ * The picture for link previews (WhatsApp, Facebook) of a page without its own photo: the logo uploaded in the
+ * admin, else the built-in mark — PNG, which every app shows (some don't preview .webp).
+ */
+function shareImageUrl(): string
+{
+    return (new SiteLogo(Database::instance()))->getUrl() ?? asset('img/share-logo.png');
+}
+
 /** The browser-tab / bookmark icon in one size ('32', '180', '192'): the uploaded logo's, else the built-in favicon. */
 function iconUrl(string $size_name): string
 {
     return (new SiteLogo(Database::instance()))->getUrl($size_name) ?? asset('img/favicon.png');
+}
+
+/** Delivery time in words: 0–0 "leo", 0–1 "leo au kesho", 1–1 "kesho", else "siku 2–5" (the same as checkout.js). */
+function deliveryDaysText(int $min_days, int $max_days): string
+{
+    return match (true) {
+        $max_days === 0                     => 'leo',
+        $min_days === 0 && $max_days === 1  => 'leo au kesho',
+        $min_days === 1 && $max_days === 1  => 'kesho',
+        $min_days === $max_days             => "siku {$min_days}",
+        default                             => "siku {$min_days}–{$max_days}",
+    };
+}
+
+/**
+ * How orders reach customers, for product pages: one line per delivery option switched on, e.g.
+ * "Bolt (Dar es Salaam): leo au kesho" · "Usafiri wa mikoani: siku 2–5" · "Nitachukua mwenyewe dukani: bure".
+ */
+function deliveryOptionLines(): array
+{
+    static $lines = null;
+    if ($lines === null) {
+        $lines = array_map(fn (array $method): string => $method['delivery_method_name'] . ': '
+            . ($method['delivery_method_is_pickup'] ? 'bure' : deliveryDaysText($method['delivery_days_min'], $method['delivery_days_max'])),
+            (new Checkout(Database::instance()))->getDeliveryMethods());
+    }
+    return $lines;
 }
 
 /** Fills in the page settings every layout partial reads. */
@@ -507,7 +543,7 @@ function pageSettings(array $page): array
     return $page + [
         'title'        => SHOP_NAME,
         'description'  => 'CHIMBO — soko la jumla la vipodozi na urembo kwa wenye maduka Tanzania. Bei za jumla. ' . paymentOptions()['short'] . '.',
-        'image'        => url('assets/img/logo-mark.webp'),
+        'image'        => shareImageUrl(),
         'nav'          => '',     // active bottom-nav tab: home, explore, cart, orders, account
         'scripts'      => [],     // page scripts in assets/js/, loaded after the shared ones
         'body_class'   => '',

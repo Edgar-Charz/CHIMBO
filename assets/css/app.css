@@ -4820,3 +4820,42 @@ a.help-contact:hover {
         align-items: flex-start;
     }
 }
+
+/* Home: the customer's order that needs them (to pay) or is on its way — like the app */
+.home-order-attention {
+    display: flex;
+    align-items: center;
+    gap: var(--chimbo-space-3);
+    margin-top: var(--chimbo-space-3);
+    padding: var(--chimbo-space-3) var(--chimbo-space-4);
+    border: 1px solid rgba(14, 59, 42, 0.25);
+    border-radius: var(--chimbo-radius-lg, 16px);
+    background: var(--chimbo-surface, #fff);
+    color: var(--chimbo-ink);
+    text-decoration: none;
+}
+
+.home-order-attention > .bi {
+    font-size: 1.5rem;
+    color: var(--chimbo-green, #0E3B2A);
+}
+
+.home-order-attention--pay {
+    border-color: rgba(243, 146, 0, 0.45);
+}
+
+.home-order-attention--pay > .bi {
+    color: var(--chimbo-orange);
+}
+
+.home-order-attention__text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.home-order-attention__text span {
+    color: var(--chimbo-muted, #6b7570);
+    font-size: var(--chimbo-text-sm, 0.875rem);
+}

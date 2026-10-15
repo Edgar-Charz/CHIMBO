@@ -13,7 +13,9 @@ $customer = requireCustomer();
 $group = array_key_exists(requestText('group'), ORDER_TABS) ? requestText('group') : 'all';
 $page_number = requestInt('page') ?? 1;
 
-$orders = (new Order(Database::instance()))->getOrders($customer['user_id'], ['group' => $group, 'page' => $page_number]);
+$order_model = new Order(Database::instance());
+$orders      = $order_model->getOrders($customer['user_id'], ['group' => $group, 'page' => $page_number]);
+$tab_counts  = $order_model->countOrdersByGroup($customer['user_id']);   // "Zinazoendelea (2)", like the app
 $last_page = max(1, (int) ceil($orders['total'] / $orders['per_page']));
 $page_link = fn (int $number): string => url('orders.php?' . http_build_query(['group' => $group, 'page' => $number]));
 
@@ -31,7 +33,7 @@ require __DIR__ . '/includes/header.php';
 
     <nav class="catalog-chips" aria-label="Aina za oda">
         <?php foreach (ORDER_TABS as $tab_group => $tab_label) : ?>
-            <a class="chip<?= $tab_group === $group ? ' is-active' : '' ?>" href="<?= e(url('orders.php?group=' . $tab_group)) ?>" <?= $tab_group === $group ? 'aria-current="page"' : '' ?>><?= e($tab_label) ?></a>
+            <a class="chip<?= $tab_group === $group ? ' is-active' : '' ?>" href="<?= e(url('orders.php?group=' . $tab_group)) ?>" <?= $tab_group === $group ? 'aria-current="page"' : '' ?>><?= e($tab_label) ?> (<?= e($tab_counts[$tab_group]) ?>)</a>
         <?php endforeach; ?>
     </nav>
 

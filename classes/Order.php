@@ -81,6 +81,28 @@ class Order
         return $this->getOrder($user_id, $order_id);
     }
 
+    /** How many orders the customer has in each "Oda Zangu" tab: ['all' => 7, 'active' => 2, 'delivered' => 5]. */
+    public function countOrdersByGroup(int $user_id): array
+    {
+        $counts = $this->db->fetchOne(
+            'SELECT COUNT(*) AS all_orders, COALESCE(SUM(' . self::groupCondition('active') . '), 0) AS active_orders,
+                    COALESCE(SUM(' . self::groupCondition('delivered') . '), 0) AS delivered_orders
+             FROM orders o WHERE o.user_id = :user_id',
+            ['user_id' => $user_id]
+        );
+        return ['all' => (int) $counts['all_orders'], 'active' => (int) $counts['active_orders'], 'delivered' => (int) $counts['delivered_orders']];
+    }
+
+    /** The SQL condition (alias o) for one "Oda Zangu" tab: active · delivered · all. */
+    private static function groupCondition(string $group): string
+    {
+        return match ($group) {
+            'active'    => "o.order_status IN ('" . implode("', '", self::ACTIVE_STATUSES) . "')",
+            'delivered' => "o.order_status = 'delivered'",
+            default     => '1 = 1',
+        };
+    }
+
     /** "Oda Zangu": one page of orders, newest first. group = active ("Zinazoendelea") | delivered ("Zimefika") | all. */
     public function getOrders(int $user_id, array $input): array
     {
@@ -88,11 +110,7 @@ class Order
         $page   = $data['page'] ?? 1;
         $offset = ($page - 1) * self::PER_PAGE;
 
-        $group_condition = match ($data['group'] ?? 'all') {
-            'active'    => "o.order_status IN ('" . implode("', '", self::ACTIVE_STATUSES) . "')",
-            'delivered' => "o.order_status = 'delivered'",
-            default     => '1 = 1',
-        };
+        $group_condition = self::groupCondition($data['group'] ?? 'all');
 
         $total = (int) $this->db->fetchValue(
             "SELECT COUNT(*) FROM orders o WHERE o.user_id = :user_id AND {$group_condition}",

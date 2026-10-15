@@ -31,6 +31,12 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-10-15 — Website: Google, link previews, Home order card, tab counts, delivery wording (backend session; website and app files)
+- **robots.txt / sitemap.xml** (robots.php, sitemap.php; .htaccess rewrites — sitemap.xml allowed past the ".xml files are private" rule): the sitemap lists Home, Help, legal pages, every category and product on sale, from the database. robots.txt keeps search engines out of admin, API and customers' own pages. (robots.txt only counts at the domain root — fine once hosted.)
+- **Link previews**: pages without their own photo use the uploaded logo, else a PNG of the built-in mark (`assets/img/share-logo.png`, `shareImageUrl()`); product pages use the large photo.
+- **Home**: a logged-in customer's active order near the top — "Malizia malipo ya oda yako … Lipa sasa" (opens the pay box) or "Oda yako inaendelea … Fuatilia" (like the app). **Oda Zangu tabs** show counts (`Order::countOrdersByGroup()`).
+- **Delivery wording**: 0–1 days = "leo au kesho" (Bolt), 1 = "kesho", else "siku 2–5" (`deliveryDaysText()`, checkout.js, app `DeliveryMethod.eta()`); the product page lists the real options ("Bolt (Dar es Salaam): leo au kesho · Usafiri wa mikoani: siku 2–5 · Nitachukua mwenyewe dukani: bure") instead of a fixed number per product.
+
 ### 2026-10-15 — App tests and analyzer clean after the parallel profile / orders redesign (backend session, at the user's request)
 - The other session's redesign left 3 app tests failing and 4 analyzer notes. Tests updated to the new screens: Oda Zangu tabs show counts and scroll sideways ("Zimefika (2)" — scrolled into view before tapping); Wasifu's edit and logout are icon buttons (found by their labels "Hariri Wasifu", "Toka kwenye Akaunti"). Profile files: import order and `const` fixed. `flutter analyze` clean; **150 app tests passing**.
 - Design note for the owner: on narrow phones (360 px) the Oda Zangu tab "Zimefika (n)" starts off-screen; customers swipe the tab row to reach it.

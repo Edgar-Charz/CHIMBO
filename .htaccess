@@ -17,6 +17,10 @@ ErrorDocument 404 /chimbo/404.php
     # Customer storefront category pages use stable ids with readable slugs.
     RewriteRule ^c/([0-9]+)(?:-[^/]+)?/?$ category.php?id=$1 [QSA,L]
     RewriteRule ^p/([0-9]+)(?:-[^/]+)?/?$ product.php?id=$1 [QSA,L]
+
+    # For search engines: built from the database by these pages
+    RewriteRule ^robots\.txt$ robots.php [L]
+    RewriteRule ^sitemap\.xml$ sitemap.php [L]
 </IfModule>
 
 # Block hidden files (.env, .gitignore, .htaccess …)
@@ -24,8 +28,8 @@ ErrorDocument 404 /chimbo/404.php
     Require all denied
 </FilesMatch>
 
-# Block project files that are not web pages
-<FilesMatch "\.(md|json|lock|sql|log|ini|sh|bak|dist|xml|yml|yaml)$">
+# Block project files that are not web pages (sitemap.xml is a page: sitemap.php)
+<FilesMatch "^(?!sitemap\.xml$).*\.(md|json|lock|sql|log|ini|sh|bak|dist|xml|yml|yaml)$">
     Require all denied
 </FilesMatch>
 

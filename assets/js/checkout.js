@@ -199,8 +199,19 @@
         ])));
     }
 
-    /** 2, 3 → "siku 2–3"; 1, 1 → "siku 1". */
-    const formatDays = (minimum, maximum) => (minimum === maximum ? `siku ${minimum}` : `siku ${minimum}–${maximum}`);
+    /** 0–0 "leo", 0–1 "leo au kesho", 1–1 "kesho", 2–3 "siku 2–3" (the same as deliveryDaysText() in PHP). */
+    const formatDays = (minimum, maximum) => {
+        if (maximum === 0) return 'leo';
+        if (minimum === 0 && maximum === 1) return 'leo au kesho';
+        if (minimum === 1 && maximum === 1) return 'kesho';
+        return minimum === maximum ? `siku ${minimum}` : `siku ${minimum}–${maximum}`;
+    };
+
+    /** "Inafika ndani ya siku 2–5." · "Inafika leo au kesho." */
+    const arrivalText = (minimum, maximum) => {
+        const days = formatDays(minimum, maximum);
+        return days.startsWith('siku') ? `Inafika ndani ya ${days}.` : `Inafika ${days}.`;
+    };
 
     function totalRow(label, value, className = '') {
         return el('div', { className: `cart-summary__row ${className}`.trim() }, [el('dt', { text: label }), el('dd', { text: value })]);
@@ -232,7 +243,7 @@
         ].filter(Boolean));
         const arrival = preview.delivery_method_is_pickup
             ? 'Tutakujulisha ikiwa tayari kuchukuliwa.'
-            : `Inafika ndani ya ${formatDays(preview.delivery_days_min, preview.delivery_days_max)}.`;
+            : arrivalText(preview.delivery_days_min, preview.delivery_days_max);
         const method = paymentMethods.find((candidate) => candidate.payment_method_code === choice.paymentMethod);
         let payNote = `Baada ya kuthibitisha utaona jinsi ya kulipa ${formatTzs(preview.grand_total)} kwa ${method?.payment_method_name ?? 'njia uliyochagua'}. Tunaanza kuandaa oda malipo yakithibitishwa.`;
         if (priceToConfirm) {
