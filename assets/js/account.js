@@ -172,7 +172,7 @@
                 fieldForCode: { PIN_INVALID: 'current_pin' },
             });
             pinForm.reset();
-            CHIMBO.toast('PIN yako imebadilishwa.', 'success');
+            CHIMBO.successPopup('PIN yako imebadilishwa. Itumie ukiingia tena.');
         } catch {
             // submitForm shows server field errors or the API message.
         }

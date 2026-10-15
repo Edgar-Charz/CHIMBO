@@ -139,7 +139,7 @@ final class OrderTest extends TestCase
         );
 
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
-        $this->assertApiError('VALIDATION_ERROR', fn () => $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'dispatched'], self::ADMIN_ID));
+        // (a Dar order goes by Bolt: the agent is optional — see BoltAndPickupTest; here one of ours takes it)
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'dispatched', 'delivery_agent_id' => $agent_id], self::ADMIN_ID);
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'in_transit'], self::ADMIN_ID);
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'delivered'], self::ADMIN_ID);
@@ -251,6 +251,36 @@ final class OrderTest extends TestCase
     // ------------------------------------------------------------------ helpers
 
     /** Fills the cart and places a cash-on-delivery order with the correct total. */
+    public function testAnOrderShowsThePhotoAddedAfterItWasPlacedAndSurvivesAReplacedPhoto(): void
+    {
+        $images = new ProductImage($this->db);
+        foreach ($images->getImages(self::VASELINE) as $image) {   // a product without a photo when ordered
+            $images->deleteImage(self::VASELINE, $image['product_image_id'], self::ADMIN_ID);
+        }
+        $order = $this->placeOrder([self::VASELINE => 8]);
+        $this->assertNull($order['items'][0]['product_image_url']);
+
+        $photo = tempnam(sys_get_temp_dir(), 'chimbo') . '.jpg';
+        imagejpeg(imagecreatetruecolor(400, 400), $photo);
+        $first = $images->addImageFile(self::VASELINE, $photo, self::ADMIN_ID);   // the photo comes later
+        $shown = $this->order_model->getOrder($this->user_id, $order['order_id'])['items'][0]['product_image_url'];
+        $this->assertStringContainsString('media/products/', (string) $shown);
+
+        // Replacing the photo deletes the old file: the order follows the new main photo, never a broken one
+        $images->addImageFile(self::VASELINE, $photo, self::ADMIN_ID);
+        $second_id = max(array_column($images->getImages(self::VASELINE), 'product_image_id'));
+        $images->setMainImage(self::VASELINE, $second_id, self::ADMIN_ID);
+        $images->deleteImage(self::VASELINE, min(array_column($images->getImages(self::VASELINE), 'product_image_id')), self::ADMIN_ID);
+        $now_shown = $this->order_model->getOrder($this->user_id, $order['order_id'])['items'][0]['product_image_url'];
+        $this->assertNotNull($now_shown);
+        $this->assertNotSame($shown, $now_shown);
+        $this->assertFileExists(BASE_PATH . '/' . substr($now_shown, strpos($now_shown, 'media/')));
+
+        foreach ($images->getImages(self::VASELINE) as $image) {
+            $images->deleteImage(self::VASELINE, $image['product_image_id'], self::ADMIN_ID);
+        }
+    }
+
     private function placeOrder(array $quantities, ?string $idempotency_key = null): array
     {
         $this->fillCart($quantities);

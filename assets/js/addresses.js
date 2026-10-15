@@ -5,7 +5,7 @@
 (() => {
     'use strict';
 
-    const { api, el, icon, stateBlock, setLoading, toast, addressForm } = CHIMBO;
+    const { api, el, icon, stateBlock, setLoading, toast, confirmDialog, addressForm } = CHIMBO;
 
     const pageData = JSON.parse(document.getElementById('addresses-data').textContent);
     const list = document.querySelector('[data-address-list]');
@@ -53,8 +53,9 @@
 
     const makeDefault = (address, button) => changeAddresses(button, () => api.post(`/addresses/${address.address_id}/default`), 'Anwani kuu imebadilishwa.');
 
-    function deleteAddress(address, button) {
-        if (!window.confirm(`Futa anwani ya ${address.address_recipient_name}?`)) return;
+    async function deleteAddress(address, button) {
+        const isSure = await confirmDialog(`Futa anwani ya ${address.address_recipient_name}?`, { confirmText: 'Ndiyo, futa', isDanger: true });
+        if (!isSure) return;
         changeAddresses(button, () => api.delete(`/addresses/${address.address_id}`), 'Anwani imefutwa.');
     }
 

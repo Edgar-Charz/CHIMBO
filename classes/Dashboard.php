@@ -225,9 +225,9 @@ class Dashboard
         $counts = $this->db->fetchOne(
             "SELECT
                 (SELECT COUNT(*) FROM payments WHERE payment_status = 'submitted')                  AS payments_to_check,
-                (SELECT COUNT(*) FROM orders WHERE order_status IN ('cancelled', 'expired')
-                  AND order_payment_status = 'paid')                                                AS refunds_due,
-                (SELECT COUNT(*) FROM orders WHERE order_status = 'confirmed')                      AS orders_to_pack,
+                (SELECT COUNT(*) FROM orders o WHERE " . Payment::REFUND_DUE_SQL . ")             AS refunds_due,
+                (SELECT COUNT(*) FROM orders WHERE order_status = 'confirmed'
+                  AND order_payment_status NOT IN ('balance_due', 'pending'))                        AS orders_to_pack,
                 (SELECT COUNT(*) FROM orders o WHERE " . OrderManager::TRANSPORT_TO_CONFIRM_SQL . ")    AS transport_to_confirm,
                 (SELECT COUNT(*) FROM business_profiles WHERE business_verification_status = 'pending') AS businesses_to_verify,
                 (SELECT COUNT(*) FROM products WHERE deleted_at IS NULL AND product_is_active = 1

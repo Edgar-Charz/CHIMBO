@@ -24,8 +24,9 @@ $payment_state = match (true) {
 };
 ?>
 <?php if ($payment_state === 'pay') : ?>
-    <section class="payment-box" aria-labelledby="payment-box-title">
-        <h2 class="payment-box__title" id="payment-box-title"><i class="bi bi-wallet2" aria-hidden="true"></i> Lipa ili tuanze kuandaa oda yako</h2>
+    <section class="payment-box" id="payment-box" aria-labelledby="payment-box-title">
+        <h2 class="payment-box__title" id="payment-box-title"><i class="bi bi-wallet2" aria-hidden="true"></i>
+            <?= $payment['is_balance_payment'] ? 'Lipa salio ili tuendelee kuandaa oda yako' : 'Lipa ili tuanze kuandaa oda yako' ?></h2>
 
         <?php if (($latest_payment['payment_status'] ?? null) === 'rejected') : ?>
             <div class="payment-box__alert" role="alert">
@@ -34,7 +35,10 @@ $payment_state = match (true) {
             </div>
         <?php endif; ?>
 
-        <p class="payment-box__amount">Lipa <strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa <?= e($method['payment_method_name']) ?></p>
+        <p class="payment-box__amount">Lipa <?= $payment['is_balance_payment'] ? 'salio la ' : '' ?><strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa <?= e($method['payment_method_name']) ?></p>
+        <?php if ($payment['is_balance_payment']) : ?>
+            <p class="payment-box__hint">Oda imebadilishwa: umeshalipa <?= e(formatTzs($payment['amount_paid'])) ?> kati ya <?= e(formatTzs($order['order_total'])) ?>.</p>
+        <?php endif; ?>
 
         <dl class="payment-box__details">
             <?php require __DIR__ . '/payment_method_details.php'; ?>

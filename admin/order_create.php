@@ -33,7 +33,7 @@ $start_step = match (true) {
 
 $page_title   = 'Add order';
 $active_menu  = 'orders';
-$page_scripts = ['order_create.js'];
+$page_scripts = ['order_items.js', 'order_create.js'];
 require __DIR__ . '/includes/header.php';
 ?>
 
@@ -61,7 +61,6 @@ require __DIR__ . '/includes/header.php';
     <div data-order-step="1">
         <div class="admin-panel-header"><h2 class="admin-panel-title">Customer</h2></div>
         <div class="admin-panel-body">
-            <div class="alert alert-danger" data-customer-save-error hidden></div>
             <input type="hidden" name="user_id" value="<?= e($form['user_id'] ?? '') ?>" data-user-id>
 
             <div class="mb-3" data-customer-picker>
@@ -213,9 +212,11 @@ require __DIR__ . '/includes/header.php';
                     <select class="form-select<?= adminInvalidClass($errors, 'delivery_method_id') ?>" id="delivery_method_id" name="delivery_method_id" required>
                         <option value="">Choose a region first</option>
                         <?php foreach ($options['delivery_methods'] as $method): ?>
-                            <option value="<?= e($method['delivery_method_id']) ?>" data-region="<?= e($method['region_id'] ?? '') ?>"
-                                    data-fee="<?= e($method['delivery_method_fee']) ?>" <?= adminSelected($form, 'delivery_method_id', $method['delivery_method_id']) ?>>
-                                <?= e($method['delivery_method_name']) ?> · <?= e(adminMoney((int) $method['delivery_method_fee'])) ?> · <?= e($method['delivery_days_min']) ?>–<?= e($method['delivery_days_max']) ?> days
+                            <option value="<?= e($method['delivery_method_id']) ?>" data-area="<?= e($method['delivery_method_area']) ?>"
+                                    data-region="<?= e($method['region_id'] ?? '') ?>" data-fee-text="<?= e(adminDeliveryOptionPrice($method)) ?>"
+                                    data-fee="<?= e($method['delivery_fee_needs_confirmation'] ? 0 : (int) $method['delivery_method_fee']) ?>"
+                                    <?= adminSelected($form, 'delivery_method_id', $method['delivery_method_id']) ?>>
+                                <?= e($method['delivery_method_name']) ?> · <?= e(adminDeliveryOptionPrice($method)) ?> · <?= e($method['delivery_days_min']) ?>–<?= e($method['delivery_days_max']) ?> days
                             </option>
                         <?php endforeach; ?>
                     </select>

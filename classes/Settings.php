@@ -26,7 +26,7 @@ class Settings
         ],
         'Orders' => [
             'cod_max_order_total'         => ['Largest cash-on-delivery order (TZS)', 'required|int|min:0|max:100000000'],
-            'unpaid_order_expiry_minutes' => ['Time to pay before an unpaid order may be cancelled (minutes; 1440 = 24 hours)', 'required|int|min:30|max:10080'],
+            'unpaid_order_expiry_minutes' => ['Time to pay before an unpaid order may be cancelled (minutes; 1440 = 24 hours). Applies to new app / website orders; orders made with "Add order" have no deadline', 'required|int|min:30|max:10080'],
         ],
         'Login codes (SMS)' => [
             'otp_lifetime_seconds'      => ['A code works for (seconds)', 'required|int|min:60|max:900'],
@@ -39,6 +39,8 @@ class Settings
             'legal_privacy' => ['Privacy policy ("Sera ya Faragha")', 'required|string|max:30000'],
         ],
     ];
+
+    public const DEFAULT_UNPAID_ORDER_EXPIRY_MINUTES = 1440;   // 24 hours, the same as the seeded setting
 
     // Public pages built from settings: page name => [title, setting_key]
     private const LEGAL_PAGES = [
@@ -141,6 +143,16 @@ class Settings
             'support_whatsapp_url' => $whatsapp === '' ? null : 'https://wa.me/' . ltrim($whatsapp, '+'),
             'support_hours'        => $this->get('support_hours'),
         ];
+    }
+
+    /**
+     * The time to pay an unpaid mobile money / bank order, in minutes (Settings → Orders & payments). Used whenever an
+     * order gets a deadline: placed, upcountry transport confirmed, reactivated, or a payment rejected. Orders staff
+     * create ("Add order") have no deadline on purpose: those customers may pay in person.
+     */
+    public function unpaidOrderExpiryMinutes(): int
+    {
+        return $this->getInt('unpaid_order_expiry_minutes', self::DEFAULT_UNPAID_ORDER_EXPIRY_MINUTES);
     }
 
     /** Where and when customers collect a pickup order (R-26): {pickup_address, pickup_hours}. */

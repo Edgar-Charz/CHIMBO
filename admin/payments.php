@@ -102,8 +102,8 @@ require __DIR__ . '/includes/header.php';
                     <label class="form-label" for="filter-payment-method">Method</label>
                     <select class="form-select" id="filter-payment-method" name="payment_method_code">
                         <option value="">All methods</option>
-                        <?php foreach (ADMIN_PAYMENT_METHOD_NAMES as $method_code => $method_name): ?>
-                            <option value="<?= e($method_code) ?>"><?= e($method_name) ?></option>
+                        <?php foreach ($payment_method_model->listForAdmin() as $method): ?>
+                            <option value="<?= e($method['payment_method_code']) ?>"><?= e($method['payment_method_name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -139,7 +139,7 @@ require __DIR__ . '/includes/header.php';
     <?php require __DIR__ . '/includes/payment_reject_modal.php'; ?>
 
 <?php elseif ($tab === 'refunds'): ?>
-    <p class="text-muted">Paid orders that were cancelled or expired: send the money back, then mark them refunded.</p>
+    <p class="text-muted">Paid orders that were cancelled or expired, and paid orders whose total went down after a change: send the money back, then mark them refunded.</p>
     <div class="admin-panel admin-table-panel">
         <?php if (!$refunds_due): ?>
             <div class="admin-empty-state">
@@ -156,7 +156,7 @@ require __DIR__ . '/includes/header.php';
                         <th class="text-end">Amount</th>
                         <th>Paid with</th>
                         <th>Send back to</th>
-                        <th>Cancelled</th>
+                        <th>Why</th>
                         <th class="text-end" data-orderable="false">Actions</th>
                     </tr>
                 </thead>
@@ -165,11 +165,11 @@ require __DIR__ . '/includes/header.php';
                         <tr class="row-link" data-href="<?= e(url('admin/order_details.php?id=' . $refund['order_id'])) ?>">
                             <td><a class="fw-semibold" href="<?= e(url('admin/order_details.php?id=' . $refund['order_id'])) ?>"><?= e($refund['order_number']) ?></a></td>
                             <td><?= e($refund['user_full_name'] ?? 'No name yet') ?><div class="small text-muted"><?= e(Phone::format($refund['user_phone'])) ?></div></td>
-                            <td class="text-end text-nowrap fw-semibold" data-order="<?= e($refund['order_total']) ?>"><?= e(adminMoney((int) $refund['order_total'])) ?></td>
+                            <td class="text-end text-nowrap fw-semibold" data-order="<?= e($refund['refund_amount']) ?>"><?= e(adminMoney((int) $refund['refund_amount'])) ?></td>
                             <td><?= e(adminPaymentMethodName($refund['order_payment_method'])) ?></td>
                             <td class="text-nowrap"><?= e($refund['payment_payer_account'] ? adminPayerAccount($refund['payment_payer_account']) : '—') ?></td>
                             <td data-order="<?= e($refund['order_cancelled_at'] ?? '') ?>">
-                                <?= e(adminDateTime($refund['order_cancelled_at'])) ?>
+                                <?= $refund['order_cancelled_at'] ? e(adminDateTime($refund['order_cancelled_at'])) : '<span class="text-muted">Total lowered</span>' ?>
                                 <?php if ($refund['order_cancel_reason']): ?>
                                     <div class="small text-muted"><?= e($refund['order_cancel_reason']) ?></div>
                                 <?php endif; ?>
@@ -178,7 +178,7 @@ require __DIR__ . '/includes/header.php';
                                 <?= adminRowActions(
                                     '<button class="btn btn-sm btn-light" type="button" title="Mark refunded" aria-label="Mark refunded"'
                                         . ' data-open-modal="#refund-modal" data-record-id="' . e($refund['order_id']) . '"'
-                                        . ' data-record-label="' . e($refund['order_number'] . ' · ' . adminMoney((int) $refund['order_total'])) . '">'
+                                        . ' data-record-label="' . e($refund['order_number'] . ' · ' . adminMoney((int) $refund['refund_amount'])) . '">'
                                         . '<i class="bi bi-arrow-counterclockwise"></i></button>',
                                     adminActionLink('bi-eye', 'View order', url('admin/order_details.php?id=' . $refund['order_id'])),
                                 ) ?>
@@ -192,10 +192,13 @@ require __DIR__ . '/includes/header.php';
     <?php require __DIR__ . '/includes/refund_modal.php'; ?>
 
 <?php else: ?>
-    <p class="text-muted">
-        Where customers send their money. A mobile money or bank method can only be offered once its account number and name
-        are filled in. Cash on delivery needs no account.
-    </p>
+    <div class="admin-page-actions">
+        <p class="text-muted mb-0">
+            Where customers send their money. A mobile money or bank method can only be offered once its account number and
+            name are filled in. Cash on delivery needs no account. A method that's no longer used can be switched off.
+        </p>
+        <a class="btn btn-chimbo" href="<?= e(url('admin/payment_method_edit.php')) ?>"><i class="bi bi-plus-lg"></i> Add payment method</a>
+    </div>
     <div class="admin-panel admin-table-panel">
         <table class="table admin-table w-100" data-datatable data-title="Payment methods" data-icon="bi-wallet2"
                data-order='[]' data-searching="false">

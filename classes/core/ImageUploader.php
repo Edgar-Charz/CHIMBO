@@ -63,6 +63,29 @@ class ImageUploader
         return $paths;
     }
 
+    /**
+     * A logo as square PNG icons (transparency kept): a wider or taller picture is centred on a transparent square.
+     * $sizes = [size name => pixels], e.g. ['512' => 512, '32' => 32] → ['512' => 'media/brand/9f3c…-512.png', …].
+     */
+    public function saveSquareIcons(string $source_path, string $folder, array $sizes): array
+    {
+        $image = $this->loadCheckedImage($source_path);
+
+        $target_folder = 'media/' . trim($folder, '/');
+        if (!is_dir(BASE_PATH . '/' . $target_folder)) {
+            mkdir(BASE_PATH . '/' . $target_folder, 0755, true);
+        }
+
+        $file_name = bin2hex(random_bytes(12));
+        $paths     = [];
+        foreach ($sizes as $size_name => $pixels) {
+            $path = "{$target_folder}/{$file_name}-{$size_name}.png";
+            imagepng($this->squareCanvas($image, $pixels), BASE_PATH . '/' . $path, 9);
+            $paths[$size_name] = $path;
+        }
+        return $paths;
+    }
+
     /** Deletes the saved files of one image (all sizes). Missing files are ignored. */
     public function deleteImageFiles(array $paths): void
     {
@@ -120,6 +143,25 @@ class ImageUploader
         imagecopyresampled($resized_image, $image, 0, 0, 0, 0, $new_width, $new_height, $width, $height);
 
         return $resized_image;
+    }
+
+    /** The image fitted inside a transparent $pixels × $pixels square, centred. */
+    private function squareCanvas(GdImage $image, int $pixels): GdImage
+    {
+        $width  = imagesx($image);
+        $height = imagesy($image);
+        $scale  = $pixels / max($width, $height);
+        $new_width  = max(1, (int) round($width * $scale));
+        $new_height = max(1, (int) round($height * $scale));
+
+        $canvas = imagecreatetruecolor($pixels, $pixels);
+        imagealphablending($canvas, false);
+        imagesavealpha($canvas, true);
+        imagefill($canvas, 0, 0, imagecolorallocatealpha($canvas, 0, 0, 0, 127));   // fully transparent
+        imagecopyresampled($canvas, $image, intdiv($pixels - $new_width, 2), intdiv($pixels - $new_height, 2), 0, 0,
+            $new_width, $new_height, $width, $height);
+
+        return $canvas;
     }
 
     /** Phone photos often store "rotate me" in EXIF instead of rotating the pixels; apply it. */

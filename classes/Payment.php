@@ -37,8 +37,9 @@ class Payment
         $this->db->transaction(function () use ($user_id, $order_id, $input) {
             $order = $this->lockOrderForPayment($order_id, $user_id);
 
+            $is_balance = Order::isBalanceDue($order);   // paying the rest after staff added to a paid order
             match (true) {
-                $order['order_payment_method'] === 'cod' || $order['order_status'] !== 'pending_payment'
+                $order['order_payment_method'] === 'cod' || ($order['order_status'] !== 'pending_payment' && !$is_balance)
                     => throw ApiException::conflict('PAYMENT_NOT_EXPECTED', 'Oda hii haisubiri malipo.'),
                 $order['order_payment_status'] === 'pending'
                     => throw ApiException::conflict('PAYMENT_UNDER_REVIEW', 'Tumepokea taarifa za malipo yako na tunazikagua. Tutakujulisha punde.'),
@@ -52,11 +53,11 @@ class Payment
             $details = $this->checkPaymentDetails($order['order_payment_method'], $input);
             $this->savePayment($order, $details, null);
 
-            $method_name = (new PaymentMethod($this->db))->getDetailsByCode($order['order_payment_method'])['payment_method_name'] ?? $order['order_payment_method'];
+            $method_name = (new PaymentMethod($this->db))->nameOf($order['order_payment_method']);
             (new AdminNotification($this->db))->notify(
                 'payment.submitted',
-                "Payment to check: {$order['order_number']}",
-                "{$method_name} · " . number_format((int) $order['order_total']) . " TZS · from {$details['payment_payer_account']} · code {$details['payment_reference']}",
+                ($is_balance ? 'Balance payment to check: ' : 'Payment to check: ') . $order['order_number'],
+                "{$method_name} · " . number_format(self::amountToPay($order)) . " TZS · from {$details['payment_payer_account']} · code {$details['payment_reference']}",
                 'payments.php?tab=review'
             );
         });
@@ -72,7 +73,7 @@ class Payment
      */
     public function changePaymentMethod(int $user_id, int $order_id, array $input): array
     {
-        $data = Validator::validate($input, ['payment_method' => 'required|in:mpesa,airtel_money,mixx,bank,cod']);
+        $data = Validator::validate($input, ['payment_method' => 'required|string|max:40']);   // must be switched on (below)
 
         $this->db->transaction(function (Database $db) use ($user_id, $order_id, $data) {
             $order = $this->lockOrderForPayment($order_id, $user_id);
@@ -126,7 +127,7 @@ class Payment
     {
         $data = Validator::validate($filters, [
             'payment_status'      => 'nullable|in:submitted,confirmed,rejected',
-            'payment_method_code' => 'nullable|in:mpesa,airtel_money,mixx,bank,cod',
+            'payment_method_code' => 'nullable|string|max:40',
             'search'              => 'nullable|string|max:60',
             'page'                => 'nullable|int|min:1',
             'per_page'            => 'nullable|int|in:' . implode(',', self::PER_PAGE_OPTIONS),
@@ -270,8 +271,14 @@ class Payment
                  WHERE payment_id = :payment_id",
                 ['note' => $data['payment_review_note'], 'admin_id' => $admin_id, 'payment_id' => $payment_id]
             );
+            // Back to "unpaid", with time to send it again: at least the full time to pay from now, so a payment checked
+            // late (after the deadline) doesn't leave the customer locked out. No deadline stays none (staff orders).
+            $expiry_minutes = (new Settings($db))->unpaidOrderExpiryMinutes();
             $db->execute(
-                "UPDATE orders SET order_payment_status = 'unpaid' WHERE order_id = :order_id AND order_payment_status = 'pending'",
+                "UPDATE orders SET order_payment_status = IF(order_status = 'confirmed', 'balance_due', 'unpaid'),
+                        order_expires_at = IF(order_expires_at IS NULL, NULL,
+                                              GREATEST(order_expires_at, UTC_TIMESTAMP() + INTERVAL {$expiry_minutes} MINUTE))
+                 WHERE order_id = :order_id AND order_payment_status = 'pending'",
                 ['order_id' => $order['order_id']]
             );
 
@@ -291,8 +298,9 @@ class Payment
     {
         $this->db->transaction(function () use ($order_id, $input, $admin_id) {
             $order = $this->lockOrderForPayment($order_id, null);
-            if ($order['order_payment_method'] === 'cod' || $order['order_status'] !== 'pending_payment' || $order['order_payment_status'] !== 'unpaid') {
-                throw ApiException::conflict('PAYMENT_NOT_EXPECTED', 'Only an unpaid mobile money or bank order with no payment under review can be recorded.');
+            $is_unpaid = $order['order_status'] === 'pending_payment' && $order['order_payment_status'] === 'unpaid';
+            if ($order['order_payment_method'] === 'cod' || (!$is_unpaid && !Order::isBalanceDue($order))) {
+                throw ApiException::conflict('PAYMENT_NOT_EXPECTED', 'Only an unpaid mobile money or bank order (or a balance to pay) with no payment under review can be recorded.');
             }
 
             $details    = $this->checkPaymentDetails($order['order_payment_method'], $input);
@@ -301,18 +309,25 @@ class Payment
         });
     }
 
-    /** Paid orders that were cancelled or expired: the money must go back to the customer. */
+    // Money to give back (alias o): a paid order that was cancelled / expired, or a lower total after staff changed it
+    public const REFUND_DUE_SQL = "((o.order_status IN ('cancelled', 'expired') AND o.order_payment_status = 'paid') OR o.order_refund_due > 0)";
+
+    /**
+     * Money to give back: paid orders that were cancelled or expired (all that was paid), and orders whose total went
+     * down after staff changed them (the difference). refund_amount = what to send.
+     */
     public function getRefundsDue(): array
     {
         return $this->db->fetchAll(
             "SELECT o.order_id, o.order_number, o.order_total, o.order_payment_method, o.order_status, o.order_cancelled_at,
                     o.order_cancel_reason, u.user_full_name, u.user_phone,
+                    IF(o.order_refund_due > 0, o.order_refund_due, " . Order::AMOUNT_PAID_SQL . ") AS refund_amount,
                     (SELECT p.payment_payer_account FROM payments p
                      WHERE p.order_id = o.order_id AND p.payment_status = 'confirmed' ORDER BY p.payment_id DESC LIMIT 1) AS payment_payer_account
              FROM orders o
              JOIN users u ON u.user_id = o.user_id
-             WHERE o.order_status IN ('cancelled', 'expired') AND o.order_payment_status = 'paid'
-             ORDER BY o.order_cancelled_at"
+             WHERE " . self::REFUND_DUE_SQL . "
+             ORDER BY o.order_cancelled_at IS NULL, o.order_cancelled_at, o.order_id"
         );
     }
 
@@ -323,16 +338,27 @@ class Payment
 
         $this->db->transaction(function (Database $db) use ($order_id, $data, $admin_id) {
             $order = $this->lockOrderForPayment($order_id, null);
-            if (!in_array($order['order_status'], ['cancelled', 'expired'], true) || $order['order_payment_status'] !== 'paid') {
-                throw ApiException::conflict('REFUND_NOT_DUE', 'Only a paid order that was cancelled can be marked refunded.');
+            $refund_due = (int) $order['order_refund_due'];
+
+            if ($refund_due > 0) {
+                // Part of the money, after staff lowered the total (R-29): the order stays paid
+                $db->execute('UPDATE orders SET order_refunded_amount = order_refunded_amount + order_refund_due, order_refund_due = 0
+                              WHERE order_id = :order_id', ['order_id' => $order_id]);
+                $amount = $refund_due;
+                $after  = ['order_refund_due' => 0, 'refund_note' => $data['refund_note']];
+            } elseif (in_array($order['order_status'], ['cancelled', 'expired'], true) && $order['order_payment_status'] === 'paid') {
+                $db->execute("UPDATE orders SET order_payment_status = 'refunded' WHERE order_id = :order_id", ['order_id' => $order_id]);
+                $amount = (int) $order['order_amount_paid'];
+                $after  = ['order_payment_status' => 'refunded', 'refund_note' => $data['refund_note']];
+            } else {
+                throw ApiException::conflict('REFUND_NOT_DUE', 'This order has no money to give back.');
             }
 
-            $db->execute("UPDATE orders SET order_payment_status = 'refunded' WHERE order_id = :order_id", ['order_id' => $order_id]);
             (new Notification($db))->notifyUser((int) $order['user_id'], 'payment', 'Pesa imerudishwa',
-                "Malipo ya oda #{$order['order_number']} (TZS " . number_format((int) $order['order_total']) . ') yamerudishwa kwako.',
+                "Tumekurudishia TZS " . number_format($amount) . " ya oda #{$order['order_number']}.",
                 ['order_id' => $order_id]);
-            (new AuditLog($db))->record('admin', $admin_id, 'order.refunded', 'order', $order_id, ['order_payment_status' => 'paid'],
-                ['order_payment_status' => 'refunded', 'refund_note' => $data['refund_note']]);
+            (new AuditLog($db))->record('admin', $admin_id, 'order.refunded', 'order', $order_id,
+                ['order_payment_status' => $order['order_payment_status'], 'order_refund_due' => $refund_due], $after + ['amount' => $amount]);
         });
     }
 
@@ -405,7 +431,7 @@ class Payment
                 'order_id'            => $order['order_id'],
                 'user_id'             => $order['user_id'],
                 'payment_method_code' => $order['order_payment_method'],
-                'payment_amount'      => $order['order_total'],
+                'payment_amount'      => self::amountToPay($order),   // the whole total, or just the balance
                 'admin_id'            => $admin_id,
             ] + $details
         );
@@ -413,9 +439,21 @@ class Payment
         return $payment_id;
     }
 
+    /** What the customer pays now: the order's total, or after staff added to a paid order, only the rest. */
+    private static function amountToPay(array $order): int
+    {
+        return $order['order_status'] === 'confirmed'
+            ? max(0, (int) $order['order_total'] - (int) $order['order_amount_paid'])
+            : (int) $order['order_total'];
+    }
+
     /** The shared "confirm" work (payment row and order already locked). */
     private function confirmLockedPayment(array $payment, array $order, int $admin_id): void
     {
+        if ($order['order_status'] === 'confirmed' && $order['order_payment_status'] === 'pending') {
+            $this->confirmBalancePayment($payment, $order, $admin_id);
+            return;
+        }
         if ($order['order_status'] !== 'pending_payment') {
             throw ApiException::conflict('ORDER_NOT_WAITING_FOR_PAYMENT',
                 "This order is \"{$order['order_status']}\", so it can't be confirmed. Reject the payment and refund the customer if the money arrived.");
@@ -445,14 +483,38 @@ class Payment
             ['order_id' => (int) $order['order_id'], 'payment_amount' => (int) $payment['payment_amount'], 'payment_reference' => $payment['payment_reference']]);
     }
 
+    /**
+     * The balance of a paid order that staff added to (R-29): the order stays "confirmed" (it was already) and becomes
+     * paid again once everything is in; packing can go on.
+     */
+    private function confirmBalancePayment(array $payment, array $order, int $admin_id): void
+    {
+        $this->db->execute(
+            "UPDATE payments SET payment_status = 'confirmed', reviewed_by_admin_id = :admin_id, payment_reviewed_at = UTC_TIMESTAMP()
+             WHERE payment_id = :payment_id",
+            ['admin_id' => $admin_id, 'payment_id' => $payment['payment_id']]
+        );
+        $paid_now = (int) $order['order_amount_paid'] + (int) $payment['payment_amount'];
+        $this->db->execute('UPDATE orders SET order_payment_status = :status WHERE order_id = :order_id',
+            ['status' => $paid_now >= (int) $order['order_total'] ? 'paid' : 'balance_due', 'order_id' => $order['order_id']]);
+
+        (new Notification($this->db))->notifyUser((int) $order['user_id'], 'payment', 'Salio limepokelewa',
+            "Tumepokea TZS " . number_format((int) $payment['payment_amount']) . " ya oda #{$order['order_number']}. Tunaendelea kuiandaa.",
+            ['order_id' => (int) $order['order_id']]);
+        (new AuditLog($this->db))->record('admin', $admin_id, 'payment.confirmed', 'payment', (int) $payment['payment_id'], null,
+            ['order_id' => (int) $order['order_id'], 'payment_amount' => (int) $payment['payment_amount'],
+             'payment_reference' => $payment['payment_reference'], 'balance' => true]);
+    }
+
     /** The order row locked for the payment change; $user_id limits it to that customer's orders (404 otherwise). */
     private function lockOrderForPayment(int $order_id, ?int $user_id): array
     {
         $order = $this->db->fetchOne(
-            'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total,
-                    order_expires_at IS NOT NULL AND order_expires_at < UTC_TIMESTAMP() AS is_past_payment_time,
-                    order_delivery_fee_estimate IS NOT NULL AND order_delivery_fee_confirmed_at IS NULL AS is_awaiting_transport_price
-             FROM orders WHERE order_id = :order_id FOR UPDATE',
+            'SELECT o.order_id, o.order_number, o.user_id, o.order_status, o.order_payment_method, o.order_payment_status, o.order_total,
+                    o.order_refund_due, ' . Order::AMOUNT_PAID_SQL . ' AS order_amount_paid,
+                    o.order_expires_at IS NOT NULL AND o.order_expires_at < UTC_TIMESTAMP() AS is_past_payment_time,
+                    o.order_delivery_fee_estimate IS NOT NULL AND o.order_delivery_fee_confirmed_at IS NULL AS is_awaiting_transport_price
+             FROM orders o WHERE o.order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );
         if ($order === null || ($user_id !== null && (int) $order['user_id'] !== $user_id)) {

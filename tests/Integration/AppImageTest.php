@@ -17,6 +17,8 @@ final class AppImageTest extends TestCase
         foreach (array_keys(AppImage::SLOTS) as $slot) {
             $this->app_image_model->removeImage($slot, self::ADMIN_ID);
         }
+        SiteLogo::clearCache();
+        (new SiteLogo($this->db))->removeLogo(self::ADMIN_ID);   // the logo also comes with the app's pictures
     }
 
     public function testSlotsWithoutUploadUseTheAppsOwnPicture(): void

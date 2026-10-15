@@ -14,7 +14,7 @@ $extra_item_count = max(0, count($order['items']) - ORDER_CARD_PHOTOS);
             <a class="order-card__number" href="<?= e($order_link) ?>"><?= e($order['order_number']) ?></a>
             <p class="order-card__date"><?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
         </div>
-        <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(orderStatusLabel($order)) ?></span>
+        <span class="status-pill status-pill--<?= e(orderStatusTone($order)) ?>"><?= e(orderStatusLabel($order)) ?></span>
     </header>
 
     <div class="order-card__photos" aria-hidden="true">
@@ -34,6 +34,9 @@ $extra_item_count = max(0, count($order['items']) - ORDER_CARD_PHOTOS);
         <p class="order-card__summary">
             <?= e($order['item_count']) ?> bidhaa · <?= e(formatPieces($order['piece_count'])) ?>
             <strong><?= e(formatTzs($order['order_total'])) ?></strong>
+            <?php if ($order['payment']['is_balance_payment']) : ?>
+                <span class="order-card__balance">Salio la kulipa: <?= e(formatTzs($order['payment']['payment_amount'])) ?></span>
+            <?php endif; ?>
         </p>
         <div class="order-card__actions">
             <?php if (in_array($order['order_status'], ORDER_REORDER_STATUSES, true)) : ?>
@@ -41,7 +44,11 @@ $extra_item_count = max(0, count($order['items']) - ORDER_CARD_PHOTOS);
                     <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Agiza Tena
                 </button>
             <?php endif; ?>
-            <a class="btn btn-primary btn-sm" href="<?= e($order_link) ?>">Fuatilia</a>
+            <?php if ($order['payment']['can_submit_payment']) : ?>
+                <a class="btn btn-buy btn-sm" href="<?= e($order_link) ?>#payment-box"><i class="bi bi-wallet2" aria-hidden="true"></i> Lipa sasa</a>
+            <?php else : ?>
+                <a class="btn btn-primary btn-sm" href="<?= e($order_link) ?>">Fuatilia</a>
+            <?php endif; ?>
         </div>
     </footer>
 </article>

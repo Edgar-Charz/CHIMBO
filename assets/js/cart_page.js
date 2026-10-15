@@ -5,7 +5,7 @@
 (() => {
     'use strict';
 
-    const { cart, errorState, setLoading, toast } = CHIMBO;
+    const { cart, errorState, setLoading, toast, confirmDialog } = CHIMBO;
 
     const LOADING_LINES = 3;
 
@@ -29,7 +29,8 @@
     }
 
     clearButton.addEventListener('click', async () => {
-        if (!window.confirm('Una uhakika unataka kuondoa bidhaa zote kwenye kikapu?')) return;
+        const isSure = await confirmDialog('Bidhaa zote zitaondolewa kwenye kikapu.', { confirmText: 'Ndiyo, ondoa zote', isDanger: true });
+        if (!isSure) return;
 
         setLoading(clearButton, true);
         try {

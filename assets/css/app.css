@@ -3478,6 +3478,13 @@ body.is-focused {
     font-size: var(--chimbo-text-lg);
 }
 
+/* A paid order staff changed: the rest to pay, under the total */
+.order-card__balance {
+    display: block;
+    color: var(--chimbo-orange-dark, #b86e00);
+    font-weight: 600;
+}
+
 /* Malipo yangu (payments.php): a payment uses the order card, plus its reference and rejection reason */
 .payment-card__reference {
     margin: 0.5rem 0 0;

@@ -7,7 +7,7 @@ Update this file at the end of every work session. Newest entry on top.
 - **Next (backend session):** web, app and admin features complete for the MVP. Next: staging server + scheduled jobs → real SMS provider → payment aggregator (blueprint §13).
 - **Planned (designed, not built):** staff for one shop (blueprint §17.2) · smart QR link on the packing slip (blueprint R-24, §12.6) — build with the staging server; switching from ngrok to the real domain = changing `APP_URL`.
 - **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
-- **Committed:** everything up to 2026-10-15 on `main` in both repos (backend and app) — not pushed to GitHub yet
+- **Committed and pushed:** everything up to 2026-10-15 on `main` in both repos (backend ac6f826, app fdfe8c4)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
 - **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice · for push notifications: Firebase project + `google-services.json` + service-account key
 
@@ -30,6 +30,71 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-10-09 | **CHIMBO sells only its own products for now.** A marketplace for other sellers is planned for after launch (blueprint §17.1), decided once real customers show how they buy. |
 
 ## Session log
+
+### 2026-10-15 — App tests and analyzer clean after the parallel profile / orders redesign (backend session, at the user's request)
+- The other session's redesign left 3 app tests failing and 4 analyzer notes. Tests updated to the new screens: Oda Zangu tabs show counts and scroll sideways ("Zimefika (2)" — scrolled into view before tapping); Wasifu's edit and logout are icon buttons (found by their labels "Hariri Wasifu", "Toka kwenye Akaunti"). Profile files: import order and `const` fixed. `flutter analyze` clean; **150 app tests passing**.
+- Design note for the owner: on narrow phones (360 px) the Oda Zangu tab "Zimefika (n)" starts off-screen; customers swipe the tab row to reach it.
+
+### 2026-10-15 — Order status says the stage (backend session; admin, website and app files)
+- "Awaiting payment" looked the same whether or not the customer had sent money. Now the status says the stage: **Payment to check / Malipo yanakaguliwa** (payment sent, being checked), **Transport to confirm / Tunapima mzigo** (upcountry), **Balance to pay / Salio la kulipa** (paid order changed). Website: `orderStage()`, `orderStatusLabel()`, `orderStatusTone()`; admin: `adminOrderStatusBadge()` (orders list, order page); app: `Order.stageLabel()` (cards, tracking banner). Timeline steps keep the plain status words.
+- Website "Oda Zangu" card: when the customer can pay, the button is **"Lipa sasa"** (opens the order at the pay box, `#payment-box`) instead of "Fuatilia"; a balance shows "Salio la kulipa: TZS …" under the total. (The app's card already showed "Lipa sasa".)
+
+### 2026-10-15 — Staff edit orders, step 2: adding to a paid order (backend session; admin, website and app files at the user's request)
+- Paid order, not packed: Edit order → Products (and for upcountry the transport for the new load, with a reason). Higher total → **"Salio la kulipa"**: payment status `balance_due`, the customer pays only the balance with "Nimelipa" (website pay box "Lipa salio …", app "Lipa salio la …"), packing is blocked until it's confirmed; a rejected balance stays due. Lower total → **refund due** (Payments → Refunds due shows the amount; "Mark refunded" sends just that part); customer told "Tutakurudishia TZS …".
+- Migration 016 (`balance_due`, `order_refund_due`, `order_refunded_amount`); amount paid = confirmed payments − refunded. Dashboard "to pack" and refunds counts follow.
+- Tests: `OrderEditorTest` +2 (balance paid after a rejection, then packing; lower total → refund → edit again counts what was kept) — PHP suite passing; app +1.
+- Note: another session is editing the app at the same time (profile, cart, home…); both sessions edit app_sw/app_en.arb — keep an eye on the texts when both work.
+
+### 2026-10-15 — Staff edit orders, step 1 (backend session; admin, website and app files at the user's request)
+- Decision (blueprint R-29, §12.11, option A): **Edit order** — while unpaid: products (quantity / remove / add), delivery option, payment method, discount with a reason; until sent: address and phone; any time: private **staff notes**. The customer is told every change with the new total. Step 2 next: adding to a **paid** order with a balance to pay (and re-confirmed upcountry transport).
+- `OrderEditor` + migration 015 (`order_discount_note`, `order_staff_notes`). Pages: order page "Edit order" + Staff notes; admin/order_edit.php. Product rows moved to admin/assets/order_items.js (shared with "Add order").
+- Also fixed in "Add order": the delivery list used the old region rule (upcountry only showed for Dar); options now show their price rule ("Paid to the rider", "Free · pickup", "Region's estimate").
+- Discount shown with its reason on the receipt, website order page, admin order page and the app's totals (app: `Order.discountTotal / discountNote`).
+- Tests: `OrderEditorTest` (5) — 266 PHP tests passing; app +1.
+
+### 2026-10-15 — Staff can add payment methods (backend session; admin files)
+- Payments → Payment methods → **Add payment method**: type (mobile money / bank), name (e.g. HaloPesa, NMB Bank), account number and name, bank, instructions, order, on/off. The code orders store is made from the name. Cash can't be added (built-in "Lipa ukipokea" only); methods are switched off, never deleted.
+- Migration 014: the fixed code lists (ENUM) on payment_methods, orders and payments became text; the checks that only accepted the 5 codes and the two copied name lists are gone (`PaymentMethod::nameOf()`). The app and website already work from the method's type, so nothing to change there.
+- Tests: `PaymentTest` +1 (add HaloPesa, order and pay with it) — 261 PHP tests passing.
+
+### 2026-10-15 — Time to pay: one setting everywhere, fresh time after a rejected payment (backend session)
+- `Settings::unpaidOrderExpiryMinutes()` (fallback 24 h, `DEFAULT_UNPAID_ORDER_EXPIRY_MINUTES`) used for every deadline: order placed, upcountry transport confirmed, reactivated, payment rejected. Apps and website only show the order's saved `order_expires_at`; a changed setting applies to new deadlines.
+- Fix: a payment rejected after the deadline left the customer locked out (couldn't resend; the scheduled job expired it). Now rejecting gives at least the full time to pay from now.
+- Decision: orders made with "Add order" (staff) have **no deadline** on purpose — phone / walk-in customers may pay in person (noted in the setting's label and the code).
+- Tests: `PaymentTest` +1 — 260 PHP tests passing.
+
+### 2026-10-15 — Reactivate expired orders; "Agiza Tena" on expired orders (backend session; admin, website and app files at the user's request)
+- Decision (blueprint R-28, §12.10): staff (`orders.manage`) can reactivate an order that **expired** from non-payment, at **today's prices** (an ended offer no longer applies); transport stays as it was. Order page panel with a preview (old → today's price, new total, reasons it can't: switched off / short of stock / higher minimum). Stock reserved again, payment "unpaid", new time to pay, timeline "Imerejeshwa na CHIMBO" + note, customer notified "Oda imerejeshwa … Jumla: TZS … Lipa kabla ya …", audit `order.reactivated`.
+- Customers: "Agiza Tena" now also on expired orders (website and app); the expired texts tell them so ("… Bofya Agiza Tena … au wasiliana nasi").
+- Also fixed: "Add order" (staff) now records Bolt / upcountry-estimate / pickup like checkout (it treated every order as an old fixed fee and refused upcountry addresses). Shared `priceLinesToday()`.
+- Tests: `ReactivateOrderTest` (4) — 259 PHP tests; app 147 tests, analyze clean.
+
+### 2026-10-15 — Receipt and packing slip: address block on the right (backend session)
+- Receipt "Anwani ya uwasilishaji" and slip "Peleka kwa" now line up with the right edge (like "RISITI #…" and the delivery line). Pickup orders: the receipt shows "Kuchukua dukani" with the pickup address and hours (not the home address); the slip shows "Atachukua dukani" with only who collects (name · phone).
+
+### 2026-10-15 — Fix: order lines without photos (backend session)
+- An order keeps a copy of each line's photo from the moment it was placed, so products that got photos later showed a box icon (24 of 27 local order lines), and a replaced (deleted) photo would show broken. `Order::itemImageUrl()`: the order's own photo if its file exists, else the product's main photo today. Applies everywhere an order is shown (admin, website, app, receipts). Test in `OrderTest` — 255 PHP tests passing.
+
+### 2026-10-15 — Fix: the ⋮ row menu was cut off inside tables (backend session, admin file)
+- Cause: Bootstrap's own click handler (document, capture phase, loaded first) created the dropdown before ours, so our "fixed, keep on screen" settings were never used — the menu stayed inside the table's scrolling box (worst with 1–2 rows). Fix: our handler listens on `window` (capture), which runs first. Checked with the real Bootstrap/Popper in jsdom: the menu is now `position: fixed` with our settings (before: `absolute`, settings null).
+
+### 2026-10-15 — No delivery agent needed for Bolt or upcountry orders (backend session; admin file at the user's request)
+- "Move the order" → Dispatched asked for an agent on every order. Now only CHIMBO's own fixed-fee delivery needs one; Bolt (Dar) and upcountry (transport company) show "Delivery agent (optional)" with "No agent — sent with Bolt" / "… handed to the transport company". Pickup orders are never dispatched. Rule: `OrderManager::needsDeliveryAgent()`; the order page gets `needs_delivery_agent`.
+- Orders placed before 2026-10-15 as "Standard (5,000)" still need an agent (they were charged as CHIMBO's own delivery).
+- Tests: `BoltAndPickupTest` +2; `OrderTest` no longer expects an agent error for a Dar order — 254 PHP tests passing.
+
+### 2026-10-15 — SweetAlert dialogs instead of the browser's boxes (backend session; admin and website files at the user's request)
+- SweetAlert2 11.14.5 (MIT) stored in `assets/vendor/sweetalert2/` (no internet needed), loaded by the admin and the website.
+- Admin: every `data-confirm` ("Move this order? …") is a SweetAlert "Are you sure?" — red "Yes" for danger buttons; the form is sent only after "Yes" (`requestSubmit` keeps the clicked button's `form_action`). The "saved" / error bars at the top are SweetAlert popups ("saved" closes after 2.5 s). Field errors stay under their inputs.
+- Website: `CHIMBO.confirmDialog()` (Kiswahili "Una uhakika?" · Ndiyo / Hapana) for "Futa anwani" and "Ondoa bidhaa zote".
+- Website messages (decided with the owner): **errors** → popup "Imeshindikana" that stays until "Sawa" (every `toast(…, 'error')` goes through `errorPopup()`); **big moments** → success popup that closes by itself: login "Karibu!", "Nimelipa" received "Asante!", PIN changed (`successPopup()`, and `successPopupOnNextPage()` for actions that reload or change page — kept in sessionStorage); **small successes** ("Imeongezwa kwenye kikapu", vipendwa, copied) stay toasts. Admin errors also stay until OK (no closing by clicking beside them).
+- Checked headless (jsdom): popup shown, Cancel sends nothing, Yes sends the right action.
+- Then every admin message: one file `admin/assets/dialogs.js` (`AdminDialog.success / error / confirm`, `data-confirm`, `data-flash-message`, partial `admin/includes/flash_messages.php`). Login: "Welcome back — Karibu, {name}!" on the dashboard, wrong password → "Could not log in"; logout → "You are logged out" (`login.php?logged_out=1`); idle 30 min → "Session ended" (`?expired=1`, `AdminSession::requireLogin`). "Please correct the fields marked in red" (form_alert.php), table load errors and "Customer not saved" (Add order) are popups too; field errors stay under the inputs.
+
+### 2026-10-15 — Logo uploaded in the admin (backend session; admin, website and app files at the user's request)
+- Decision (blueprint R-27, §12.9): one logo upload in Admin → Settings → **Logo & pictures** replaces the CHIMBO mark on the website (header, footer, browser tab, bookmark icon), the admin's tab icons, receipts and packing slips, and the app's splash, login and Home header. The app's home-screen icon and Android's first launch screen can't change by upload — they go in with the next app release.
+- `SiteLogo` + `ImageUploader::saveSquareIcons()` (PNG 512/192/180/32, transparent square); stored as the `app_images` row `logo`; `GET /app-images` sends it as slot `logo`. App: `AppImageSlot.logo`, `AppLogo` / `AppLogoInline` show it (bundled mark as fallback), loaded during the splash.
+- Tests: `SiteLogoTest` (4) — 252 PHP tests passing; app +1 (logo slot) — 147 app tests passing, analyze clean (run with `flutter test --concurrency=2` if the PC is low on memory). Checked live: upload → the homepage, API and admin used the new files; remove → back to the built-in logo.
 
 ### 2026-10-15 — Two fixes: business verification badge, FAQ in the app (backend session; admin and app files at the user's request)
 - Admin: business verification has its own badge (`adminVerificationBadge()`): "Not checked" · "Waiting for check" · "Verified" · "Rejected" — "pending" no longer reads "Payment sent". The Customers filter uses the same words.

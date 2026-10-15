@@ -304,7 +304,7 @@ class OrderManager
             'address_street'       => 'required|string|min:3|max:160',
             'address_landmark'     => 'nullable|string|max:160',
             'delivery_method_id'   => 'required|int|min:1',
-            'payment_method'       => 'required|in:mpesa,airtel_money,mixx,bank,cod',
+            'payment_method'       => 'required|string|max:40',
             'order_customer_note'  => 'nullable|string|max:500',
             'items'                => 'required|array',
         ]);
@@ -388,57 +388,30 @@ class OrderManager
                 $this->db->execute('UPDATE users SET user_full_name = :name WHERE user_id = :id', ['name' => $data['user_full_name'], 'id' => $user_id]);
             }
 
-            $product_ids = array_map(fn (array $line): int => (int) $line['product_id'], $lines);
-            sort($product_ids);
-            $locked_products = $this->db->fetchAll(
-                "SELECT p.product_id, p.product_name, p.product_sku, p.seller_id, p.product_unit_label,
-                        p.product_moq, p.product_stock_quantity, image.product_image_thumb_path
-                 FROM products p
-                 JOIN sellers s ON s.seller_id = p.seller_id AND s.seller_status = 'active'
-                 JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
-                 LEFT JOIN product_images image ON image.product_id = p.product_id AND image.product_image_is_primary = 1
-                 WHERE p.product_id IN (" . implode(',', $product_ids) . ")
-                   AND p.product_is_active = 1 AND p.deleted_at IS NULL
-                 ORDER BY p.product_id FOR UPDATE"
-            );
-            $products = array_column($locked_products, null, 'product_id');
-            if (count($products) !== count($lines)) {
-                throw ApiException::validation(['items' => 'One or more selected products are no longer available.']);
+            $priced = $this->priceLinesToday($lines, true);
+            if ($priced['problems'] !== []) {
+                $problem = $priced['problems'][0];
+                throw $problem['type'] === 'stock'
+                    ? ApiException::conflict('OUT_OF_STOCK', $problem['message'])
+                    : ApiException::validation(['items' => $problem['message']]);
             }
+            $priced_lines = $priced['lines'];
+            $subtotal     = $priced['subtotal'];
 
-            $priced_lines = [];
-            $subtotal = 0;
-            $offers_by_id = (new ProductOffer($this->db))->getRunningPercents($product_ids);
-            foreach ($lines as $line) {
-                $product_id = (int) $line['product_id'];
-                $product = $products[$product_id];
-                $quantity = (int) $line['quantity'];
-                if ($quantity < (int) $product['product_moq']) {
-                    throw ApiException::validation(['items' => "{$product['product_name']}: minimum quantity is {$product['product_moq']}."]);
-                }
-                if ($quantity > (int) $product['product_stock_quantity']) {
-                    throw ApiException::conflict('OUT_OF_STOCK', "{$product['product_name']}: only {$product['product_stock_quantity']} available.");
-                }
-                $tiers = $this->db->fetchAll(
-                    'SELECT tier_min_quantity, tier_unit_price FROM product_price_tiers WHERE product_id = :id ORDER BY tier_min_quantity',
-                    ['id' => $product_id]
-                );
-                if (!$tiers) {
-                    throw ApiException::validation(['items' => "{$product['product_name']} has no price tiers and cannot be ordered."]);
-                }
-                $pricing = Pricing::priceLine($tiers, $quantity, $offers_by_id[$product_id] ?? 0);
-                $priced_lines[] = ['product' => $product, 'quantity' => $quantity, 'pricing' => $pricing];
-                $subtotal += $pricing['line_total'];
+            // Transport as at checkout (R-25/R-26): a fixed fee, 0 for Bolt (paid to the rider) and pickup, or the
+            // region's estimate that staff confirm later (0 when the region has none)
+            $delivery_fee = (int) ($delivery_method['delivery_method_fee'] ?? 0);
+            $fee_needs_confirmation = $delivery_method['delivery_fee_needs_confirmation'];
+            if ($fee_needs_confirmation && $data['payment_method'] === 'cod') {
+                throw ApiException::validation(['payment_method' => 'Upcountry transport is paid by phone or bank after the price is confirmed.']);
             }
-
-            $delivery_fee = (int) $delivery_method['delivery_method_fee'];
             $total = $subtotal + $delivery_fee;
             $this->order_model->checkCashOnDeliveryLimit($data['payment_method'], $total);
 
             if (isset($data['address_id'])) {
                 $address = (new Address($this->db))->getAddress($user_id, (int) $data['address_id']);
-                if ($address['region_id'] !== $data['region_id']
-                    || ($delivery_method['region_id'] !== null && $delivery_method['region_id'] !== $address['region_id'])) {
+                // The delivery methods were chosen for $data['region_id'] (getDeliveryMethods), so the address must be there
+                if ($address['region_id'] !== $data['region_id']) {
                     throw ApiException::validation(['delivery_method_id' => 'Choose a delivery method available for the selected address.']);
                 }
                 $data['address_recipient_name'] = $address['address_recipient_name'];
@@ -467,18 +440,20 @@ class OrderManager
             }
             $is_cash = $data['payment_method'] === 'cod';
             $initial_status = $is_cash ? 'confirmed' : 'pending_payment';
+            // No order_expires_at on purpose: a phone or walk-in customer may pay in person, so it never expires by itself
             $order_number = $this->order_model->newOrderNumber();
             $order_id = $this->db->insert(
                 'INSERT INTO orders (
                     order_number, user_id, order_channel, order_status, order_payment_method, order_payment_status,
-                    order_subtotal, order_delivery_fee, order_discount_total, order_total,
+                    order_subtotal, order_delivery_fee, order_delivery_fee_estimate, order_delivery_paid_to_rider, order_is_pickup,
+                    order_discount_total, order_total,
                     delivery_method_id, order_delivery_method_name, order_delivery_days_min, order_delivery_days_max,
                     order_estimated_delivery_date, order_ship_recipient_name, order_ship_phone, region_id,
                     order_ship_region_name, order_ship_district_name, order_ship_street, order_ship_landmark,
                     order_customer_note, order_placed_at
                  ) VALUES (
                     :number, :user, \'web\', :status, :payment_method, :payment_status,
-                    :subtotal, :delivery_fee, 0, :total,
+                    :subtotal, :delivery_fee, :fee_estimate, :paid_to_rider, :is_pickup, 0, :total,
                     :delivery_method, :delivery_name, :days_min, :days_max,
                     UTC_DATE() + INTERVAL :days_until DAY, :recipient, :ship_phone, :region,
                     :region_name, :district_name, :street, :landmark, :note, UTC_TIMESTAMP()
@@ -487,6 +462,9 @@ class OrderManager
                     'number' => $order_number, 'user' => $user_id, 'status' => $initial_status,
                     'payment_method' => $data['payment_method'], 'payment_status' => $is_cash ? 'cod_pending' : 'unpaid',
                     'subtotal' => $subtotal, 'delivery_fee' => $delivery_fee, 'total' => $total,
+                    'fee_estimate' => $fee_needs_confirmation ? $delivery_fee : null,
+                    'paid_to_rider' => (int) $delivery_method['delivery_fee_paid_to_rider'],
+                    'is_pickup' => (int) $delivery_method['delivery_method_is_pickup'],
                     'delivery_method' => $delivery_method['delivery_method_id'], 'delivery_name' => $delivery_method['delivery_method_name'],
                     'days_min' => $delivery_method['delivery_days_min'], 'days_max' => $delivery_method['delivery_days_max'],
                     'days_until' => $delivery_method['delivery_days_max'], 'recipient' => $data['address_recipient_name'],
@@ -544,6 +522,10 @@ class OrderManager
         );
         $order['delivery'] = $this->db->fetchOne('SELECT * FROM order_deliveries WHERE order_id = :order_id', ['order_id' => $order_id]);
         $order['allowed_next_statuses'] = self::allowedNextStatuses($order['order_status'], $order['delivery_method']['delivery_method_is_pickup']);
+        if (in_array($order['order_payment_status'], ['balance_due', 'pending'], true)) {   // a balance to pay first (R-29)
+            $order['allowed_next_statuses'] = array_values(array_diff($order['allowed_next_statuses'], ['packed']));
+        }
+        $order['needs_delivery_agent']  = self::needsDeliveryAgent($row);   // false: Bolt / transport company, no agent needed
         $order['can_confirm_delivery_fee'] = $order['order_status'] === 'pending_payment'
             && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation';
         $order['payments'] = (new Payment($this->db))->getPaymentsForOrder($order_id);   // every payment sent, newest first
@@ -573,12 +555,15 @@ class OrderManager
             $order = $this->order_model->lockOrder($order_id);
             $current_status = $order['order_status'];
 
+            if ($data['order_status'] === 'packed' && in_array($order['order_payment_status'], ['balance_due', 'pending'], true)) {
+                throw ApiException::conflict('BALANCE_DUE', 'The customer still has a balance to pay (or it is being checked) — pack it once it is paid.');
+            }
             if (!in_array($data['order_status'], self::allowedNextStatuses($current_status, (bool) $order['order_is_pickup']), true)) {
                 throw ApiException::conflict('STATUS_CHANGE_NOT_ALLOWED', "An order that is \"{$current_status}\" can't become \"{$data['order_status']}\".");
             }
 
             if ($data['order_status'] === 'dispatched') {
-                $this->assignDeliveryAgent($order_id, $data['delivery_agent_id'] ?? null);
+                $this->assignDeliveryAgent($order_id, $data['delivery_agent_id'] ?? null, self::needsDeliveryAgent($order));
             }
             if ($data['order_status'] === 'delivered') {
                 $this->db->execute(
@@ -592,6 +577,123 @@ class OrderManager
 
             (new AuditLog($this->db))->record('admin', $admin_id, 'order.status_changed', 'order', $order_id,
                 ['order_status' => $current_status], ['order_status' => $data['order_status'], 'status_note' => $data['status_note'] ?? null]);
+        });
+    }
+
+    /**
+     * Does sending this order need one of CHIMBO's delivery agents? Only for CHIMBO's own fixed-fee delivery. Bolt in
+     * Dar (the customer pays the rider) and upcountry (handed to the transport company) may have none (R-26); pickup
+     * orders are never sent. $order: an order row (lockOrder) with order_delivery_paid_to_rider,
+     * order_delivery_fee_estimate and order_is_pickup.
+     */
+    public static function needsDeliveryAgent(array $order): bool
+    {
+        return !$order['order_delivery_paid_to_rider'] && $order['order_delivery_fee_estimate'] === null && !$order['order_is_pickup'];
+    }
+
+    /**
+     * Reactivating an expired order (R-28): what would change, for the order page — each line's old and today's
+     * price, the new total, and why it can't be done (switched off, short of stock, a higher minimum).
+     * {can_reactivate, lines: [{product_name, quantity, unit_label, old_unit_price, new_unit_price, new_line_total,
+     *  offer_percent}], problems: [message], old_total, new_subtotal, delivery_fee, new_total}
+     */
+    public function previewReactivation(int $order_id): array
+    {
+        $order = $this->db->fetchOne(
+            'SELECT order_status, order_total, order_delivery_fee, order_discount_total FROM orders WHERE order_id = :id',
+            ['id' => $order_id]
+        );
+        if ($order === null) {
+            throw ApiException::notFound('Order not found.');
+        }
+        $items  = $this->orderLines($order_id);
+        $priced = $this->priceLinesToday($items, false);
+        $by_id  = array_column($priced['lines'], null, 'product_id');
+
+        $lines = array_map(fn (array $item): array => [
+            'product_name'   => $item['name'],
+            'quantity'       => (int) $item['quantity'],
+            'unit_label'     => $item['unit_label'],
+            'old_unit_price' => (int) $item['old_unit_price'],
+            'new_unit_price' => $by_id[$item['product_id']]['pricing']['unit_price'] ?? null,
+            'new_line_total' => $by_id[$item['product_id']]['pricing']['line_total'] ?? null,
+            'offer_percent'  => $by_id[$item['product_id']]['pricing']['offer_percent'] ?? 0,
+        ], $items);
+        $new_total = $priced['subtotal'] + (int) $order['order_delivery_fee'] - (int) $order['order_discount_total'];
+
+        return [
+            'can_reactivate' => $order['order_status'] === 'expired' && $priced['problems'] === [],
+            'lines'          => $lines,
+            'problems'       => array_column($priced['problems'], 'message'),
+            'old_total'      => (int) $order['order_total'],
+            'new_subtotal'   => $priced['subtotal'],
+            'delivery_fee'   => (int) $order['order_delivery_fee'],
+            'new_total'      => $new_total,
+        ];
+    }
+
+    /**
+     * "Reactivate order" (R-28): an expired order comes back at today's prices — stock reserved again, payment
+     * "unpaid", a new time to pay, a timeline row and the customer told the new total. Body: {"status_note": "…"}.
+     * Errors: ORDER_NOT_EXPIRED (409), CANNOT_REACTIVATE (409, the reasons in the message).
+     */
+    public function reactivateOrder(int $order_id, array $input, int $admin_id): void
+    {
+        $data = Validator::validate($input, ['status_note' => 'nullable|string|max:255']);
+
+        $this->db->transaction(function (Database $db) use ($order_id, $data, $admin_id) {
+            $order = $db->fetchOne(
+                'SELECT order_id, order_number, user_id, order_status, order_total, order_delivery_fee, order_discount_total
+                 FROM orders WHERE order_id = :id FOR UPDATE',
+                ['id' => $order_id]
+            );
+            if ($order === null) {
+                throw ApiException::notFound('Order not found.');
+            }
+            if ($order['order_status'] !== 'expired') {
+                throw ApiException::conflict('ORDER_NOT_EXPIRED', 'Only an order that expired (time to pay ran out) can be reactivated.');
+            }
+
+            $priced = $this->priceLinesToday($this->orderLines($order_id), true);
+            if ($priced['problems'] !== []) {
+                throw ApiException::conflict('CANNOT_REACTIVATE', 'Cannot reactivate: ' . implode(' ', array_column($priced['problems'], 'message')));
+            }
+
+            $stock = new ProductEditor($db);
+            foreach ($priced['lines'] as $line) {
+                $pricing = $line['pricing'];
+                $db->execute(
+                    'UPDATE order_items SET order_item_unit_price = :price, order_item_tier_min_quantity = :tier,
+                            order_item_offer_percent = :offer, order_item_line_total = :line_total
+                     WHERE order_id = :order_id AND product_id = :product_id',
+                    ['price' => $pricing['unit_price'], 'tier' => $pricing['tier_min_quantity'], 'offer' => $pricing['offer_percent'],
+                     'line_total' => $pricing['line_total'], 'order_id' => $order_id, 'product_id' => $line['product_id']]
+                );
+                $stock->changeStock($line['product_id'], -$line['quantity'], 'order_reserve', 'Order reactivated', $admin_id, 'order', $order_id);
+                $db->execute('UPDATE products SET product_sold_count = product_sold_count + :quantity WHERE product_id = :id',
+                    ['quantity' => $line['quantity'], 'id' => $line['product_id']]);
+            }
+
+            $total          = $priced['subtotal'] + (int) $order['order_delivery_fee'] - (int) $order['order_discount_total'];
+            $expiry_minutes = (new Settings($db))->unpaidOrderExpiryMinutes();
+            $db->execute(
+                "UPDATE orders
+                 SET order_status = 'pending_payment', order_payment_status = 'unpaid', order_subtotal = :subtotal, order_total = :total,
+                     order_cancelled_at = NULL, order_cancel_reason = NULL,
+                     order_expires_at = UTC_TIMESTAMP() + INTERVAL {$expiry_minutes} MINUTE
+                 WHERE order_id = :id",
+                ['subtotal' => $priced['subtotal'], 'total' => $total, 'id' => $order_id]
+            );
+            $this->order_model->recordStatus($order_id, 'pending_payment', 'admin', $admin_id,
+                trim('Imerejeshwa na CHIMBO. ' . ($data['status_note'] ?? '')));
+
+            $pay_by = localDateTime((string) $db->fetchValue('SELECT order_expires_at FROM orders WHERE order_id = :id', ['id' => $order_id]), 'd/m/Y, H:i');
+            (new Notification($db))->notifyUser((int) $order['user_id'], 'order_status', 'Oda imerejeshwa',
+                "Oda #{$order['order_number']} iko hai tena kwa bei za leo. Jumla: TZS " . number_format($total) . ". Lipa kabla ya {$pay_by}.",
+                ['order_id' => $order_id]);
+            (new AuditLog($db))->record('admin', $admin_id, 'order.reactivated', 'order', $order_id,
+                ['order_status' => 'expired', 'order_total' => (int) $order['order_total']],
+                ['order_status' => 'pending_payment', 'order_total' => $total, 'status_note' => $data['status_note'] ?? null]);
         });
     }
 
@@ -638,7 +740,7 @@ class OrderManager
             }
 
             $total          = (int) $order['order_subtotal'] + $fee - (int) $order['order_discount_total'];
-            $expiry_minutes = (new Settings($db))->getInt('unpaid_order_expiry_minutes', 30);
+            $expiry_minutes = (new Settings($db))->unpaidOrderExpiryMinutes();
             $db->execute(
                 'UPDATE orders
                  SET order_delivery_fee = :fee, order_total = :total, order_delivery_fee_note = :note,
@@ -694,8 +796,92 @@ class OrderManager
     }
 
     /** Dispatching needs an active delivery agent; the customer then sees their name and phone. */
-    private function assignDeliveryAgent(int $order_id, ?int $delivery_agent_id): void
+    /** An order's lines as [product_id, quantity] (+ name, unit, old price) for pricing again. */
+    private function orderLines(int $order_id): array
     {
+        return $this->db->fetchAll(
+            'SELECT product_id, order_item_quantity AS quantity, order_item_product_name AS name,
+                    order_item_unit_label AS unit_label, order_item_unit_price AS old_unit_price
+             FROM order_items WHERE order_id = :id ORDER BY order_item_id',
+            ['id' => $order_id]
+        );
+    }
+
+    /**
+     * Today's price for each line [product_id, quantity, name?, reserved?] (price levels + a running offer) — for
+     * orders staff create, reactivating an expired order and editing an order's items (OrderEditor). $lock: lock the
+     * product rows (inside a transaction). "reserved": stock this order already holds for the line (an edit may keep it).
+     * Returns {lines: [{product_id, product, quantity, pricing}], subtotal, problems: [{type, message}]}; type is
+     * unavailable · moq · stock · no_tiers. Problems are listed, not thrown, so the caller decides.
+     */
+    public function priceLinesToday(array $lines, bool $lock): array
+    {
+        $product_ids = array_map(fn (array $line): int => (int) $line['product_id'], $lines);
+        sort($product_ids);
+        $products = $product_ids === [] ? [] : array_column($this->db->fetchAll(
+            "SELECT p.product_id, p.product_name, p.product_sku, p.seller_id, p.product_unit_label,
+                    p.product_moq, p.product_stock_quantity, image.product_image_thumb_path
+             FROM products p
+             JOIN sellers s ON s.seller_id = p.seller_id AND s.seller_status = 'active'
+             JOIN categories c ON c.category_id = p.category_id AND c.category_is_active = 1
+             LEFT JOIN product_images image ON image.product_id = p.product_id AND image.product_image_is_primary = 1
+             WHERE p.product_id IN (" . implode(',', $product_ids) . ")
+               AND p.product_is_active = 1 AND p.deleted_at IS NULL
+             ORDER BY p.product_id" . ($lock ? ' FOR UPDATE' : '')
+        ), null, 'product_id');
+        $offers_by_id = (new ProductOffer($this->db))->getRunningPercents($product_ids);
+
+        $priced   = [];
+        $problems = [];
+        $subtotal = 0;
+        foreach ($lines as $line) {
+            $product_id = (int) $line['product_id'];
+            $quantity   = (int) $line['quantity'];
+            $product    = $products[$product_id] ?? null;
+            $name       = $product['product_name'] ?? ($line['name'] ?? "Product #{$product_id}");
+
+            $tiers = $product === null ? [] : $this->db->fetchAll(
+                'SELECT tier_min_quantity, tier_unit_price FROM product_price_tiers WHERE product_id = :id ORDER BY tier_min_quantity',
+                ['id' => $product_id]
+            );
+            $problem = match (true) {
+                $product === null                                 => ['unavailable', "{$name}: no longer available."],
+                $quantity < (int) $product['product_moq']         => ['moq', "{$name}: minimum quantity is {$product['product_moq']}."],
+                $quantity > $this->availableFor($product, $line)    => ['stock', "{$name}: only {$this->availableFor($product, $line)} available."],
+                $tiers === []                                     => ['no_tiers', "{$name} has no price tiers and cannot be ordered."],
+                default                                           => null,
+            };
+            if ($problem !== null) {
+                $problems[] = ['type' => $problem[0], 'message' => $problem[1]];
+                continue;
+            }
+
+            $pricing    = Pricing::priceLine($tiers, $quantity, $offers_by_id[$product_id] ?? 0);
+            $priced[]   = ['product_id' => $product_id, 'product' => $product, 'quantity' => $quantity, 'pricing' => $pricing];
+            $subtotal  += $pricing['line_total'];
+        }
+
+        return ['lines' => $priced, 'subtotal' => $subtotal, 'problems' => $problems];
+    }
+
+    /** Stock a line can use: what's free, plus what this order already holds for it (when editing). */
+    private function availableFor(array $product, array $line): int
+    {
+        return (int) $product['product_stock_quantity'] + (int) ($line['reserved'] ?? 0);
+    }
+
+    /** Records who took the order and when. $is_required = false: no agent is fine (Bolt, transport company). */
+    private function assignDeliveryAgent(int $order_id, ?int $delivery_agent_id, bool $is_required): void
+    {
+        if ($delivery_agent_id === null && !$is_required) {
+            $this->db->execute(
+                'INSERT INTO order_deliveries (order_id, delivery_agent_id, delivery_dispatched_at) VALUES (:order_id, NULL, UTC_TIMESTAMP())
+                 ON DUPLICATE KEY UPDATE delivery_agent_id = NULL, delivery_dispatched_at = UTC_TIMESTAMP()',
+                ['order_id' => $order_id]
+            );
+            return;
+        }
+
         $is_active_agent = $delivery_agent_id !== null && $this->db->fetchValue(
             'SELECT 1 FROM delivery_agents WHERE delivery_agent_id = :id AND delivery_agent_is_active = 1',
             ['id' => $delivery_agent_id]

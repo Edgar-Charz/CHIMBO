@@ -424,6 +424,35 @@ function adminStatusName(string $status, bool $is_pickup = false): string
     return ADMIN_STATUS_NAMES[$status] ?? ucfirst(str_replace('_', ' ', $status));
 }
 
+/**
+ * A delivery option's price in words, for staff choosing one ("Add order", "Edit order"): "Paid to the rider",
+ * "Free · pickup", "Region's estimate (confirmed later)" or the fixed fee. $method: Checkout::getDeliveryMethods() shape.
+ */
+function adminDeliveryOptionPrice(array $method): string
+{
+    return match (true) {
+        $method['delivery_fee_paid_to_rider']      => 'Paid to the rider',
+        $method['delivery_method_is_pickup']       => 'Free · pickup',
+        $method['delivery_fee_needs_confirmation'] => "Region's estimate (confirmed later)",
+        default                                    => adminMoney((int) $method['delivery_method_fee']),
+    };
+}
+
+/**
+ * An order's status badge that also says the stage: "Payment to check" (awaiting payment, but one was sent),
+ * "Transport to confirm" (upcountry), "Balance to pay" (paid order changed) — else the status itself.
+ */
+function adminOrderStatusBadge(string $order_status, string $payment_status, bool $is_transport_to_confirm, bool $is_pickup): string
+{
+    $stage = match (true) {
+        $order_status === 'pending_payment' && $payment_status === 'pending' => 'payment_to_check',
+        $order_status === 'pending_payment' && $is_transport_to_confirm     => 'transport_to_confirm',
+        $order_status === 'confirmed' && $payment_status === 'balance_due'  => 'balance_due',
+        default                                                             => null,
+    };
+    return adminStatusBadge($stage ?? $order_status, $is_pickup);
+}
+
 /** The transport line on admin pages: "Paid to the rider" (Bolt), "Pickup at the shop", or the fee. */
 function adminDeliveryFee(array $order): string
 {
@@ -599,10 +628,10 @@ function adminOfferPrice(int $price, int $offer_percent): string
     return adminMoney($price) . ' → ' . adminMoney(Pricing::offerPrice($price, $offer_percent));
 }
 
-/** 'airtel_money' → "Airtel Money". */
+/** 'airtel_money' → "Airtel Money" (the name in Payments → Payment methods, also for methods staff added). */
 function adminPaymentMethodName(string $payment_method): string
 {
-    return ADMIN_PAYMENT_METHOD_NAMES[$payment_method] ?? ucfirst(str_replace('_', ' ', $payment_method));
+    return (new PaymentMethod(Database::instance()))->nameOf($payment_method);
 }
 
 /** "Juma Mushi" → "JM" (for the round avatar in lists). */
@@ -677,6 +706,9 @@ const ADMIN_STATUS_TONES = [
     'active'     => 'success',
     'verified'   => 'success',
     'pending'    => 'warning',
+    'balance_due' => 'warning',
+    'payment_to_check'     => 'info',
+    'transport_to_confirm' => 'warning',
     'suspended'  => 'warning',
     'rejected'   => 'danger',
     'deleted'    => 'danger',
@@ -719,12 +751,15 @@ const ADMIN_STATUS_NAMES = [
     'pending'         => 'Payment sent',
     'in_transit'      => 'On the way',
     'cod_pending'     => 'Awaiting cash',
+    'balance_due'     => 'Balance to pay',
+    'payment_to_check'     => 'Payment to check',
+    'transport_to_confirm' => 'Transport to confirm',
 ];
 
 /** Order statuses in the order they happen (for filters). */
 const ADMIN_ORDER_STATUSES = ['pending_payment', 'confirmed', 'packed', 'dispatched', 'in_transit', 'delivered', 'cancelled', 'expired'];
 
-const ADMIN_PAYMENT_STATUSES = ['unpaid', 'pending', 'cod_pending', 'paid', 'failed', 'refunded', 'cancelled'];
+const ADMIN_PAYMENT_STATUSES = ['unpaid', 'pending', 'cod_pending', 'balance_due', 'paid', 'failed', 'refunded', 'cancelled'];
 
 /** The admin page that shows each kind of record ("?id=" pages get the record id added). */
 const ADMIN_ENTITY_PAGES = [
@@ -758,10 +793,3 @@ const ADMIN_PAYMENT_REVIEW_STATUSES = [
 /** Payment method types (payment_methods.payment_method_type). */
 const ADMIN_PAYMENT_METHOD_TYPES = ['mobile_money' => 'Mobile money', 'bank' => 'Bank', 'cash' => 'Cash'];
 
-const ADMIN_PAYMENT_METHOD_NAMES = [
-    'mpesa'        => 'M-Pesa',
-    'airtel_money' => 'Airtel Money',
-    'mixx'         => 'Mixx by Yas',
-    'bank'         => 'Bank',
-    'cod'          => 'Cash on delivery',
-];

@@ -30,10 +30,17 @@ class AppImage
         $this->uploader = $uploader ?? new ImageUploader();
     }
 
-    /** Public, for the apps and website: [{app_image_slot, app_image_url, updated_at}] — only slots with an uploaded picture. */
+    /**
+     * Public, for the apps and website: [{app_image_slot, app_image_url, updated_at}] — only slots with an uploaded
+     * picture. The uploaded logo comes as slot "logo" (512 px PNG, see SiteLogo).
+     */
     public function getImagesForApps(): array
     {
         $images = [];
+        $logo   = new SiteLogo($this->db);
+        if ($logo->getUrl() !== null) {
+            $images[] = ['app_image_slot' => SiteLogo::SLOT, 'app_image_url' => $logo->getUrl(), 'updated_at' => isoDate($logo->updatedAt())];
+        }
         foreach ($this->db->fetchAll('SELECT app_image_slot, app_image_path, updated_at FROM app_images ORDER BY app_image_slot') as $row) {
             if (isset(self::SLOTS[$row['app_image_slot']])) {
                 $images[] = [

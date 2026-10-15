@@ -1,13 +1,17 @@
 <?php
 
 /**
- * The payment methods customers can choose (M-Pesa, Airtel Money, Mixx, Benki, Lipa ukipokea)
- * and the "pay to" details staff enter for each (Lipa Namba / account number, account name, instructions).
+ * The payment methods customers can choose (M-Pesa, Airtel Money, Mixx, Benki, Lipa ukipokea, and any mobile money or
+ * bank method staff add) and the "pay to" details staff enter for each (Lipa Namba / account number, account name,
+ * instructions). What a method does comes from its type: mobile money / bank (pay first, staff check it) or cash
+ * (the one built-in "Lipa ukipokea" — staff can't add another).
  *
  * How to use it:
  *   $payment_method_model = new PaymentMethod(Database::instance());
  *   $payment_method_model->getActiveMethods();                         // checkout + order page (public shape)
+ *   $payment_method_model->createMethod($_POST, $admin_id);            // admin: a new mobile money or bank method
  *   $payment_method_model->updateMethod($payment_method_id, $_POST, $admin_id);   // admin
+ *   $payment_method_model->nameOf('mpesa');                            // "M-Pesa" (lists, receipts)
  */
 class PaymentMethod
 {
@@ -20,6 +24,9 @@ class PaymentMethod
         'payment_method_is_active'      => 'nullable|bool',      // checkbox
         'payment_method_sort_order'     => 'nullable|int|min:0|max:1000',
     ];
+
+    // The types staff can add (cash on delivery is built in and only once)
+    public const ADDABLE_TYPES = ['mobile_money' => 'Mobile money', 'bank' => 'Bank'];
 
     // All methods, read once per request (the table is tiny)
     private static ?array $cached_methods = null;
@@ -65,21 +72,45 @@ class PaymentMethod
         return $method === null ? null : $this->formatMethod($method);
     }
 
+    /** The name customers see for a code ("mpesa" → "M-Pesa"), also for switched-off methods; the code if unknown. */
+    public function nameOf(string $payment_method_code): string
+    {
+        return $this->allMethods()[$payment_method_code]['payment_method_name'] ?? $payment_method_code;
+    }
+
+    /**
+     * Adds a mobile money or bank method (e.g. "HaloPesa", "NMB Bank"). Its code — what orders store — is made from the
+     * name ("halopesa", "nmb-bank") and never changes. Returns the new payment_method_id.
+     */
+    public function createMethod(array $input, int $admin_id): int
+    {
+        $data = Validator::validate($input, self::RULES + ['payment_method_type' => 'required|in:' . implode(',', array_keys(self::ADDABLE_TYPES))]);
+        $values = $this->formValues($data) + ['payment_method_type' => $data['payment_method_type']];
+        if ($values['payment_method_is_active']) {
+            $this->checkReadyToSwitchOn($values);
+        }
+        $values['payment_method_code'] = Slug::unique($this->db, $values['payment_method_name'], 'payment_methods', 'payment_method_code', 'payment_method_id', null);
+
+        $payment_method_id = $this->db->insert(
+            'INSERT INTO payment_methods (payment_method_code, payment_method_name, payment_method_type, payment_method_account_name,
+                                          payment_method_account_number, payment_method_bank_name, payment_method_instructions,
+                                          payment_method_is_active, payment_method_sort_order)
+             VALUES (:payment_method_code, :payment_method_name, :payment_method_type, :payment_method_account_name,
+                     :payment_method_account_number, :payment_method_bank_name, :payment_method_instructions,
+                     :payment_method_is_active, :payment_method_sort_order)',
+            $values
+        );
+        self::$cached_methods = null;
+
+        (new AuditLog($this->db))->record('admin', $admin_id, 'payment_method.created', 'payment_method', $payment_method_id, null, $values);
+        return $payment_method_id;
+    }
+
     /** Saves the edit form. Switching on a mobile money or bank method needs its account number and name. */
     public function updateMethod(int $payment_method_id, array $input, int $admin_id): void
     {
-        $old  = $this->getMethodById($payment_method_id);
-        $data = Validator::validate($input, self::RULES);
-
-        $values = [
-            'payment_method_name'           => $data['payment_method_name'],
-            'payment_method_account_name'   => $data['payment_method_account_name'] ?? null,
-            'payment_method_account_number' => $data['payment_method_account_number'] ?? null,
-            'payment_method_bank_name'      => $data['payment_method_bank_name'] ?? null,
-            'payment_method_instructions'   => $data['payment_method_instructions'] ?? null,
-            'payment_method_is_active'      => (int) ($data['payment_method_is_active'] ?? false),
-            'payment_method_sort_order'     => $data['payment_method_sort_order'] ?? 0,
-        ];
+        $old    = $this->getMethodById($payment_method_id);
+        $values = $this->formValues(Validator::validate($input, self::RULES));
         if ($values['payment_method_is_active']) {
             $this->checkReadyToSwitchOn($values + ['payment_method_type' => $old['payment_method_type']]);
         }
@@ -108,6 +139,20 @@ class PaymentMethod
         $changed = (new RecordSwitch($this->db))->set('payment_methods', 'payment_method_id', $payment_method_id, 'payment_method_is_active', (int) $is_active, $admin_id, 'payment_method');
         self::$cached_methods = null;
         return $changed;
+    }
+
+    /** The checked form → the column values (the type and code are set once, on creation). */
+    private function formValues(array $data): array
+    {
+        return [
+            'payment_method_name'           => $data['payment_method_name'],
+            'payment_method_account_name'   => $data['payment_method_account_name'] ?? null,
+            'payment_method_account_number' => $data['payment_method_account_number'] ?? null,
+            'payment_method_bank_name'      => $data['payment_method_bank_name'] ?? null,
+            'payment_method_instructions'   => $data['payment_method_instructions'] ?? null,
+            'payment_method_is_active'      => (int) ($data['payment_method_is_active'] ?? false),
+            'payment_method_sort_order'     => $data['payment_method_sort_order'] ?? 0,
+        ];
     }
 
     /** Forgets the cached list (used by tests). */

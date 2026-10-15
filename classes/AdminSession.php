@@ -68,10 +68,12 @@ class AdminSession
     /** Returns the logged-in admin, or stops the page (login redirect or 403). */
     public static function requireLogin(?string $permission = null): array
     {
-        $admin = self::currentAdmin();
+        $had_login = Session::get('admin_id') !== null;
+        $admin     = self::currentAdmin();
 
         if ($admin === null) {
-            redirect(url('admin/login.php'));
+            // Logged in a moment ago but idle too long (or switched off): say why on the login page
+            redirect(url($had_login ? 'admin/login.php?expired=1' : 'admin/login.php'));
         }
 
         if ($permission !== null && !Admin::can($admin, $permission)) {

@@ -116,6 +116,30 @@ final class BoltAndPickupTest extends TestCase
         $this->assertStringContainsString('itatumwa hivi karibuni', $this->latestNotificationBody());
     }
 
+    public function testABoltOrderIsSentWithoutAnAgent(): void
+    {
+        $order = $this->placeOrder('standard', $this->addressIn('Dar es Salaam'));
+        $this->payAndConfirm($order['order_id']);
+        $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
+        $this->assertFalse($this->order_manager->getOrderForAdmin($order['order_id'])['needs_delivery_agent']);
+
+        $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'dispatched'], self::ADMIN_ID);   // no agent chosen
+
+        $sent = $this->order_model->getOrder($this->user_id, $order['order_id']);
+        $this->assertSame('dispatched', $sent['order_status']);
+        $this->assertNull($sent['delivery_agent']);
+    }
+
+    public function testOnlyCHIMBOsOwnFixedFeeDeliveryNeedsAnAgent(): void
+    {
+        $order = fn (array $changes): array => $changes + ['order_delivery_paid_to_rider' => 0, 'order_delivery_fee_estimate' => null, 'order_is_pickup' => 0];
+
+        $this->assertTrue(OrderManager::needsDeliveryAgent($order([])));                                    // own delivery, fixed fee
+        $this->assertFalse(OrderManager::needsDeliveryAgent($order(['order_delivery_paid_to_rider' => 1])));  // Bolt
+        $this->assertFalse(OrderManager::needsDeliveryAgent($order(['order_delivery_fee_estimate' => 15000]))); // upcountry company
+        $this->assertFalse(OrderManager::needsDeliveryAgent($order(['order_is_pickup' => 1])));             // collected
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private function addressIn(string $region_name): int

@@ -5,7 +5,7 @@
  * navigation, cart drawer, toasts and scripts. Expects $page (set up by header.php).
  */
 
-$shared_scripts = ['vendor/bootstrap/bootstrap.bundle.min.js', 'js/chimbo.js', 'js/cart.js', 'js/wishlist.js'];
+$shared_scripts = ['vendor/bootstrap/bootstrap.bundle.min.js', 'vendor/sweetalert2/sweetalert2.all.min.js', 'js/chimbo.js', 'js/cart.js', 'js/wishlist.js'];
 if (!$page['is_focused']) {
     $shared_scripts[] = 'js/header.js'; // search, bell and logout live in the full header only
 }

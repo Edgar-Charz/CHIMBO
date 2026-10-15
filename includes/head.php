@@ -23,7 +23,9 @@ $page_title = $page['title'] === SHOP_NAME ? SHOP_NAME . ' — ' . SHOP_TAGLINE 
     <meta property="og:description" content="<?= e($page['description']) ?>">
     <meta property="og:image" content="<?= e($page['image']) ?>">
 
-    <link rel="icon" type="image/png" href="<?= e(asset('img/favicon.png')) ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= e(iconUrl('32')) ?>">
+    <link rel="icon" type="image/png" sizes="192x192" href="<?= e(iconUrl('192')) ?>">
+    <link rel="apple-touch-icon" href="<?= e(iconUrl('180')) ?>">
     <link rel="preload" href="<?= e(url('assets/fonts/poppins-regular.woff2')) ?>" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="<?= e(asset('vendor/bootstrap/bootstrap.min.css')) ?>">
     <link rel="stylesheet" href="<?= e(asset('vendor/bootstrap-icons/bootstrap-icons.min.css')) ?>">

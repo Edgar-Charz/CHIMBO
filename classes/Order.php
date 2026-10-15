@@ -22,7 +22,7 @@ class Order
         'in_transit'      => ['Oda iko njiani', 'Oda #{number} inakuja kwako.'],
         'delivered'       => ['Oda imewasili', 'Oda #{number} imefika. Asante kwa kununua na CHIMBO!'],
         'cancelled'       => ['Oda imesitishwa', 'Oda #{number} imesitishwa.'],
-        'expired'         => ['Oda imeisha muda', 'Oda #{number} imesitishwa kwa sababu malipo hayakukamilika.'],
+        'expired'         => ['Oda imeisha muda', 'Oda #{number} imesitishwa kwa sababu malipo hayakukamilika. Unaweza kuagiza tena kwa "Agiza Tena", au wasiliana nasi.'],
     ];
 
     // A pickup order ("Nitachukua mwenyewe dukani", R-26) uses the same statuses with its own words
@@ -50,7 +50,7 @@ class Order
         $data = Validator::validate($input, [
             'address_id'          => 'required|int|min:1',
             'delivery_method_id'  => 'required|int|min:1',
-            'payment_method'      => 'required|in:mpesa,airtel_money,mixx,bank,cod',
+            'payment_method'      => 'required|string|max:40',
             'expected_total'      => 'required|int|min:0',
             'order_customer_note' => 'nullable|string|max:500',
         ]);
@@ -234,7 +234,8 @@ class Order
     public function lockOrder(int $order_id, ?int $user_id = null): array
     {
         $order = $this->db->fetchOne(
-            'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total, order_is_pickup
+            'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total, order_is_pickup,
+                    order_delivery_paid_to_rider, order_delivery_fee_estimate
              FROM orders WHERE order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );
@@ -244,10 +245,15 @@ class Order
         return $order;
     }
 
+    // What the customer has paid for an order (alias o): confirmed payments minus money given back after a change
+    public const AMOUNT_PAID_SQL = "(SELECT COALESCE(SUM(paid.payment_amount), 0) FROM payments paid
+                                     WHERE paid.order_id = o.order_id AND paid.payment_status = 'confirmed') - o.order_refunded_amount";
+
     /** The select used for every order read (customer and staff). */
     public function orderSelectSql(): string
     {
-        return 'SELECT o.*, a.delivery_agent_full_name, a.delivery_agent_phone, a.delivery_agent_photo_path
+        return 'SELECT o.*, ' . self::AMOUNT_PAID_SQL . ' AS order_amount_paid,
+                       a.delivery_agent_full_name, a.delivery_agent_phone, a.delivery_agent_photo_path
                 FROM orders o
                 LEFT JOIN order_deliveries d ON d.order_id = o.order_id
                 LEFT JOIN delivery_agents a  ON a.delivery_agent_id = d.delivery_agent_id';
@@ -260,7 +266,13 @@ class Order
             return [];
         }
         $order_ids   = implode(', ', array_map(fn (array $row) => (int) $row['order_id'], $rows)); // whole numbers, safe in SQL
-        $items_by_id = $this->groupByOrder($this->db->fetchAll("SELECT * FROM order_items WHERE order_id IN ({$order_ids}) ORDER BY order_item_id"));
+        // With each line, the product's main photo today: the fallback when the order has none (see itemImageUrl())
+        $items_by_id = $this->groupByOrder($this->db->fetchAll(
+            "SELECT oi.*, image.product_image_thumb_path AS current_image_path
+             FROM order_items oi
+             LEFT JOIN product_images image ON image.product_id = oi.product_id AND image.product_image_is_primary = 1
+             WHERE oi.order_id IN ({$order_ids}) ORDER BY oi.order_item_id"
+        ));
         $events_by_id = $this->groupByOrder($this->db->fetchAll(
             "SELECT order_id, order_status, status_note, created_at FROM order_status_history
              WHERE order_id IN ({$order_ids}) ORDER BY status_history_id"
@@ -292,7 +304,7 @@ class Order
         $address        = (new Address($this->db))->getAddress($user_id, $data['address_id']);
         $is_cash        = $data['payment_method'] === 'cod';
         $status         = $is_cash ? 'confirmed' : 'pending_payment';
-        $expiry_minutes = (new Settings($this->db))->getInt('unpaid_order_expiry_minutes', 30);
+        $expiry_minutes = (new Settings($this->db))->unpaidOrderExpiryMinutes();
 
         // Upcountry transport (R-25): the fee is the region's estimate until staff confirm it; the customer can only
         // pay after that, so there's no time limit yet — and no cash on delivery with a price still to confirm.
@@ -566,6 +578,7 @@ class Order
             'order_subtotal'                => (int) $row['order_subtotal'],
             'order_delivery_fee'            => (int) $row['order_delivery_fee'],
             'order_discount_total'          => (int) $row['order_discount_total'],
+            'order_discount_note'           => $row['order_discount_note'],   // why staff gave the discount (shown with it)
             'order_total'                   => (int) $row['order_total'],
             'order_placed_at'               => isoDate($row['order_placed_at']),
             'order_estimated_delivery_date' => $row['order_estimated_delivery_date'],
@@ -608,7 +621,7 @@ class Order
                 'product_id'                   => (int) $item['product_id'],
                 'product_name'                 => $item['order_item_product_name'],
                 'order_item_sku'               => $item['order_item_sku'],
-                'product_image_url'            => $item['order_item_image_path'] ? url($item['order_item_image_path']) : null,
+                'product_image_url'            => self::itemImageUrl($item),
                 'order_item_unit_label'        => $item['order_item_unit_label'],
                 'order_item_quantity'          => (int) $item['order_item_quantity'],
                 'order_item_unit_price'        => (int) $item['order_item_unit_price'],
@@ -647,6 +660,26 @@ class Order
         };
     }
 
+    /**
+     * An order line's photo: the one copied when ordering, else the product's main photo today — for products that got
+     * their photo after the order was placed, or whose old photo file was replaced and deleted. Null: no photo at all.
+     */
+    private static function itemImageUrl(array $item): ?string
+    {
+        foreach ([$item['order_item_image_path'], $item['current_image_path'] ?? null] as $path) {
+            if ($path !== null && $path !== '' && is_file(BASE_PATH . '/' . $path)) {
+                return url($path);
+            }
+        }
+        return null;
+    }
+
+    /** A paid order that staff added to: confirmed, waiting for the rest (an order row). */
+    public static function isBalanceDue(array $row): bool
+    {
+        return $row['order_status'] === 'confirmed' && $row['order_payment_status'] === 'balance_due';
+    }
+
     /** "fixed" (nothing to confirm), "awaiting_confirmation" or "confirmed" — from an order row. */
     public static function deliveryFeeStatus(array $row): string
     {
@@ -659,19 +692,25 @@ class Order
 
     private function formatPayment(array $row, ?array $latest_payment): array
     {
-        $can_submit = $row['order_status'] === 'pending_payment'
+        $is_first_payment = $row['order_status'] === 'pending_payment'
             && $row['order_payment_status'] === 'unpaid'
             && $row['order_payment_method'] !== 'cod'
             && self::deliveryFeeStatus($row) !== 'awaiting_confirmation'   // staff confirm the transport price first
             && ($row['order_expires_at'] === null || $row['order_expires_at'] > gmdate('Y-m-d H:i:s'));
+        // Staff added to a paid order (R-29): the customer pays only the difference ("Salio la kulipa")
+        $is_balance  = self::isBalanceDue($row);
+        $amount_paid = (int) ($row['order_amount_paid'] ?? 0);
 
         return [
             'payment_method'     => (new PaymentMethod($this->db))->getDetailsByCode($row['order_payment_method']),
-            'payment_amount'     => (int) $row['order_total'],
+            'payment_amount'     => $is_balance ? (int) $row['order_total'] - $amount_paid : (int) $row['order_total'],   // what to pay now
             'payment_note_hint'  => $row['order_number'],   // ask the customer to write this as the payment's reference/description
-            'can_submit_payment' => $can_submit,
-            // "Badilisha njia ya malipo": the same moment, when there is another method to switch to
-            'can_change_payment_method' => $can_submit && count((new PaymentMethod($this->db))->getActiveCodes()) > 1,
+            'can_submit_payment' => $is_first_payment || $is_balance,
+            'is_balance_payment' => $is_balance,            // true: "Salio la kulipa" — the rest is already paid
+            'amount_paid'        => $amount_paid,
+            'refund_due'         => (int) $row['order_refund_due'],   // money CHIMBO will give back after a change
+            // "Badilisha njia ya malipo": before the first payment, when there is another method to switch to
+            'can_change_payment_method' => $is_first_payment && count((new PaymentMethod($this->db))->getActiveCodes()) > 1,
             'latest_payment'     => $latest_payment === null ? null : [
                 'payment_id'            => (int) $latest_payment['payment_id'],
                 'payment_payer_account' => $latest_payment['payment_payer_account'],

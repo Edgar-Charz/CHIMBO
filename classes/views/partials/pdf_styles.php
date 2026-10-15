@@ -6,6 +6,7 @@
     body { font-family: 'DejaVu Sans', sans-serif; font-size: 11px; color: #1f2a24; }
     .header { background: #0e3b2a; color: #fff; padding: 16px 20px; }
     .brand { font-size: 24px; font-weight: bold; letter-spacing: 1px; }
+    .brand-logo { width: 44px; height: 44px; float: left; margin-right: 10px; }
     .brand-orange { color: #f39200; }
     .tagline { font-size: 8px; letter-spacing: 1px; margin-top: 2px; color: #d7e4dc; }
     .title { font-size: 16px; font-weight: bold; text-align: right; }

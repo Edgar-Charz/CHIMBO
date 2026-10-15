@@ -23,8 +23,7 @@ adminDataTablesJson($pagination, fn (array $order): array => [
         . '<div class="small text-muted">' . e(Phone::format($order['user_phone'])) . '</div>',
     'region'   => e($order['order_ship_region_name'])
         . ($order['order_is_pickup'] ? '<div class="small text-muted"><i class="bi bi-shop"></i> Pickup</div>' : ''),
-    'status'   => adminStatusBadge($order['order_status'], (bool) $order['order_is_pickup'])
-        . ($order['is_transport_to_confirm'] ? '<div class="small order-fee-to-confirm"><i class="bi bi-truck"></i> Transport price to confirm</div>' : ''),
+    'status'   => adminOrderStatusBadge($order['order_status'], $order['order_payment_status'], (bool) $order['is_transport_to_confirm'], (bool) $order['order_is_pickup']),
     'payment'  => adminStatusBadge($order['order_payment_status'])
         . '<div class="small text-muted">' . e(adminPaymentMethodName($order['order_payment_method'])) . '</div>',
     'items'    => e(number_format((int) $order['item_count'])),

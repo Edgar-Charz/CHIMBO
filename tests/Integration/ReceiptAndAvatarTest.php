@@ -89,6 +89,7 @@ final class ReceiptAndAvatarTest extends TestCase
     {
         $order       = (new OrderManager($this->db))->getOrderForAdmin($order_id);
         $qr_code_uri = 'data:image/png;base64,';
+        $logo_uri    = null;
         ob_start();
         require BASE_PATH . '/classes/views/packing_slip.php';
         return (string) ob_get_clean();

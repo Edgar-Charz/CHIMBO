@@ -9,7 +9,7 @@
             <div class="row g-4">
                 <div class="col-12 col-lg-4">
                     <a class="site-logo site-logo--light" href="<?= e(url('')) ?>">
-                        <img class="site-logo__mark" src="<?= e(asset('img/logo-mark.webp')) ?>" width="40" height="40" alt="">
+                        <img class="site-logo__mark" src="<?= e(logoUrl()) ?>" width="40" height="40" alt="">
                         <span class="site-logo__word"><?= e(SHOP_NAME) ?></span>
                     </a>
                     <p class="site-footer__tagline"><?= e(SHOP_TAGLINE) ?></p>

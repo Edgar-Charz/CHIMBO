@@ -51,7 +51,7 @@
                     payment_payer_account: payerIsPhone ? phone.toInternational(payerInput.value) : payerInput.value.trim(),
                     payment_reference: referenceInput.value.trim(),
                 }, { silent: true }));
-                toast('Asante! Tumepokea uthibitisho wako, tunaukagua sasa.', 'success');
+                CHIMBO.successPopupOnNextPage('Tumepokea uthibitisho wako wa malipo, tunaukagua sasa. Tutakujulisha.', 'Asante!');
                 window.location.reload();
             } catch (error) {
                 if (STATE_CHANGED_CODES.includes(error.code)) reloadSoon();

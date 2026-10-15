@@ -15,14 +15,6 @@ use Dompdf\Options;
  */
 class Receipt
 {
-    public const PAYMENT_METHOD_NAMES = [
-        'mpesa'        => 'M-Pesa',
-        'airtel_money' => 'Airtel Money',
-        'mixx'         => 'Mixx by Yas',
-        'bank'         => 'Benki',
-        'cod'          => 'Lipa ukipokea',
-    ];
-
     public const PAYMENT_STATUS_NAMES = [
         'unpaid'      => 'Haijalipwa',
         'pending'     => 'Inasubiri malipo',
@@ -96,6 +88,8 @@ class Receipt
     /** Fills a template in classes/views/ with these variables (the templates escape every value with e()). */
     private function renderHtml(string $template, array $variables): string
     {
+        // The uploaded logo, else the built-in mark (PDFs need the picture inside the file)
+        $logo_uri = (new SiteLogo($this->db))->pdfDataUri(BASE_PATH . '/admin/assets/img/favicon-192.png');
         extract($variables);
         ob_start();
         require BASE_PATH . "/classes/views/{$template}.php";

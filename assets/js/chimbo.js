@@ -16,6 +16,10 @@
     const MESSAGE_NETWORK_ERROR = 'Hakuna mtandao. Angalia intaneti yako kisha ujaribu tena.';
     const MESSAGE_INVALID_RESPONSE = 'Kuna tatizo upande wetu. Tafadhali jaribu tena baada ya muda mfupi.';
     const TOAST_ICONS = { info: 'info-circle-fill', success: 'check-circle-fill', error: 'exclamation-circle-fill' };
+    const SUCCESS_POPUP_CLOSES_AFTER_MS = 2500;
+    const NEXT_PAGE_MESSAGE_KEY = 'chimbo_next_page_message';
+    const GREEN = '#0e3b2a';
+    const RED = '#b42318';
 
     const numberFormatter = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
@@ -212,9 +216,73 @@
         });
     }
 
+    // ------------------------------------------------------------------ Popups (SweetAlert)
+    // Errors and big moments are popups; small successes ("added to cart") stay toasts.
+
+    const popup = Swal.mixin({
+        confirmButtonText: 'Sawa',
+        confirmButtonColor: GREEN,
+        cancelButtonColor: '#6c757d',
+        reverseButtons: true,
+    });
+
+    /**
+     * "Una uhakika?" (instead of the browser's confirm box). Resolves true for "Ndiyo".
+     * isDanger: a red "Ndiyo" for removing / deleting.
+     */
+    async function confirmDialog(message, { confirmText = 'Ndiyo', cancelText = 'Hapana', isDanger = false } = {}) {
+        const result = await popup.fire({
+            icon: isDanger ? 'warning' : 'question',
+            title: 'Una uhakika?',
+            text: message,
+            showCancelButton: true,
+            confirmButtonText: confirmText,
+            cancelButtonText: cancelText,
+            confirmButtonColor: isDanger ? RED : GREEN,
+        });
+        return result.isConfirmed;
+    }
+
+    /** Why something failed: stays until "Sawa" (no timer; a tap beside it doesn't close it unread). */
+    function errorPopup(message, title = 'Imeshindikana') {
+        return popup.fire({ icon: 'error', title, text: message, allowOutsideClick: false });
+    }
+
+    /** A big moment (logged in, PIN changed, payment sent): closes by itself, or "Sawa" sooner. */
+    function successPopup(message, title = 'Hongera!') {
+        return popup.fire({ icon: 'success', title, text: message, timer: SUCCESS_POPUP_CLOSES_AFTER_MS, timerProgressBar: true });
+    }
+
+    /** The same, shown when the next page opens (for actions that move to another page or reload it). */
+    function successPopupOnNextPage(message, title = 'Hongera!') {
+        try {
+            sessionStorage.setItem(NEXT_PAGE_MESSAGE_KEY, JSON.stringify({ message, title }));
+        } catch {
+            // storage blocked: the page change itself shows it worked
+        }
+    }
+
+    function showNextPageMessage() {
+        let saved = null;
+        try {
+            saved = JSON.parse(sessionStorage.getItem(NEXT_PAGE_MESSAGE_KEY) ?? 'null');
+            sessionStorage.removeItem(NEXT_PAGE_MESSAGE_KEY);
+        } catch {
+            return;
+        }
+        if (saved?.message) {
+            successPopup(saved.message, saved.title);
+        }
+    }
+
     // ------------------------------------------------------------------ Toasts
 
+    /** A small message in the corner for 4 seconds. An error becomes a popup instead (errorPopup). */
     function toast(message, type = 'info') {
+        if (type === 'error') {
+            errorPopup(message);
+            return;
+        }
         const region = document.querySelector('[data-toast-region]');
         const toastElement = el('div', { className: `chimbo-toast chimbo-toast--${type}`, attrs: { role: type === 'error' ? 'alert' : 'status' } }, [
             icon(TOAST_ICONS[type], 'chimbo-toast__icon'),
@@ -487,6 +555,8 @@
         return el('div', { className: 'quantity-stepper' }, [decreaseButton, input, increaseButton]);
     }
 
+    showNextPageMessage();
+
     window.CHIMBO = {
         config,
         api,
@@ -504,6 +574,10 @@
         errorState,
         setLoading,
         toast,
+        confirmDialog,
+        errorPopup,
+        successPopup,
+        successPopupOnNextPage,
         offerCountdown,
         offerEndedEvent: OFFER_ENDED_EVENT,
         offerTag,

@@ -23,7 +23,7 @@ This file lists only endpoints that **exist and are tested**. The full plan is i
 | Method | Path | Answer |
 |---|---|---|
 | GET | `/support` | `{support_phone, support_whatsapp, support_whatsapp_url, support_hours, help_questions: [{question, answer}]}` (the same "Maswali ya mara kwa mara" as the website; "Ninalipaje?" follows the switched-on payment methods) — "Msaada": call button `tel:`, WhatsApp button = `support_whatsapp_url` |
-| GET | `/app-images` | `[{app_image_slot, app_image_url, updated_at}]` — pictures staff uploaded for the app's fixed screens. Slots: `onboarding_products`, `onboarding_wholesale`, `onboarding_delivery`, `auth_welcome`, `auth_verify`, `auth_business`, `order_success`. A slot missing from the list → use the picture built into the app. A new upload always has a new URL (cache by URL) |
+| GET | `/app-images` | `[{app_image_slot, app_image_url, updated_at}]` — pictures staff uploaded for the app's fixed screens. Slots: `logo` (the logo uploaded in the admin — a square 512 px PNG for the splash, login and Home header; R-27), `onboarding_products`, `onboarding_wholesale`, `onboarding_delivery`, `auth_welcome`, `auth_verify`, `auth_business`, `order_success`. A slot missing from the list → use the picture built into the app. A new upload always has a new URL (cache by URL) |
 | GET | `/pages/terms` · `/pages/privacy` | `{page_title, page_body, updated_at}` — `page_body` is plain text, paragraphs separated by an empty line (escape it, then split on `\n\n`). Other names → 404 `NOT_FOUND` |
 
 ## Locations
@@ -259,7 +259,9 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
              "latest_payment": {"payment_id": 4, "payment_payer_account": "+255712000111", "payment_reference": "QJK3X7ABC1",
                                 "payment_status": "submitted", "payment_review_note": null, "created_at": "…"}}}
 ```
-- `order_status`: `pending_payment`, `confirmed`, `packed`, `dispatched`, `in_transit`, `delivered`, `cancelled`, `expired`. Cash on delivery starts at `confirmed`.
+- `payment.is_balance_payment` (R-29): staff added to the paid order — `payment.payment_amount` is only the balance ("Salio la kulipa"), `payment.amount_paid` what's in; the same "Nimelipa" form pays it. `payment.refund_due` > 0: CHIMBO will send that much back ("Tutakurudishia"). `order_payment_status` can be `balance_due`.
+- `order_discount_total` / `order_discount_note`: a discount staff gave and why (R-29) — show "Punguzo (reason)" in the totals when it's above 0.
+- `order_status`: `pending_payment`, `confirmed`, `packed`, `dispatched`, `in_transit`, `delivered`, `cancelled`, `expired`. Cash on delivery starts at `confirmed`. An `expired` order offers "Agiza Tena" (`POST /orders/{id}/reorder`, today's prices); staff can also reactivate it (R-28) — it then comes back as `pending_payment` / `unpaid` with today's prices, a new `order_expires_at` and a timeline row "Imerejeshwa na CHIMBO" (notification "Oda imerejeshwa").
 - `order_payment_status`: `unpaid`, `pending`, `paid`, `cod_pending` (cash to collect on delivery), `refunded`, `failed`, `cancelled` (the order was cancelled/expired before payment — nothing is owed).
 - `events` = the "Fuatilia Oda" timeline (every status reached, with its time).
 - `delivery_agent` (from `dispatched` on): `{delivery_agent_full_name, delivery_agent_phone, delivery_agent_photo_url}`.
@@ -267,7 +269,7 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 - `GET /home` with a login now also fills `recently_ordered` ("Uliagiza Hivi Karibuni").
 
 **Paying by mobile money or bank (checked by CHIMBO staff until a provider is connected)**
-1. The order is placed as `pending_payment` / `unpaid` with `order_expires_at` (24 hours by default).
+1. The order is placed as `pending_payment` / `unpaid` with `order_expires_at` (the admin's "time to pay" setting, 24 hours by default; orders staff create have none). After a rejected payment the customer gets at least that time again from the rejection.
 2. Order screen, while `payment.can_submit_payment`: show the pay-to box — "Lipa **TZS {payment_amount}** kwa {payment_method_name}: **{payment_method_account_number}** ({payment_method_account_name})", the bank name for banks, `payment_method_instructions`, and "Andika **{payment_note_hint}** kama maelezo/kumbukumbu" — then the **"Nimelipa"** form (number paid from + confirmation code from the SMS).
 3. After sending: `order_payment_status` = `pending`, `latest_payment.payment_status` = `submitted` → show "Tunakagua malipo yako". Cancelling is blocked while it is checked (`can_cancel` false).
 4. Staff confirm → order `confirmed`, payment `paid` (notification "Oda imethibitishwa"). Staff reject → payment `unpaid` again, `latest_payment.payment_status` = `rejected` with `payment_review_note` (show it), notification type `payment`, and the form is shown again.

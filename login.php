@@ -46,7 +46,7 @@ require __DIR__ . '/includes/header.php';
             <h2 class="auth-card__headline">Bidhaa za duka lako kwa bei za jumla</h2>
             <ul class="auth-card__benefits">
                 <li><i class="bi bi-tags" aria-hidden="true"></i> Bei hushuka kadri unavyonunua zaidi</li>
-                <li><i class="bi bi-cash-coin" aria-hidden="true"></i> Lipa pesa taslimu mzigo ukifika</li>
+                <li><i class="bi bi-cash-coin" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                 <li><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Agiza tena kwa kubofya mara moja</li>
             </ul>
         </aside>

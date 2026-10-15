@@ -61,6 +61,37 @@ final class PaymentTest extends TestCase
 
     // ------------------------------------------------------------------ payment methods
 
+    public function testStaffAddAMethodAndCustomersCanPayWithIt(): void
+    {
+        $model = new PaymentMethod($this->db);
+        $form  = ['payment_method_type' => 'mobile_money', 'payment_method_name' => 'HaloPesa', 'payment_method_is_active' => '1'];
+
+        try {
+            $model->createMethod($form, self::ADMIN_ID);   // switched on without an account to pay to
+            $this->fail('Expected a validation error');
+        } catch (ApiException $e) {
+            $this->assertSame('VALIDATION_ERROR', $e->errorCode());
+        }
+        try {
+            $model->createMethod(['payment_method_type' => 'cash'] + $form, self::ADMIN_ID);   // cash on delivery is built in
+            $this->fail('Expected a validation error');
+        } catch (ApiException $e) {
+            $this->assertArrayHasKey('payment_method_type', $e->fields());
+        }
+
+        $method_id = $model->createMethod($form + ['payment_method_account_number' => '5566778', 'payment_method_account_name' => 'CHIMBO LTD'], self::ADMIN_ID);
+        $added     = $model->getMethodById($method_id);
+        $this->assertSame(['halopesa', 'mobile_money'], [$added['payment_method_code'], $added['payment_method_type']]);
+        $this->assertContains('halopesa', array_column((new Checkout($this->db))->getOptions($this->user_id, [])['payment_method_details'], 'payment_method_code'));
+
+        $order = $this->placeOrder('halopesa');
+        $this->assertSame('halopesa', $order['order_payment_method']);
+        $this->assertSame('HaloPesa', $order['payment']['payment_method']['payment_method_name']);
+        $this->assertTrue($order['payment']['can_submit_payment']);
+        $this->assertSame('HaloPesa', $model->nameOf('halopesa'));
+        $this->db->execute("DELETE FROM payment_methods WHERE payment_method_code = 'halopesa'");
+    }
+
     public function testAMethodCanOnlyBeOfferedWithAnAccountToPayTo(): void
     {
         $model = new PaymentMethod($this->db);
@@ -327,6 +358,23 @@ final class PaymentTest extends TestCase
         }
     }
 
+    public function testAPaymentRejectedAfterTheDeadlineGivesTheCustomerTimeToSendItAgain(): void
+    {
+        $this->switchOnMpesa();
+        $order      = $this->placeOrder('mpesa');
+        $payment_id = $this->submitAndGetPaymentId($order['order_id']);
+        $this->makeOverdue($order['order_id']);   // staff check it a day later
+
+        $this->payment_model->rejectPayment($payment_id, ['payment_review_note' => 'Namba ya muamala si sahihi.'], self::ADMIN_ID);
+
+        $rejected = $this->order_model->getOrder($this->user_id, $order['order_id']);
+        $this->assertGreaterThan(time() + 23 * 3600, strtotime($rejected['order_expires_at']));   // a fresh 24 hours
+        $this->assertTrue($rejected['payment']['can_submit_payment']);
+        (new OrderManager($this->db))->expireOverdueOrders(null);
+        $this->assertSame('pending_payment', $this->order_model->getOrder($this->user_id, $order['order_id'])['order_status']);
+        $this->submit($order['order_id'], 'QJK3X7NEW1');   // sent again, with the right code
+    }
+
     private function makeOverdue(int $order_id): void
     {
         $this->db->execute('UPDATE orders SET order_expires_at = UTC_TIMESTAMP() - INTERVAL 1 MINUTE WHERE order_id = ' . $order_id);
@@ -369,7 +417,7 @@ final class PaymentTest extends TestCase
         return $this->db->fetchOne('SELECT * FROM payment_methods WHERE payment_method_code = :code', ['code' => $code]);
     }
 
-    /** 8 Vaseline with standard delivery (45,000). */
+    /** 8 Vaseline with Bolt delivery (40,000: the rider is paid separately). */
     private function placeOrder(string $payment_method): array
     {
         $delivery_method_id = (int) $this->db->fetchValue("SELECT delivery_method_id FROM delivery_methods WHERE delivery_method_code = 'standard'");

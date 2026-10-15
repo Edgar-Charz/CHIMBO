@@ -50,7 +50,7 @@ require __DIR__ . '/includes/header.php';
                 <h1 class="page-title order-page__title"><?= e($order['order_number']) ?></h1>
                 <p class="order-page__placed">Iliagizwa <?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
             </div>
-            <span class="status-pill status-pill--<?= e(ORDER_STATUS_TONES[$order['order_status']] ?? 'info') ?>"><?= e(orderStatusLabel($order)) ?></span>
+            <span class="status-pill status-pill--<?= e(orderStatusTone($order)) ?>"><?= e(orderStatusLabel($order)) ?></span>
         </header>
 
         <div class="order-layout">
@@ -136,9 +136,15 @@ require __DIR__ . '/includes/header.php';
                             <?php endif; ?>
                         <?php endif; ?>
                         <?php if ($order['order_discount_total'] > 0) : ?>
-                            <div class="cart-summary__row cart-summary__row--savings"><dt>Punguzo</dt><dd>−<?= e(formatTzs($order['order_discount_total'])) ?></dd></div>
+                            <div class="cart-summary__row cart-summary__row--savings"><dt>Punguzo<?= $order['order_discount_note'] ? ' (' . e($order['order_discount_note']) . ')' : '' ?></dt><dd>−<?= e(formatTzs($order['order_discount_total'])) ?></dd></div>
                         <?php endif; ?>
                         <div class="cart-summary__row cart-summary__row--total"><dt><?= $fee_status === 'awaiting_confirmation' ? 'Jumla (makadirio)' : 'Jumla kuu' ?></dt><dd><?= e(formatTzs($order['order_total'])) ?></dd></div>
+                        <?php if ($order['payment']['is_balance_payment']) : ?>
+                            <div class="cart-summary__row"><dt>Umelipa</dt><dd><?= e(formatTzs($order['payment']['amount_paid'])) ?></dd></div>
+                            <div class="cart-summary__row cart-summary__row--total"><dt>Salio la kulipa</dt><dd><?= e(formatTzs($order['payment']['payment_amount'])) ?></dd></div>
+                        <?php elseif ($order['payment']['refund_due'] > 0) : ?>
+                            <div class="cart-summary__row cart-summary__row--savings"><dt>Tutakurudishia</dt><dd><?= e(formatTzs($order['payment']['refund_due'])) ?></dd></div>
+                        <?php endif; ?>
                     </dl>
                     <p class="order-summary__note">
                         <?= e($order['payment']['payment_method']['payment_method_name']) ?> ·

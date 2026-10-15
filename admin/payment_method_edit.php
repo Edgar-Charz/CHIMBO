@@ -2,26 +2,33 @@
 require __DIR__ . '/includes/admin_bootstrap.php';
 
 // Where customers send their money — the most sensitive setting in the shop, so super admin only.
-// The five methods are fixed (they can't be added or deleted); unused ones stay switched off.
+// Staff can add mobile money and bank methods (e.g. HaloPesa, NMB Bank); a method no longer used is switched off,
+// not deleted (old orders still name it). Cash on delivery is built in, once.
 $current_admin        = AdminSession::requireLogin('payment_methods.manage');
 $payment_method_model = new PaymentMethod(Database::instance());
 
 $method_id = (int) ($_GET['id'] ?? 0);
-$method    = adminLoadOrRedirect(fn () => $payment_method_model->getMethodById($method_id), 'payments.php?tab=methods');
+$is_new    = $method_id === 0;
+$method    = $is_new ? null : adminLoadOrRedirect(fn () => $payment_method_model->getMethodById($method_id), 'payments.php?tab=methods');
 
-$form_error = adminHandleForm(function () use ($payment_method_model, $method_id, $current_admin): void {
-    $payment_method_model->updateMethod($method_id, $_POST, (int) $current_admin['admin_id']);
-    Session::flash('success', 'Payment method saved. Customers see the new details at checkout.');
+$form_error = adminHandleForm(function () use ($payment_method_model, $method_id, $is_new, $current_admin): void {
+    $admin_id = (int) $current_admin['admin_id'];
+    if ($is_new) {
+        $payment_method_model->createMethod($_POST, $admin_id);
+        Session::flash('success', 'Payment method added. Switch it on when its details are right.');
+    } else {
+        $payment_method_model->updateMethod($method_id, $_POST, $admin_id);
+        Session::flash('success', 'Payment method saved. Customers see the new details at checkout.');
+    }
     redirect(url('admin/payments.php?tab=methods'));
 });
 
 $errors  = $form_error?->fields() ?? [];
-$form    = adminFormValues($form_error, $method);
-$type    = $method['payment_method_type'];
-$is_cash = $type === 'cash';
-$is_bank = $type === 'bank';
+$form    = adminFormValues($form_error, $method ?? ['payment_method_type' => 'mobile_money', 'payment_method_is_active' => 0, 'payment_method_sort_order' => 10]);
+$type    = $form['payment_method_type'] ?? 'mobile_money';   // a new one: the type chosen in the form
+$is_cash = !$is_new && $type === 'cash';
 
-$page_title  = $method['payment_method_name'];
+$page_title  = $is_new ? 'Add payment method' : $method['payment_method_name'];
 $active_menu = 'payments';
 require __DIR__ . '/includes/header.php';
 ?>
@@ -33,20 +40,40 @@ require __DIR__ . '/includes/header.php';
 <form class="admin-panel admin-form-narrow" method="post" novalidate>
     <?= Csrf::field() ?>
     <div class="admin-panel-header">
-        <h2 class="admin-panel-title"><?= e(ADMIN_PAYMENT_METHOD_TYPES[$type] ?? $type) ?> · <code><?= e($method['payment_method_code']) ?></code></h2>
+        <h2 class="admin-panel-title">
+            <?= $is_new ? 'New payment method' : e(ADMIN_PAYMENT_METHOD_TYPES[$type] ?? $type) . ' · <code>' . e($method['payment_method_code']) . '</code>' ?>
+        </h2>
     </div>
     <div class="admin-panel-body">
+        <?php if (!$is_new): ?>
+            <input type="hidden" name="payment_method_type" value="<?= e($type) ?>">   <?php // read by data-show-when only ?>
+        <?php else: ?>
+            <div class="mb-3">
+                <label class="form-label" for="payment_method_type">Type</label>
+                <select class="form-select<?= adminInvalidClass($errors, 'payment_method_type') ?>" id="payment_method_type" name="payment_method_type">
+                    <?php foreach (PaymentMethod::ADDABLE_TYPES as $type_code => $type_name): ?>
+                        <option value="<?= e($type_code) ?>" <?= adminSelected($form, 'payment_method_type', $type_code) ?>><?= e($type_name) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">Customers pay first and press "Nimelipa"; staff check it on the Payments page. The type can't be changed later.</div>
+                <?= adminFieldError($errors, 'payment_method_type') ?>
+            </div>
+        <?php endif; ?>
+
         <div class="mb-3">
             <label class="form-label" for="payment_method_name">Name <span class="text-muted">(customers see it)</span></label>
             <input class="form-control<?= adminInvalidClass($errors, 'payment_method_name') ?>" id="payment_method_name" name="payment_method_name"
-                   value="<?= e($form['payment_method_name'] ?? '') ?>" maxlength="60" required>
+                   value="<?= e($form['payment_method_name'] ?? '') ?>" maxlength="60" required placeholder="e.g. HaloPesa or NMB Bank">
             <?= adminFieldError($errors, 'payment_method_name') ?>
         </div>
 
         <?php if (!$is_cash): ?>
             <div class="row g-3 mb-3">
                 <div class="col-sm-6">
-                    <label class="form-label" for="payment_method_account_number"><?= $is_bank ? 'Account number' : 'Lipa Namba or phone number' ?></label>
+                    <label class="form-label" for="payment_method_account_number">
+                        <span data-show-when="payment_method_type=bank">Account number</span>
+                        <span data-show-when="payment_method_type!=bank">Lipa Namba or phone number</span>
+                    </label>
                     <input class="form-control payment-code<?= adminInvalidClass($errors, 'payment_method_account_number') ?>" id="payment_method_account_number"
                            name="payment_method_account_number" value="<?= e($form['payment_method_account_number'] ?? '') ?>" maxlength="40" autocomplete="off">
                     <?= adminFieldError($errors, 'payment_method_account_number') ?>
@@ -59,14 +86,12 @@ require __DIR__ . '/includes/header.php';
                     <?= adminFieldError($errors, 'payment_method_account_name') ?>
                 </div>
             </div>
-            <?php if ($is_bank): ?>
-                <div class="mb-3">
-                    <label class="form-label" for="payment_method_bank_name">Bank</label>
-                    <input class="form-control<?= adminInvalidClass($errors, 'payment_method_bank_name') ?>" id="payment_method_bank_name"
-                           name="payment_method_bank_name" value="<?= e($form['payment_method_bank_name'] ?? '') ?>" maxlength="80" placeholder="e.g. CRDB">
-                    <?= adminFieldError($errors, 'payment_method_bank_name') ?>
-                </div>
-            <?php endif; ?>
+            <div class="mb-3" data-show-when="payment_method_type=bank">
+                <label class="form-label" for="payment_method_bank_name">Bank</label>
+                <input class="form-control<?= adminInvalidClass($errors, 'payment_method_bank_name') ?>" id="payment_method_bank_name"
+                       name="payment_method_bank_name" value="<?= e($form['payment_method_bank_name'] ?? '') ?>" maxlength="80" placeholder="e.g. CRDB">
+                <?= adminFieldError($errors, 'payment_method_bank_name') ?>
+            </div>
         <?php endif; ?>
 
         <div class="mb-3">
@@ -98,7 +123,7 @@ require __DIR__ . '/includes/header.php';
     <div class="admin-panel-footer">
         <a class="btn btn-light" href="<?= e(url('admin/payments.php?tab=methods')) ?>">Cancel</a>
         <button class="btn btn-chimbo" type="submit" name="form_action" value="save"
-                data-confirm="Customers will send their money to these details. Are they correct?">Save changes</button>
+                data-confirm="Customers will send their money to these details. Are they correct?"><?= $is_new ? 'Add method' : 'Save changes' ?></button>
     </div>
 </form>
 

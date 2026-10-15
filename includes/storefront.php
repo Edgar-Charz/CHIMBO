@@ -38,7 +38,7 @@ const ORDER_STATUS_MESSAGES = [
     'in_transit'      => 'Oda yako iko njiani.',
     'delivered'       => 'Asante kwa kununua CHIMBO!',
     'cancelled'       => 'Oda hii imeghairiwa.',
-    'expired'         => 'Muda wa malipo umeisha.',
+    'expired'         => 'Muda wa malipo umeisha. Bofya "Agiza Tena" kuagiza bidhaa hizi kwa bei za leo, au wasiliana nasi.',
 ];
 const ORDER_STATUS_TONES = [ // colour of the status pill
     'pending_payment' => 'warning',
@@ -54,14 +54,27 @@ const PICKUP_STATUS_MESSAGES = [
     'delivered' => 'Umechukua oda yako. Asante kwa kununua CHIMBO!',
 ];
 const PICKUP_TRACKING_STEPS = ['confirmed', 'packed', 'delivered'];
+// The stage inside a status (orderStage()), so a payment being checked doesn't look like nothing was paid
+const ORDER_STAGE_LABELS = [
+    'checking_payment' => 'Malipo yanakaguliwa',
+    'measuring_load'   => 'Tunapima mzigo',
+    'balance_due'      => 'Salio la kulipa',
+];
+const ORDER_STAGE_MESSAGES = [
+    'checking_payment' => 'Tumepokea uthibitisho wa malipo yako; tunaukagua sasa. Tutakujulisha.',
+    'measuring_load'   => 'Tunapima mzigo ili kuthibitisha bei ya usafiri. Usilipe bado — tutakujulisha.',
+    'balance_due'      => 'Oda imebadilishwa: lipa salio ili tuendelee kuiandaa.',
+];
+const ORDER_STAGE_TONES = ['checking_payment' => 'info', 'measuring_load' => 'warning', 'balance_due' => 'warning'];
 const ORDER_STOPPED_STATUSES = ['cancelled', 'expired'];
-const ORDER_REORDER_STATUSES = ['delivered', 'cancelled']; // "Agiza Tena" only once an order is finished
+const ORDER_REORDER_STATUSES = ['delivered', 'cancelled', 'expired']; // "Agiza Tena" once an order is finished (expired: R-28)
 const ORDER_CARD_PHOTOS = 4; // product photos shown on an order in "Oda Zangu"
 const PAYMENT_STATUS_LABELS = [
     'unpaid'      => 'Haijalipwa',
     'pending'     => 'Inakaguliwa',
     'paid'        => 'Imelipwa',
     'cod_pending' => 'Utalipa ukipokea',
+    'balance_due' => 'Salio la kulipa',
     'refunded'    => 'Imerudishwa',
     'failed'      => 'Imeshindikana',
     'cancelled'   => 'Hakuna cha kulipa',
@@ -199,16 +212,44 @@ function isPickupOrder(array $order): bool
 }
 
 /** "Imepakiwa" — or "Tayari kuchukuliwa" for a pickup order. */
+/**
+ * Where an order really is when its status alone says too little: "checking_payment" (awaiting payment, but the
+ * customer already sent it), "measuring_load" (upcountry transport price still to confirm), "balance_due" (paid
+ * order with a balance after a change) — or null.
+ */
+function orderStage(array $order): ?string
+{
+    return match (true) {
+        $order['order_status'] === 'pending_payment' && $order['order_payment_status'] === 'pending'                 => 'checking_payment',
+        $order['order_status'] === 'pending_payment' && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation' => 'measuring_load',
+        $order['order_status'] === 'confirmed' && $order['order_payment_status'] === 'balance_due'                    => 'balance_due',
+        default                                                                                                       => null,
+    };
+}
+
+/** "Imepakiwa" — or "Tayari kuchukuliwa" for a pickup order; the current status says the stage ("Malipo yanakaguliwa"). */
 function orderStatusLabel(array $order, ?string $status = null): string
 {
+    if ($status === null && ($stage = orderStage($order)) !== null) {
+        return ORDER_STAGE_LABELS[$stage];
+    }
     $status ??= $order['order_status'];
     $labels = isPickupOrder($order) ? PICKUP_STATUS_LABELS + ORDER_STATUS_LABELS : ORDER_STATUS_LABELS;
     return $labels[$status] ?? $status;
 }
 
+/** The colour of the status pill. */
+function orderStatusTone(array $order): string
+{
+    return ORDER_STAGE_TONES[orderStage($order) ?? ''] ?? ORDER_STATUS_TONES[$order['order_status']] ?? 'info';
+}
+
 /** The sentence under "Fuatilia Oda". */
 function orderStatusMessage(array $order): string
 {
+    if (($stage = orderStage($order)) !== null) {
+        return ORDER_STAGE_MESSAGES[$stage];
+    }
     $messages = isPickupOrder($order) ? PICKUP_STATUS_MESSAGES + ORDER_STATUS_MESSAGES : ORDER_STATUS_MESSAGES;
     return $messages[$order['order_status']] ?? '';
 }
@@ -446,6 +487,18 @@ function paymentOptions(): array
         'has_cash'  => $has_cash,
         'cash_only' => $has_cash && $non_cash === [],
     ];
+}
+
+/** The logo mark: the one uploaded in the admin (512 px PNG), else the built-in one. */
+function logoUrl(): string
+{
+    return (new SiteLogo(Database::instance()))->getUrl() ?? asset('img/logo-mark.webp');
+}
+
+/** The browser-tab / bookmark icon in one size ('32', '180', '192'): the uploaded logo's, else the built-in favicon. */
+function iconUrl(string $size_name): string
+{
+    return (new SiteLogo(Database::instance()))->getUrl($size_name) ?? asset('img/favicon.png');
 }
 
 /** Fills in the page settings every layout partial reads. */

@@ -8,4 +8,4 @@ if (!isPostRequest()) {
 Csrf::verifyOrFail($_POST['csrf_token'] ?? null);
 
 AdminSession::logOut();
-redirect(url('admin/login.php'));
+redirect(url('admin/login.php?logged_out=1'));   // the session is gone, so the message comes in the address

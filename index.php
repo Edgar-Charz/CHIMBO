@@ -219,7 +219,7 @@ require __DIR__ . '/includes/header.php';
             <p class="wholesale-band__text">Kila bidhaa ina ngazi za bei: kadri unavyoagiza pcs nyingi, ndivyo bei ya kila moja inavyoshuka. Kikapu chako kinabadilisha bei chenyewe.</p>
             <ul class="wholesale-band__points">
                 <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Kiwango cha chini cha kuagiza (MOQ) kiko wazi kwenye kila bidhaa</li>
-                <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Lipa pesa taslimu mzigo ukifika dukani</li>
+                <li><i class="bi bi-check2-circle" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                 <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Agiza tena oda yako ya zamani kwa kubofya mara moja</li>
             </ul>
             <a class="btn btn-buy btn-lg" href="<?= e(collectionUrl('best_sellers')) ?>">Anza kununua</a>

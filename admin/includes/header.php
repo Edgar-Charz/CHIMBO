@@ -14,8 +14,11 @@ $payments_waiting = Admin::can($current_admin, 'payments.manage') ? (new Payment
 $unread_notifications = (new AdminNotification(Database::instance()))->countUnread($current_admin);   // the bell's number
 $has_waiting_work     = adminAttentionItems($current_admin) !== [];   // the bell's orange dot when nothing is unread
 
-$success_message = Session::takeFlash('success');
-$error_message   = Session::takeFlash('error');
+// Messages from the previous action, shown as SweetAlert popups (dialogs.js)
+$flash_messages = array_values(array_filter([
+    ['type' => 'success', 'text' => Session::takeFlash('success'), 'title' => Session::takeFlash('success_title')],
+    ['type' => 'error',   'text' => Session::takeFlash('error'),   'title' => null],
+], fn (array $flash): bool => $flash['text'] !== null));
 ?>
 <!doctype html>
 <html lang="en">
@@ -96,13 +99,4 @@ $error_message   = Session::takeFlash('error');
             </header>
 
             <main class="admin-content">
-                <?php if ($success_message): ?>
-                    <div class="alert alert-success alert-dismissible fade show"><?= e($success_message) ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                <?php endif; ?>
-                <?php if ($error_message): ?>
-                    <div class="alert alert-danger alert-dismissible fade show"><?= e($error_message) ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                <?php endif; ?>
+                <?php require __DIR__ . '/flash_messages.php'; ?>

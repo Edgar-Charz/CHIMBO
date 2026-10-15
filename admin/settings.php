@@ -7,6 +7,7 @@ $settings      = new Settings($database);
 
 $delivery_method_model = new DeliveryMethod($database);
 $app_image_model       = new AppImage($database);
+$site_logo             = new SiteLogo($database);
 
 // One tab per subject. A tab with settings lists its groups from Settings::EDITABLE; its form saves only those.
 $tabs = [
@@ -14,16 +15,30 @@ $tabs = [
     'orders'   => ['Orders & payments',  'bi-receipt',       ['Orders']],
     'delivery' => ['Delivery',           'bi-truck',         []],
     'login'    => ['Login (SMS)',        'bi-shield-lock',   ['Login codes (SMS)']],
-    'pictures' => ['App pictures',       'bi-image',         []],
+    'pictures' => ['Logo & pictures',    'bi-image',         []],
 ];
 $tab      = isset($tabs[$_GET['tab'] ?? '']) ? $_GET['tab'] : 'general';
 $this_tab = url("admin/settings.php?tab={$tab}");
 
 // Settings: the class saves only the changed values of this tab's groups and writes the audit log.
 // Delivery: an option's enable/disable is a one-click switch; the region estimates are one form.
-// App pictures: upload or go back to the app's own picture (the class checks the file and writes the audit log).
-$form_error = adminHandleForm(function (string $form_action) use ($settings, $delivery_method_model, $app_image_model, $current_admin, $tabs, $tab, $this_tab): void {
+// App pictures and the logo: upload or go back to the built-in one (the classes check the file and write the audit log).
+$form_error = adminHandleForm(function (string $form_action) use ($settings, $delivery_method_model, $app_image_model, $site_logo, $current_admin, $tabs, $tab, $this_tab): void {
     $admin_id = (int) $current_admin['admin_id'];
+    if ($form_action === 'upload_logo' || $form_action === 'remove_logo') {
+        try {
+            if ($form_action === 'upload_logo') {
+                $site_logo->setLogo($_FILES['logo'] ?? null, $admin_id);
+                Session::flash('success', 'Logo uploaded — the website, admin, receipts and app screens use it now.');
+            } else {
+                $site_logo->removeLogo($admin_id);
+                Session::flash('success', 'The built-in CHIMBO logo is back everywhere.');
+            }
+        } catch (ApiException $e) {
+            Session::flash('error', adminErrorText($e));
+        }
+        redirect($this_tab);
+    }
     if ($form_action === 'upload_app_image' || $form_action === 'remove_app_image') {
         $slot = (string) ($_POST['app_image_slot'] ?? '');
         try {
@@ -262,6 +277,46 @@ require __DIR__ . '/includes/header.php';
 <?php endif; ?>
 
 <?php if ($tab === 'pictures'): ?>
+    <section class="admin-panel mb-4" aria-labelledby="logo-title">
+        <div class="admin-panel-header"><h2 class="admin-panel-title" id="logo-title">Logo</h2></div>
+        <div class="admin-panel-body d-flex flex-wrap align-items-center gap-4">
+            <div class="logo-preview">
+                <img src="<?= e($site_logo->getUrl() ?? adminAsset('img/favicon-192.png')) ?>" alt="Current logo">
+            </div>
+            <div class="flex-grow-1">
+                <p class="mb-1">
+                    <?= $site_logo->getUrl() !== null
+                        ? 'Uploaded ' . e(adminDateTime($site_logo->updatedAt())) . '.'
+                        : 'The built-in CHIMBO logo is used.' ?>
+                    Shown on the website (header, footer, browser tab), the admin's browser tab, receipts and packing
+                    slips, and the app's splash and login screens.
+                </p>
+                <p class="small text-muted mb-3">
+                    Best: a square PNG, 1024 × 1024, transparent background (a wider logo is centred). The app's icon on
+                    the phone's home screen changes only with the next app release.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    <form class="d-flex gap-2" method="post" enctype="multipart/form-data">
+                        <?= Csrf::field() ?>
+                        <input class="form-control form-control-sm" type="file" name="logo" accept="image/png,image/webp,image/jpeg" required aria-label="Logo picture">
+                        <button class="btn btn-sm btn-chimbo text-nowrap" type="submit" name="form_action" value="upload_logo">
+                            <i class="bi bi-upload"></i> Upload logo
+                        </button>
+                    </form>
+                    <?php if ($site_logo->getUrl() !== null): ?>
+                        <form method="post" data-confirm="Go back to the built-in CHIMBO logo everywhere? The uploaded one is deleted.">
+                            <?= Csrf::field() ?>
+                            <button class="btn btn-sm btn-light" type="submit" name="form_action" value="remove_logo">
+                                <i class="bi bi-arrow-counterclockwise"></i> Use the built-in logo
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <h2 class="h5">App pictures</h2>
     <p class="text-muted">
         Pictures on the app's welcome, login and order screens. Until one is uploaded the app shows its own.
         Home's pictures come from <a href="<?= e(url('admin/categories.php')) ?>">Categories</a> and <a href="<?= e(url('admin/banners.php')) ?>">Banners</a>.

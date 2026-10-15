@@ -195,6 +195,9 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 | R-21 | Crash reporting & analytics | Field issues | v1.1 |
 | R-25 | **Upcountry transport priced per region, confirmed by staff** — estimate at checkout, staff confirm or adjust after measuring the load, then the customer pays (design in §12.7) | Upcountry costs vary with load size; customers pay transport to CHIMBO | Built 2026-10-09 |
 | R-26 | **Dar by Bolt, paid to the rider · pickup at the shop** — one Dar option where the customer pays the Bolt rider directly (nothing added to CHIMBO's total), and a free "Nitachukua mwenyewe dukani" option for every region (design in §12.8) | In Dar CHIMBO books a Bolt and the customer pays the rider; some customers prefer to collect | Built 2026-10-15 |
+| R-27 | **Logo uploaded in the admin** — one upload replaces the CHIMBO mark on the website, admin, PDFs and the app's screens (design in §12.9) | A new logo may come; it shouldn't need a developer | Built 2026-10-15 |
+| R-28 | **Reactivate an expired order** (staff) at today's prices, and "Agiza Tena" on expired orders (customer) (design in §12.10) | Customers call after their time to pay ran out and still want the order | Built 2026-10-15 |
+| R-29 | **Staff edit orders** — items, address, delivery / payment method, discount and private notes; after payment, "add to this order" with a balance to pay (design in §12.11) | Customers call to change orders; staff could only move the status | Built 2026-10-15 (both steps) |
 | R-24 | **Smart QR link on the packing slip** — one signed link that opens the admin order page for staff, the order for its customer, and a minimal page (status, cash to collect) for anyone else (design in §12.6) | Packing check, customer support from the box, agents know the cash to collect | Planned — build with the staging server |
 | R-23 | **PIN login** (4–6 digits, like M-Pesa) — phone → PIN; SMS code only for new numbers and "Umesahau PIN?" (design in §12.5) | Saves an SMS per login; works when SMS is slow | Before the first beta (built 2026-09-30) |
 | R-22 | **Time-limited offers ("Ofa")** — a % discount on a product for a set period, with a countdown (design in §12.4) | Brings shop owners back; clears slow stock | Before the first beta |
@@ -790,9 +793,48 @@ Standard and Haraka are replaced by the single Bolt option (Haraka is switched o
 3. Pickup: the customer **pays first** by mobile money / bank like any order. **One pickup point**: its address and opening hours are settings (Admin → Settings → General → Pickup point), shown at checkout and on the order.
 4. Pickup orders use the same statuses with their own words: `packed` = "**Tayari kuchukuliwa**" (the customer is told: "Oda #… iko tayari, njoo uichukue: {address}, {hours}") and `delivered` = "**Imechukuliwa**". They go straight from packed to delivered — never dispatched / in transit, no delivery agent.
 5. The customer still chooses a saved address (it stays their contact and location); a pickup order simply isn't sent there.
-6. Dispatching a Bolt order is unchanged (a delivery agent from the list is optional).
+6. A delivery agent is needed only for CHIMBO's own fixed-fee delivery. Sending a Bolt order or an upcountry order (handed to the transport company) works without one — staff may still pick an agent if one of theirs takes it (`OrderManager::needsDeliveryAgent()`). Orders placed before this change keep their old rule.
 
 **Data:** `delivery_methods.delivery_method_pricing` gains `paid_to_rider`; `delivery_methods.delivery_method_is_pickup`; orders get `order_delivery_paid_to_rider` and `order_is_pickup` (copied when ordering); settings `pickup_address`, `pickup_hours`. API: delivery options and an order's `delivery_method` carry `delivery_fee_paid_to_rider` and `delivery_method_is_pickup`; `/checkout/options` and pickup orders carry `pickup_point` {address, hours}.
+
+### 12.9 Logo uploaded in the admin (R-27, decided 2026-10-15)
+Admin → Settings → **Logo & pictures**: upload one square PNG (best 1024 × 1024, transparent background; a wider logo is centred on a transparent square). The server keeps PNG copies at 512 px (logo) and 192, 180 and 32 px (icons). "Use the built-in logo" removes it.
+
+| Where | Uses |
+|---|---|
+| Website: header, footer, browser-tab icon, phone bookmark icon | the upload, else `assets/img/` |
+| Admin: browser-tab icons | the upload, else `admin/assets/img/` |
+| Receipt and packing slip PDFs | the upload, else the built-in PNG mark |
+| App: splash and login screens (`AppLogo`) | `GET /app-images` slot `logo` (downloaded and kept on the phone), else the bundled mark |
+| **App launcher icon and Android's first plain launch screen** | **not changeable by upload** — part of the app file; a new logo goes in with the next app release (`flutter_launcher_icons` from the same file) |
+
+**Data:** the `app_images` row with slot `logo` (path of the 512 px PNG; the icons sit next to it as `-192.png`, `-180.png`, `-32.png`). A new upload gets a new file name, so browsers and the app never show an old cached logo. Audit: `logo.changed`, `logo.removed`.
+
+### 12.10 Reactivating an expired order (R-28, decided 2026-10-15)
+An unpaid order **expires** when its time to pay runs out (stock released, customer told "imesitishwa kwa sababu malipo hayakukamilika"). If the customer calls and still wants it, staff with `orders.manage` press **Reactivate order** on the order page.
+
+1. Only **expired** orders (not ones the customer or staff cancelled on purpose).
+2. **Today's prices** for the same quantities (an offer that ended no longer applies; a running one does). The order page shows a preview first: each product's old → today's price and the new total. Transport stays as it was (Bolt / pickup 0; upcountry's confirmed price).
+3. Blocked, with the reason per product, when a product is switched off, short of stock, or now needs a higher minimum quantity.
+4. The order goes back to **Awaiting payment**: stock reserved again, payment "unpaid", a **new time to pay** (the "unpaid order expiry" setting). Timeline row "Imerejeshwa na CHIMBO" (+ staff note); audit `order.reactivated` (old → new total).
+5. The customer is told: "**Oda imerejeshwa** — Oda #… iko hai tena kwa bei za leo. Jumla: TZS … Lipa kabla ya {date}." The pay box and "Nimelipa" come back (website and app).
+
+**Customer self-service:** expired orders get **"Agiza Tena"** (website and app) — the same products back in the cart at today's prices.
+
+### 12.11 Staff edit orders (R-29, decided 2026-10-15)
+Staff with `orders.manage` open **Edit order** on the order page. The customer is told about every change that touches them ("Oda #… imebadilishwa na CHIMBO. Jumla mpya: TZS …"); every change is audit-logged.
+
+**Step 1 — while the order is unpaid** (awaiting payment with no payment being checked, or cash on delivery before packing):
+| Edit | Rule |
+|---|---|
+| Items: quantity, remove, add | changed or new lines get today's price for their quantity; unchanged lines keep theirs; stock follows the difference; at least one line (to drop everything, cancel the order) |
+| Delivery option | must reach the order's region; its price rule applies (fixed fee · Bolt 0 · pickup 0 · upcountry estimate → staff confirm again) |
+| Payment method | any method switched on (cash within its limit; not with an upcountry price still to confirm) |
+| Discount | 0 up to the products' total, with a reason the customer sees (receipt: "Punguzo — {reason}") |
+| Address and phone | **until the order is sent** (also after payment); the delivery option must still reach the new region |
+| Staff notes | any time; private — the customer never sees them |
+
+**Step 2 — after payment, before packing ("add to this order")**: staff change items on the paid order; for upcountry they re-confirm the transport for the bigger load (often +0); the customer sees "**Salio la kulipa: TZS …**" and pays only the balance with "Nimelipa"; packing waits for it. A lower total becomes a refund due. Still one order number and one receipt. **Data:** payment status `balance_due` (packing waits for it; a balance payment is confirmed or rejected like any payment); `order_refund_due` (Payments → Refunds due, marked refunded like a cancelled order's) and `order_refunded_amount`; amount paid = confirmed payments − refunded (`Order::AMOUNT_PAID_SQL`).
 
 ### 12.6 Smart QR link on the packing slip (planned, R-24)
 Today the slip's QR holds only the order number. Planned: one short, signed link that opens the right page for whoever scans it.

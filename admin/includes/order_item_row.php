@@ -1,17 +1,18 @@
 <?php
 
 /**
- * One product row of the "Add order" form (order_create.php).
- * Set before including: $item_index (a number, or '__INDEX__' in the <template> that order_create.js copies),
- * $item (['product_id' => …, 'quantity' => …], or [] for an empty row), $item_errors (field errors, or []),
+ * One product row of the "Add order" and "Edit order" forms (order_create.php, order_edit.php).
+ * Set before including: $item_index (a number, or '__INDEX__' in the <template> that order_items.js copies),
+ * $item (['product_id' => …, 'quantity' => …, 'reserved' => stock this order already holds (Edit order)], or [] for an
+ * empty row), $item_errors (field errors, or []),
  * $order_products (the products from OrderManager::getManualOrderOptions()).
- * Stock, MOQ and unit price are filled in by order_create.js from the chosen product's data-* values.
+ * Stock, MOQ and unit price are filled in by order_items.js from the chosen product's data-* values.
  */
 
 $product_field  = "items.{$item_index}.product_id";
 $quantity_field = "items.{$item_index}.quantity";
 ?>
-<div class="row g-2 align-items-end order-item-row" data-order-item>
+<div class="row g-2 align-items-end order-item-row" data-order-item data-reserved="<?= e((int) ($item['reserved'] ?? 0)) ?>">
     <div class="col-12 col-md-5">
         <label class="form-label d-md-none">Product</label>
         <select class="form-select<?= adminInvalidClass($item_errors, $product_field) ?>" name="items[<?= e($item_index) ?>][product_id]" required>

@@ -1388,3 +1388,28 @@ body {
 .order-fee-to-confirm {
   color: var(--status-warning);
 }
+
+/* Settings → Logo & pictures: the current logo on a checkered background, so transparency shows */
+.logo-preview {
+  width: 112px;
+  height: 112px;
+  padding: 8px;
+  border: 1px solid var(--chimbo-border);
+  border-radius: var(--chimbo-radius);
+  background: repeating-conic-gradient(#f1f3f5 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+}
+
+.logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Order page: private staff notes, newest first */
+.staff-note {
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid var(--chimbo-orange);
+  background: var(--chimbo-muted-bg);
+  border-radius: 0 6px 6px 0;
+}

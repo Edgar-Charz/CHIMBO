@@ -3,6 +3,7 @@
  *
  *   <form data-confirm="Delete this banner?">   asks before submitting (also works on a submit button)
  *   [data-tier-editor]                          the product price levels (add / remove rows)
+ *   (confirm dialogs and messages: dialogs.js — SweetAlert)
  *   <div data-show-when="order_status=dispatched">   shown only while that field of its form has that value
  *   <div data-show-when="delivery_method_area!=all">  shown while that field has any other value
  *   <button data-open-modal="#reject-modal" data-record-id="12" data-record-label="CHB123 · TZS 5,000">
@@ -30,14 +31,6 @@
  */
 (() => {
   'use strict';
-
-  // Ask before dangerous actions (data-confirm on the form, or on the clicked button)
-  document.addEventListener('submit', (event) => {
-    const message = event.submitter?.dataset.confirm ?? event.target.dataset.confirm;
-    if (message && !window.confirm(message)) {
-      event.preventDefault();
-    }
-  });
 
   // Price levels: "Add level" copies the <template> row with a new index; the × button removes a row
   document.querySelectorAll('[data-tier-editor]').forEach((editor) => {
@@ -90,8 +83,9 @@
 
   // The ⋮ actions menu of a table row. Tables sit in scrolling boxes that would cut a normal menu off, so the menu is
   // placed against the screen ("fixed") and kept inside it: it opens upwards near the bottom and moves left near the
-  // right edge. The menu is set up just before Bootstrap opens it (capture phase), which also covers rows that
-  // DataTables loads later.
+  // right edge. The menu is set up just before Bootstrap opens it, which also covers rows that DataTables loads later.
+  // Listening on window (capture) matters: Bootstrap's own click handler sits on document in the capture phase and
+  // would otherwise create a plain menu first.
   const MENU_EDGE_GAP = 8; // px kept free between the menu and the screen edge
   const prepareRowMenu = (event) => {
     const toggle = event.target.closest?.('.row-actions__toggle');
@@ -111,8 +105,8 @@
       }),
     });
   };
-  document.addEventListener('click', prepareRowMenu, true);
-  document.addEventListener('keydown', prepareRowMenu, true);
+  window.addEventListener('click', prepareRowMenu, true);
+  window.addEventListener('keydown', prepareRowMenu, true);
 
   // A fixed menu would stay put while the page scrolls under it: close open row menus when scrolling
   window.addEventListener('scroll', () => {
@@ -297,12 +291,10 @@
       window.location.reload();
       return;
     }
-    const container = table.closest('.dt-container');
-    container.querySelector('.table-error')?.remove();
-    const alert = document.createElement('div');
-    alert.className = 'alert alert-danger table-error';
-    alert.textContent = settings.jqXHR?.responseJSON?.error ?? message.replace(/^DataTables warning: .*? - /, '');
-    container.prepend(alert);
+    AdminDialog.error(
+      settings.jqXHR?.responseJSON?.error ?? message.replace(/^DataTables warning: .*? - /, ''),
+      'The table could not load',
+    );
   };
 
   /** Changing a filter dropdown reloads the table; "Clear" empties them first. */

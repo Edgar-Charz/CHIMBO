@@ -19,6 +19,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
 <table class="header">
     <tr>
         <td>
+            <?php if ($logo_uri !== null): ?><img class="brand-logo" src="<?= e($logo_uri) ?>" alt=""><?php endif; ?>
             <div class="brand">CHI<span class="brand-orange">MBO</span></div>
             <div class="tagline">BIDHAA BORA • BEI NAFUU • BIASHARA IMARA</div>
         </td>
@@ -37,12 +38,18 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
             <?php if (!empty($customer['business_name'])): ?><?= e($customer['business_name']) ?><br><?php endif; ?>
             <?= e($customer['user_phone'] ?? '') ?>
         </td>
-        <td style="width: 50%; vertical-align: top;">
-            <div class="box-title">Anwani ya uwasilishaji</div>
-            <strong><?= e($order['address']['address_recipient_name']) ?></strong><br>
-            <?= e($order['address']['address_street']) ?><br>
-            <?= e(trim(($order['address']['district_name'] ? $order['address']['district_name'] . ', ' : '') . $order['address']['region_name'])) ?><br>
-            <?= e($order['address']['address_phone']) ?>
+        <td class="right" style="width: 50%; vertical-align: top;">
+            <?php if ($order['pickup_point'] !== null): ?>
+                <div class="box-title">Kuchukua dukani</div>
+                <strong><?= e($order['pickup_point']['pickup_address']) ?></strong><br>
+                <?= e($order['pickup_point']['pickup_hours']) ?>
+            <?php else: ?>
+                <div class="box-title">Anwani ya uwasilishaji</div>
+                <strong><?= e($order['address']['address_recipient_name']) ?></strong><br>
+                <?= e($order['address']['address_street']) ?><br>
+                <?= e(trim(($order['address']['district_name'] ? $order['address']['district_name'] . ', ' : '') . $order['address']['region_name'])) ?><br>
+                <?= e($order['address']['address_phone']) ?>
+            <?php endif; ?>
         </td>
     </tr>
 </table>
@@ -87,14 +94,14 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
     <tr><td>Bidhaa (<?= e($order['item_count']) ?>)</td><td class="right"><?= e($money($order['order_subtotal'])) ?></td></tr>
     <tr><td>Usafirishaji</td><td class="right"><?= e(Order::deliveryFeeWords($order) ?? $money($order['order_delivery_fee'])) ?></td></tr>
     <?php if ($order['order_discount_total'] > 0): ?>
-        <tr><td>Punguzo</td><td class="right">− <?= e($money($order['order_discount_total'])) ?></td></tr>
+        <tr><td>Punguzo<?= $order['order_discount_note'] ? ' — ' . e($order['order_discount_note']) : '' ?></td><td class="right">− <?= e($money($order['order_discount_total'])) ?></td></tr>
     <?php endif; ?>
     <tr class="grand-total"><td>Jumla</td><td class="right"><?= e($money($order['order_total'])) ?></td></tr>
 </table>
 
 <table class="section">
     <tr>
-        <td><span class="muted">Njia ya malipo:</span> <?= e(Receipt::PAYMENT_METHOD_NAMES[$order['order_payment_method']] ?? $order['order_payment_method']) ?></td>
+        <td><span class="muted">Njia ya malipo:</span> <?= e($order['payment']['payment_method']['payment_method_name'] ?? $order['order_payment_method']) ?></td>
         <td class="right"><span class="muted">Hali ya malipo:</span> <?= e(Receipt::PAYMENT_STATUS_NAMES[$order['order_payment_status']] ?? $order['order_payment_status']) ?></td>
     </tr>
 </table>

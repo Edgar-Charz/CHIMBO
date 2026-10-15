@@ -34,7 +34,7 @@ require __DIR__ . '/head.php';
     <header class="site-header" data-site-header>
         <div class="container-xl site-header__inner">
             <a class="site-logo" href="<?= e(url('')) ?>" aria-label="<?= e(SHOP_NAME) ?> — Nyumbani">
-                <img class="site-logo__mark" src="<?= e(asset('img/logo-mark.webp')) ?>" width="40" height="40" alt="">
+                <img class="site-logo__mark" src="<?= e(logoUrl()) ?>" width="40" height="40" alt="">
                 <span class="site-logo__word"><?= e(SHOP_NAME) ?></span>
             </a>
 

@@ -46,12 +46,18 @@ $form_error = adminHandleForm(function (string $form_action) use ($order_manager
     } elseif ($form_action === 'change_status' && $can_change_status) {
         $order_manager->changeStatus($order_id, $_POST, $admin_id);
         Session::flash('success', 'The order is now "' . adminStatusName((string) $_POST['order_status'], $is_pickup) . '". The customer has been notified.');
+    } elseif ($form_action === 'reactivate_order' && $can_change_status) {
+        $order_manager->reactivateOrder($order_id, $_POST, $admin_id);
+        Session::flash('success', 'Order reactivated at today\'s prices — the customer has been told and can pay now.');
     } elseif ($form_action === 'confirm_delivery_fee' && $can_change_status) {
         $order_manager->confirmDeliveryFee($order_id, $_POST, $admin_id);
         Session::flash('success', 'Transport price confirmed — the customer has been told and can pay now.');
     } elseif ($form_action === 'confirm_cash' && $can_confirm_cash) {
         $order_manager->confirmCashCollected($order_id, $_POST, $admin_id);
         Session::flash('success', 'Cash received — the order is paid.');
+    } elseif ($form_action === 'add_staff_note' && $can_change_status) {
+        (new OrderEditor($database))->addStaffNote($order_id, $_POST, $admin_id);
+        Session::flash('success', 'Note added. Only staff see it.');
     } else {
         throw ApiException::forbidden('Your role cannot do this.');
     }
@@ -66,8 +72,17 @@ $delivery_agents = in_array('dispatched', $next_statuses, true) ? (new DeliveryA
 $address         = $order['address'];
 $customer        = $order['customer'];
 $delivery_fee_status = $order['delivery_method']['delivery_fee_status'];   // fixed · awaiting_confirmation · confirmed (R-25)
-$refund_is_due   = $can_manage_payments && in_array($order['order_status'], ['cancelled', 'expired'], true)
-    && $order['order_payment_status'] === 'paid';
+// An expired order can be brought back at today's prices (R-28): what would change
+$reactivation = $order['order_status'] === 'expired' && $can_change_status ? $order_manager->previewReactivation($order_id) : null;
+// "Edit order" (R-29) when something can still change; private staff notes
+$order_editor = new OrderEditor($database);
+$edit_rules   = $order_editor->getEditRules($order_id);
+$can_edit     = $can_change_status && ($edit_rules['can_edit_unpaid'] || $edit_rules['can_add_to_paid'] || $edit_rules['can_edit_address']);
+$staff_notes  = $order_editor->getStaffNotes($order_id);
+// Money to give back: a paid order that was stopped (all of it), or a lower total after a change (the difference)
+$refund_amount   = $order['payment']['refund_due'] > 0 ? $order['payment']['refund_due']
+    : (in_array($order['order_status'], ['cancelled', 'expired'], true) && $order['order_payment_status'] === 'paid' ? $order['payment']['amount_paid'] : 0);
+$refund_is_due   = $can_manage_payments && $refund_amount > 0;
 
 $page_title  = 'Order ' . $order['order_number'];
 $active_menu = 'orders';
@@ -88,13 +103,16 @@ require __DIR__ . '/includes/header.php';
             </div>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <?= adminStatusBadge($order['order_status'], $is_pickup) ?>
+            <?= adminOrderStatusBadge($order['order_status'], $order['order_payment_status'], $delivery_fee_status === 'awaiting_confirmation', $is_pickup) ?>
             <?= adminStatusBadge($order['order_payment_status']) ?>
             <strong class="fs-5 ms-2"><?= e(adminMoney($order['order_total'])) ?></strong>
             <a class="btn btn-outline-secondary ms-2" href="<?= e(url('admin/order_receipt.php?id=' . $order['order_id'])) ?>"
                target="_blank" rel="noopener"><i class="bi bi-printer"></i> Print receipt</a>
             <a class="btn btn-outline-secondary ms-2" href="<?= e(url('admin/order_packing_slip.php?id=' . $order['order_id'])) ?>"
                target="_blank" rel="noopener"><i class="bi bi-box-seam"></i> Packing slip</a>
+            <?php if ($can_edit): ?>
+                <a class="btn btn-chimbo ms-2" href="<?= e(url('admin/order_edit.php?id=' . $order['order_id'])) ?>"><i class="bi bi-pencil"></i> Edit order</a>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -154,7 +172,9 @@ require __DIR__ . '/includes/header.php';
                 </dd>
                 <?php if ($order['order_discount_total'] > 0): ?>
                     <dt>Discount</dt>
-                    <dd>− <?= e(adminMoney($order['order_discount_total'])) ?></dd>
+                    <dd>− <?= e(adminMoney($order['order_discount_total'])) ?>
+                        <?php if ($order['order_discount_note']): ?><div class="small text-muted"><?= e($order['order_discount_note']) ?></div><?php endif; ?>
+                    </dd>
                 <?php endif; ?>
                 <dt class="order-grand-total">Total</dt>
                 <dd class="order-grand-total"><?= e(adminMoney($order['order_total'])) ?></dd>
@@ -182,6 +202,51 @@ require __DIR__ . '/includes/header.php';
     </div>
 
     <div class="col-lg-4">
+        <?php if ($reactivation !== null): ?>
+            <form class="admin-panel admin-panel-attention mb-3" method="post" novalidate>
+                <?= Csrf::field() ?>
+                <div class="admin-panel-header"><h2 class="admin-panel-title"><i class="bi bi-arrow-counterclockwise"></i> Reactivate order</h2></div>
+                <div class="admin-panel-body">
+                    <p class="small text-muted">
+                        The time to pay ran out. If the customer still wants it, bring it back at <strong>today's prices</strong>:
+                        the stock is reserved again and they get a new time to pay.
+                    </p>
+                    <table class="table table-sm small mb-2">
+                        <thead><tr><th>Product</th><th class="text-end">Was</th><th class="text-end">Today</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($reactivation['lines'] as $line): ?>
+                                <tr>
+                                    <td><?= e($line['product_name']) ?> <span class="text-muted">× <?= e($line['quantity']) ?></span></td>
+                                    <td class="text-end text-nowrap"><?= e(adminMoney($line['old_unit_price'])) ?></td>
+                                    <td class="text-end text-nowrap<?= $line['new_unit_price'] !== null && $line['new_unit_price'] !== $line['old_unit_price'] ? ' fw-semibold' : '' ?>">
+                                        <?= $line['new_unit_price'] === null ? '—' : e(adminMoney($line['new_unit_price'])) ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    <div class="d-flex justify-content-between small"><span>Total was</span><span><?= e(adminMoney($reactivation['old_total'])) ?></span></div>
+                    <div class="d-flex justify-content-between fw-semibold mb-3"><span>New total</span><span><?= e(adminMoney($reactivation['new_total'])) ?></span></div>
+
+                    <?php if ($reactivation['problems']): ?>
+                        <div class="small text-danger mb-2"><i class="bi bi-exclamation-circle"></i> Can't reactivate yet:</div>
+                        <ul class="small text-danger mb-0">
+                            <?php foreach ($reactivation['problems'] as $problem): ?>
+                                <li><?= e($problem) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <label class="form-label" for="reactivate_note">Note <span class="text-muted">(optional, the customer sees it)</span></label>
+                        <input class="form-control mb-3" id="reactivate_note" name="status_note" maxlength="255" placeholder="e.g. Mteja alipiga simu">
+                        <button class="btn btn-chimbo w-100" type="submit" name="form_action" value="reactivate_order"
+                                data-confirm="Reactivate this order at today's prices (<?= e(adminMoney($reactivation['new_total'])) ?>)? The customer will be told to pay.">
+                            Reactivate order
+                        </button>
+                    <?php endif; ?>
+                </div>
+            </form>
+        <?php endif; ?>
+
         <?php if ($order['can_confirm_delivery_fee'] && $can_change_status): ?>
             <?php $estimate = $order['delivery_method']['delivery_fee_estimate']; ?>
             <form class="admin-panel admin-panel-attention mb-3" method="post" novalidate>
@@ -230,16 +295,22 @@ require __DIR__ . '/includes/header.php';
                         <?= adminFieldError($errors, 'order_status') ?>
                     </div>
                     <div class="mb-3" data-show-when="order_status=dispatched">
-                        <label class="form-label" for="delivery_agent_id">Delivery agent</label>
+                        <label class="form-label" for="delivery_agent_id">
+                            Delivery agent<?= $order['needs_delivery_agent'] ? '' : ' <span class="text-muted">(optional)</span>' ?>
+                        </label>
                         <select class="form-select<?= adminInvalidClass($errors, 'delivery_agent_id') ?>" id="delivery_agent_id" name="delivery_agent_id">
-                            <option value="">Choose who takes the order…</option>
+                            <option value=""><?= $order['needs_delivery_agent']
+                                ? 'Choose who takes the order…'
+                                : ($order['delivery_method']['delivery_fee_paid_to_rider'] ? 'No agent — sent with Bolt' : 'No agent — handed to the transport company') ?></option>
                             <?php foreach ($delivery_agents as $agent): ?>
                                 <option value="<?= e($agent['delivery_agent_id']) ?>" <?= adminSelected($posted, 'delivery_agent_id', $agent['delivery_agent_id']) ?>>
                                     <?= e($agent['delivery_agent_full_name']) ?> · <?= e(Phone::format($agent['delivery_agent_phone'])) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <?php if (!$delivery_agents): ?>
+                        <?php if (!$order['needs_delivery_agent']): ?>
+                            <div class="form-text">Choose an agent only if one of yours takes it.</div>
+                        <?php elseif (!$delivery_agents): ?>
                             <div class="form-text">No active delivery agents. <a href="<?= e(url('admin/delivery_agent_edit.php')) ?>">Add one</a> first.</div>
                         <?php endif; ?>
                         <?= adminFieldError($errors, 'delivery_agent_id') ?>
@@ -257,6 +328,33 @@ require __DIR__ . '/includes/header.php';
                 </div>
             </form>
         <?php endif; ?>
+
+        <section class="admin-panel mb-3">
+            <div class="admin-panel-header">
+                <h2 class="admin-panel-title"><i class="bi bi-lock"></i> Staff notes</h2>
+                <span class="small text-muted">Only staff see these</span>
+            </div>
+            <div class="admin-panel-body">
+                <?php foreach ($staff_notes as $note): ?>
+                    <div class="staff-note">
+                        <div><?= nl2br(e($note['order_staff_note_text'])) ?></div>
+                        <div class="small text-muted"><?= e($note['admin_full_name']) ?> · <?= e(adminDateTime($note['created_at'])) ?></div>
+                    </div>
+                <?php endforeach; ?>
+                <?php if (!$staff_notes): ?>
+                    <p class="small text-muted mb-2">No notes yet.</p>
+                <?php endif; ?>
+                <?php if ($can_change_status): ?>
+                    <form method="post" novalidate>
+                        <?= Csrf::field() ?>
+                        <textarea class="form-control form-control-sm<?= adminInvalidClass($errors, 'order_staff_note_text') ?>" name="order_staff_note_text"
+                                  rows="2" maxlength="1000" placeholder="e.g. Atakuja kuchukua saa 10 jioni" aria-label="New staff note"></textarea>
+                        <?= adminFieldError($errors, 'order_staff_note_text') ?>
+                        <button class="btn btn-sm btn-light mt-2" type="submit" name="form_action" value="add_staff_note"><i class="bi bi-plus-lg"></i> Add note</button>
+                    </form>
+                <?php endif; ?>
+            </div>
+        </section>
 
         <section class="admin-panel mb-3">
             <div class="admin-panel-header"><h2 class="admin-panel-title">Customer</h2></div>
@@ -396,9 +494,12 @@ require __DIR__ . '/includes/header.php';
 
             <?php if ($refund_is_due): ?>
                 <div class="admin-panel-body border-top">
-                    <p class="small text-muted mb-2">This paid order was cancelled: send <?= e(adminMoney($order['order_total'])) ?> back, then mark it refunded.</p>
+                    <p class="small text-muted mb-2">
+                        <?= $order['payment']['refund_due'] > 0 ? 'The total went down after a change' : 'This paid order was cancelled' ?>:
+                        send <?= e(adminMoney($refund_amount)) ?> back, then mark it refunded.
+                    </p>
                     <button class="btn btn-outline-secondary w-100" type="button" data-open-modal="#refund-modal"
-                            data-record-id="<?= e($order['order_id']) ?>" data-record-label="<?= e($order['order_number'] . ' · ' . adminMoney($order['order_total'])) ?>">
+                            data-record-id="<?= e($order['order_id']) ?>" data-record-label="<?= e($order['order_number'] . ' · ' . adminMoney($refund_amount)) ?>">
                         <i class="bi bi-arrow-counterclockwise"></i> Mark refunded
                     </button>
                 </div>

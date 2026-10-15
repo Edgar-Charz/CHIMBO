@@ -177,11 +177,13 @@ The dashboard's "Needs attention" bar shows payments to check and refunds due (`
 ### `PaymentMethod` — a "Payment methods" tab on payments.php (or in Settings) · `payment_methods.manage`
 | Method | Use |
 |---|---|
-| `listForAdmin()` | the 5 methods: `payment_method_id, payment_method_code, payment_method_name, payment_method_type, payment_method_account_name, payment_method_account_number, payment_method_bank_name, payment_method_instructions, payment_method_is_active, payment_method_sort_order` |
+| `createMethod($_POST, $admin_id)` | adds a **mobile money or bank** method (`payment_method_type` required; cash can't be added); the code orders store is made from the name ("HaloPesa" → `halopesa`) and never changes; audit `payment_method.created` |
+| `nameOf($code)` | the customer-facing name for a code (also switched-off ones) — lists, receipts, dashboard |
+| `listForAdmin()` | every method: `payment_method_id, payment_method_code, payment_method_name, payment_method_type, payment_method_account_name, payment_method_account_number, payment_method_bank_name, payment_method_instructions, payment_method_is_active, payment_method_sort_order` |
 | `getMethodById($id)` / `updateMethod($id, $_POST, $admin_id)` | fields `payment_method_name, payment_method_account_name, payment_method_account_number` (Lipa Namba / phone / bank account), `payment_method_bank_name` (banks), `payment_method_instructions` (Kiswahili, ≤ 500), `payment_method_is_active` (checkbox), `payment_method_sort_order`. Switching on a mobile money / bank method needs the account number and name (and bank name for banks) |
 | `setPaymentMethodActive($id, bool, $admin_id)` | the one-click Offer / Stop offering switch (same rule) |
 
-Methods can't be added or deleted (the five codes are fixed); unused ones stay switched off. `Lipa ukipokea` (cash) needs no account.
+Built: Payments → Payment methods → **Add payment method** (admin/payment_method_edit.php without an id: type, name, account, bank, instructions). Methods are never deleted — old orders still name them; switch unused ones off. `Lipa ukipokea` (cash) is built in and needs no account. Migration 014 turned the fixed code lists into text.
 
 ## App pictures (`AppImage`) — added 2026-10-06 · `settings.manage`
 
@@ -246,6 +248,43 @@ Scheduled job ready for the server: `cron/expire_unpaid_orders.php` (every 15 mi
 | `OrderManager::getOrdersForAdmin(['transport_to_confirm' => 1, …])` / `countTransportToConfirm()` | upcountry orders still waiting for their transport price |
 
 Built: **Settings in tabs** (General · Orders & payments · Delivery · Login (SMS) · App pictures; each tab saves only its own settings — `Settings::updateSettings($input, $admin_id, $group_titles)`). Delivery tab: the options table (Where, Price) and the **Upcountry transport estimates** form (one box per region). Option form: Where + Price. Order page: the orange **Transport price** box (estimate filled in, reason, "Confirm price and let the customer pay"). Orders page: "Transport to confirm (N)" filter and a "Transport price to confirm" line in the Status column. The bell: `delivery.to_confirm` notification and a "transport price(s) to confirm" line in Waiting for you.
+
+## Edit an order — `OrderEditor` — added 2026-10-15 (blueprint R-29, §12.11) · `orders.manage`
+
+| Method | Use |
+|---|---|
+| `getEditRules($order_id)` | `{can_edit_unpaid, can_edit_address, reason}` — unpaid = awaiting payment with nothing being checked, or cash on delivery before packing; address = until sent |
+| `updateItems($id, ['items' => [{product_id, quantity}]], $admin_id)` | unchanged lines keep their price; changed / new lines today's price; stock follows; ≥ 1 line; audit `order.items_changed` |
+| `changeDelivery($id, ['delivery_method_id'], $admin_id)` | must reach the order's region; its price rule (Bolt / pickup 0, fixed fee, upcountry estimate → confirm again); audit `order.delivery_changed` |
+| `changePaymentMethod($id, ['payment_method'], $admin_id)` | switched-on methods; to cash → confirmed (limit); cash → phone/bank → awaiting payment with a new time to pay |
+| `setDiscount($id, ['order_discount_total', 'order_discount_note'], $admin_id)` | ≤ products total, reason required (shown on the receipt, order page and app); 0 removes it |
+| `updateAddress($id, [recipient, phone, region, district, street, landmark], $admin_id)` | until sent; the delivery option must still reach the region; audit `order.address_changed` |
+| `addStaffNote($id, ['order_staff_note_text'], $admin_id)` / `getStaffNotes($id)` | private notes (table `order_staff_notes`, migration 015) |
+
+**Paid order, not packed (step 2):** `getEditRules()['can_add_to_paid']`; `updateItems()` then also takes `order_delivery_fee` + `order_delivery_fee_note` for an upcountry order's new load, and settles the money: more → payment status `balance_due` ("Salio la kulipa"; packing blocked until paid; `Payment::submitPayment / confirmPayment / rejectPayment / recordPaymentByStaff` handle the balance), less → `order_refund_due` (Payments → Refunds due; `Payment::markRefunded` gives back just that part, notification `refund.due`).
+
+Every change works the total out again (`saveTotals`) and tells the customer ("Oda imebadilishwa … Jumla mpya: TZS …"). Built: order page **Edit order** button and **Staff notes** panel; admin/order_edit.php (products, delivery option, payment method, discount, address — each its own form). Product rows shared with "Add order": admin/assets/order_items.js. `OrderManager::priceLinesToday()` is shared (it counts stock the order already holds).
+
+## Reactivate an expired order — added 2026-10-15 (blueprint R-28, §12.10) · `orders.manage`
+
+| Method | Use |
+|---|---|
+| `OrderManager::previewReactivation($order_id)` | `{can_reactivate, lines: [{product_name, quantity, old_unit_price, new_unit_price, …}], problems: […], old_total, new_total}` — the order page's preview |
+| `OrderManager::reactivateOrder($order_id, ['status_note' => …], $admin_id)` | expired → awaiting payment at today's prices: stock reserved, payment "unpaid", new time to pay, timeline "Imerejeshwa na CHIMBO", customer told the new total; audit `order.reactivated`. Errors `ORDER_NOT_EXPIRED`, `CANNOT_REACTIVATE` |
+| `OrderManager::priceLinesToday()` (private) | today's price per line (levels + running offer) with problems listed — shared by "Add order" and reactivation |
+
+Built: order page (expired orders) — **Reactivate order** panel: old → today's price per product, old and new total, the reasons when it can't be done, an optional note. "Add order" now follows the delivery rules too (Bolt paid to the rider, upcountry estimate to confirm, pickup).
+
+## Logo — `SiteLogo` — added 2026-10-15 (blueprint R-27, §12.9) · `settings.manage`
+
+| Method | Use |
+|---|---|
+| `setLogo($_FILES['logo'], $admin_id)` / `setLogoFromFile($path, $admin_id)` | square PNGs 512 / 192 / 180 / 32 px (`ImageUploader::saveSquareIcons()`, a wider picture is centred on a transparent square); old files removed; audit `logo.changed` |
+| `removeLogo($admin_id)` | back to the built-in logo; audit `logo.removed` |
+| `getUrl('512' \| '192' \| '180' \| '32')` / `getPath(…)` | the uploaded file, or null → the caller uses its built-in one |
+| `pdfDataUri($fallback_png)` | the logo inside a PDF (receipt, packing slip) |
+
+Built: Settings → **Logo & pictures** (the tab was "App pictures"): Logo card with preview, upload and "Use the built-in logo". Used by the website header, footer and tab icons (`logoUrl()`, `iconUrl()`), admin tab icons, receipt and packing-slip headers, and `GET /app-images` (slot `logo`) for the app.
 
 ## Dar by Bolt and pickup at the shop — added 2026-10-15 (blueprint R-26, §12.8)
 

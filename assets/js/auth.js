@@ -272,7 +272,7 @@
             messages = ['Hatukuweza kuhamisha kikapu chako cha awali. Bidhaa zako bado ziko kwenye kivinjari hiki.'];
         }
         messages.forEach((message) => toast(message, 'info'));
-        toast('Umeingia. Karibu CHIMBO!', 'success');
+        CHIMBO.successPopupOnNextPage('Umeingia. Karibu CHIMBO!', 'Karibu!');
 
         const goBack = () => window.location.assign(authData.return_path);
         if (messages.length > 0) {

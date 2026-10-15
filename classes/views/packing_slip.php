@@ -25,6 +25,7 @@ $cash_to_collect = $order['order_payment_method'] === 'cod' && $order['order_pay
 <table class="header">
     <tr>
         <td>
+            <?php if ($logo_uri !== null): ?><img class="brand-logo" src="<?= e($logo_uri) ?>" alt=""><?php endif; ?>
             <div class="brand">CHI<span class="brand-orange">MBO</span></div>
             <div class="tagline">BIDHAA BORA • BEI NAFUU • BIASHARA IMARA</div>
         </td>
@@ -55,12 +56,17 @@ $cash_to_collect = $order['order_payment_method'] === 'cod' && $order['order_pay
             <?php if (!empty($order['customer']['business_name'])): ?><?= e($order['customer']['business_name']) ?><br><?php endif; ?>
             <?= e(Phone::format($order['customer']['user_phone'])) ?>
         </td>
-        <td style="width: 50%; vertical-align: top;">
-            <div class="box-title"><?= $order['delivery_method']['delivery_method_is_pickup'] ? 'Atachukua dukani' : 'Peleka kwa' ?></div>
-            <strong><?= e($address['address_recipient_name']) ?></strong> · <?= e(Phone::format($address['address_phone'])) ?><br>
-            <?= e($address['address_street']) ?><br>
-            <?= e(trim(($address['district_name'] ? $address['district_name'] . ', ' : '') . $address['region_name'])) ?>
-            <?php if (!empty($address['address_landmark'])): ?><br><span class="muted">Alama: <?= e($address['address_landmark']) ?></span><?php endif; ?>
+        <td class="right" style="width: 50%; vertical-align: top;">
+            <?php if ($order['delivery_method']['delivery_method_is_pickup']): ?>
+                <div class="box-title">Atachukua dukani</div>
+                <strong><?= e($address['address_recipient_name']) ?></strong> · <?= e(Phone::format($address['address_phone'])) ?>
+            <?php else: ?>
+                <div class="box-title">Peleka kwa</div>
+                <strong><?= e($address['address_recipient_name']) ?></strong> · <?= e(Phone::format($address['address_phone'])) ?><br>
+                <?= e($address['address_street']) ?><br>
+                <?= e(trim(($address['district_name'] ? $address['district_name'] . ', ' : '') . $address['region_name'])) ?>
+                <?php if (!empty($address['address_landmark'])): ?><br><span class="muted">Alama: <?= e($address['address_landmark']) ?></span><?php endif; ?>
+            <?php endif; ?>
         </td>
     </tr>
 </table>
@@ -106,7 +112,7 @@ $cash_to_collect = $order['order_payment_method'] === 'cod' && $order['order_pay
         <div class="collect">KUSANYA: TZS <?= e(number_format($cash_to_collect)) ?> — Lipa ukipokea</div>
     <?php else: ?>
         <span class="muted">Malipo:</span> <?= e(Receipt::PAYMENT_STATUS_NAMES[$order['order_payment_status']] ?? $order['order_payment_status']) ?>
-        (<?= e(Receipt::PAYMENT_METHOD_NAMES[$order['order_payment_method']] ?? $order['order_payment_method']) ?>)
+        (<?= e($order['payment']['payment_method']['payment_method_name'] ?? $order['order_payment_method']) ?>)
     <?php endif; ?>
 </div>
 

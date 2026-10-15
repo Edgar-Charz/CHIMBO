@@ -16,10 +16,9 @@
 
   const find = (selector) => form.querySelector(selector);
   const field = (name) => form.elements[name];
-  const formatMoney = (amount) => `TZS ${Number(amount).toLocaleString('en-US')}`;
+  const { rowProduct, tierPrice, formatMoney } = OrderItemRows;   // the product rows: order_items.js
 
   const itemList = find('[data-order-items]');
-  const itemTemplate = find('[data-order-item-template]');
   const summary = find('[data-order-summary]');
   const steps = [...form.querySelectorAll('[data-order-step]')];
   const stepIndicators = [...form.querySelectorAll('[data-step-indicator]')];
@@ -32,7 +31,6 @@
     selectedCard: find('[data-selected-customer]'),
     modeButton: find('[data-toggle-customer-mode]'),
     newFields: find('[data-new-customer-fields]'),
-    saveError: find('[data-customer-save-error]'),
     nameInput: field('user_full_name'),
     phoneInput: field('user_phone'),
   };
@@ -45,7 +43,6 @@
   };
 
   let currentStep = 1;
-  let nextItemIndex = Number(itemList.dataset.nextIndex);
 
   // ---------------------------------------------------------------- Steps
 
@@ -238,7 +235,6 @@
     const buttonContent = [...button.childNodes];
     button.disabled = true;
     button.textContent = 'Saving customer…';
-    customer.saveError.hidden = true;
     try {
       const response = await fetch(form.dataset.saveCustomerUrl, { method: 'POST', body: new FormData(form), headers: { Accept: 'application/json' } });
       const result = await response.json();
@@ -250,8 +246,7 @@
       fillAddress(result.customer.addresses.find((saved) => saved.address_id === result.address_id) ?? null);
       return true;
     } catch (error) {
-      customer.saveError.textContent = error.message;
-      customer.saveError.hidden = false;
+      AdminDialog.error(error.message, 'Customer not saved');
       return false;
     } finally {
       button.disabled = false;
@@ -262,87 +257,36 @@
   // ---------------------------------------------------------------- Location choices
 
   /** Districts and delivery methods of the chosen region only (a method without a region is for everyone). */
+  /** Does this delivery option go to the region? Every region · only one · every region except one (R-25). */
+  const deliveryReaches = (option, regionId) => ({
+    all: true,
+    only: option.dataset.region === regionId,
+    except: regionId !== '' && option.dataset.region !== regionId,
+  })[option.dataset.area] ?? false;
+
+  /** Shows only the districts of the chosen region and the delivery options that go there. */
   function updateLocationChoices() {
     const regionId = field('region_id').value;
-    [[field('district_id'), false], [field('delivery_method_id'), true]].forEach(([select, allowsAnyRegion]) => {
+    const showOnly = (select, isAvailable) => {
       [...select.options].forEach((option) => {
         if (!option.value) {
           return;
         }
-        const isAvailable = (allowsAnyRegion && !option.dataset.region) || option.dataset.region === regionId;
-        option.hidden = !isAvailable;
-        if (!isAvailable && option.selected) {
+        option.hidden = !isAvailable(option);
+        if (option.hidden && option.selected) {
           select.value = '';
         }
       });
-    });
+    };
+    showOnly(field('district_id'), (option) => option.dataset.region === regionId);
+    showOnly(field('delivery_method_id'), (option) => deliveryReaches(option, regionId));
   }
 
   field('region_id').addEventListener('change', updateLocationChoices);
 
   // ---------------------------------------------------------------- Step 2: products
 
-  /** The tier price reached by this quantity (the biggest level whose minimum is not above it). */
-  const tierPrice = (tiers, quantity) => {
-    const reached = tiers.filter((tier) => tier.tier_min_quantity <= quantity);
-    return (reached.at(-1) ?? tiers[0])?.tier_unit_price ?? 0;
-  };
-
-  const rowProduct = (row) => {
-    const option = row.querySelector('select').selectedOptions[0];
-    if (!option?.value) {
-      return null;
-    }
-    return {
-      name: option.dataset.name,
-      moq: Number(option.dataset.moq),
-      stock: Number(option.dataset.stock),
-      tiers: JSON.parse(option.dataset.tiers),
-    };
-  };
-
-  /** Shows stock, MOQ and unit price for the row's product; a newly chosen product starts at its MOQ. */
-  const updateItemRow = (row, productJustChosen = false) => {
-    const product = rowProduct(row);
-    const quantityInput = row.querySelector('input[type="number"]');
-    const stockOutput = row.querySelector('[data-product-stock]');
-    const moqOutput = row.querySelector('[data-product-moq]');
-    const priceOutput = row.querySelector('[data-product-price]');
-
-    if (product === null) {
-      stockOutput.value = moqOutput.value = priceOutput.value = '—';
-      quantityInput.min = '1';
-      return;
-    }
-    if (productJustChosen) {
-      quantityInput.value = String(product.moq);
-    }
-    stockOutput.value = String(product.stock);
-    moqOutput.value = String(product.moq);
-    quantityInput.min = String(product.moq);
-    quantityInput.max = String(product.stock);
-    priceOutput.value = formatMoney(tierPrice(product.tiers, Number(quantityInput.value || product.moq)));
-  };
-
-  find('[data-add-order-item]').addEventListener('click', () => {
-    itemList.insertAdjacentHTML('beforeend', itemTemplate.innerHTML.replaceAll('__INDEX__', String(nextItemIndex)));
-    nextItemIndex += 1;
-    updateItemRow(itemList.lastElementChild);
-  });
-
-  itemList.addEventListener('click', (event) => {
-    event.target.closest('[data-remove-order-item]')?.closest('[data-order-item]').remove();
-  });
-  itemList.addEventListener('change', (event) => {
-    if (event.target.matches('select')) {
-      updateItemRow(event.target.closest('[data-order-item]'), true);
-    }
-  });
-  itemList.addEventListener('input', (event) => {
-    if (event.target.matches('input[type="number"]')) {
-      updateItemRow(event.target.closest('[data-order-item]'));
-    }
-  });
+  OrderItemRows.attach(form);   // add / remove rows, stock · MOQ · price per row
 
   // ---------------------------------------------------------------- Step 3: summary
 
@@ -407,7 +351,7 @@
     const deliveryOption = field('delivery_method_id').selectedOptions[0];
     const deliveryFee = Number(deliveryOption?.dataset.fee ?? 0);
     addSummaryLine('Products', formatMoney(subtotal));
-    addSummaryLine('Delivery', deliveryOption?.value ? formatMoney(deliveryFee) : 'Choose a delivery method above');
+    addSummaryLine('Delivery', deliveryOption?.value ? deliveryOption.dataset.feeText : 'Choose a delivery method above');
     addSummaryLine('Payment', selectedText('payment_method'));
     addSummaryLine('Estimated total', formatMoney(subtotal + deliveryFee), 'fw-bold border-top pt-2 mt-1');
   }
@@ -468,7 +412,6 @@
     }
   };
 
-  itemList.querySelectorAll('[data-order-item]').forEach((row) => updateItemRow(row));
   updateLocationChoices();
   restoreCustomer().catch(() => {});
   goToStep(Number(form.dataset.startStep));
