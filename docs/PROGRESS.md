@@ -7,7 +7,7 @@ Update this file at the end of every work session. Newest entry on top.
 - **Next (backend session):** web, app and admin features complete for the MVP. Next: staging server + scheduled jobs → real SMS provider → payment aggregator (blueprint §13).
 - **Planned (designed, not built):** staff for one shop (blueprint §17.2) · smart QR link on the packing slip (blueprint R-24, §12.6) — build with the staging server; switching from ngrok to the real domain = changing `APP_URL`.
 - **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
-- **Committed and pushed:** everything up to 2026-10-15 on `main` in both repos (backend ac6f826, app fdfe8c4)
+- **Committed and pushed:** everything through the end of 2026-10-15 on `main` in both repos (backend and app; see `git log`)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
 - **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice · for push notifications: Firebase project + `google-services.json` + service-account key
 
