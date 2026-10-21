@@ -222,4 +222,42 @@ class ProductOffer
             'product_offer_ends_at'   => $ends_at,
         ];
     }
+
+    /** Broadcasts an offer notification to all active customers. */
+    public function broadcastOfferNotification(int $product_offer_id, string $title, string $body): int
+    {
+        $offer = $this->getOfferById($product_offer_id);
+        $productId = (int) $offer['product_id'];
+
+        $users = $this->db->fetchAll("SELECT user_id FROM users WHERE user_status = 'active'");
+        $user_ids = array_map(static fn (array $user): int => (int) $user['user_id'], $users);
+        return (new Notification($this->db))->notifyUsers(
+            $user_ids,
+            'promo',
+            $title,
+            $body,
+            ['product_id' => $productId, 'offer_id' => $product_offer_id]
+        );
+    }
+
+    /** Notifies customers who saved this product in their Vipendwa (Wishlist). */
+    public function notifyWishlistUsers(int $productId, int $percent): int
+    {
+        $product = (new ProductEditor($this->db))->getProductForAdmin($productId);
+        $productName = $product['product_name'] ?? 'Bidhaa';
+
+        $wishlistUsers = $this->db->fetchAll(
+            'SELECT DISTINCT user_id FROM wishlist_items WHERE product_id = :product_id',
+            ['product_id' => $productId]
+        );
+
+        $user_ids = array_map(static fn (array $user): int => (int) $user['user_id'], $wishlistUsers);
+        return (new Notification($this->db))->notifyUsers(
+            $user_ids,
+            'promo',
+            'Bidhaa ya Vipendwa Ina Punguzo! 🔥',
+            "{$productName} uliyoiweka kwenye Vipendwa sasa ina punguzo la {$percent}%! Wahi kabla ofa haijaisha.",
+            ['product_id' => $productId]
+        );
+    }
 }

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Payments for mobile money and bank orders, checked by staff until a payment provider is connected.
+ * Manual mobile-money/bank payments.
  *
  *   1. The customer orders (status "pending_payment", payment "unpaid") and pays with the "pay to" details.
  *   2. "Nimelipa": submitPayment() saves the number they paid from + the confirmation code → payment "pending".
@@ -11,8 +11,7 @@
  *   Phone orders: recordPaymentByStaff() saves and confirms in one step.
  *   Paid orders that are later cancelled appear in getRefundsDue() until markRefunded().
  *
- * Only staff ever mark an order paid — a code typed by a customer is never trusted on its own.
- * Later the provider's callback will fill the same rows and confirm them automatically.
+ * Manual payment claims are confirmed only by staff.
  */
 class Payment
 {
@@ -36,6 +35,10 @@ class Payment
     {
         $this->db->transaction(function () use ($user_id, $order_id, $input) {
             $order = $this->lockOrderForPayment($order_id, $user_id);
+            $method = (new PaymentMethod($this->db))->getDetailsByCode($order['order_payment_method']);
+            if ($method !== null && !($method['payment_method_is_available'] ?? true)) {
+                throw ApiException::conflict('PAYMENT_METHOD_LOCKED', 'Njia hii ya malipo haipatikani. Badilisha njia ya malipo au wasiliana na msaada.');
+            }
 
             $is_balance = Order::isBalanceDue($order);   // paying the rest after staff added to a paid order
             match (true) {
@@ -177,7 +180,7 @@ class Payment
 
     /**
      * "Malipo yangu": the customer's own payments, newest first, 20 per page (input: page).
-     * Every attempt is listed — sent, confirmed, rejected (with the reason) — plus cash collected on delivery.
+     * Every attempt is listed, including provider statuses and manual review results, plus cash collected on delivery.
      */
     public function getPaymentsForCustomer(int $user_id, array $input): array
     {
@@ -204,7 +207,7 @@ class Payment
             'payment_amount'        => (int) $row['payment_amount'],
             'payment_payer_account' => $row['payment_payer_account'],
             'payment_reference'     => $row['payment_reference'],
-            'payment_status'        => $row['payment_status'],        // submitted | confirmed | rejected
+            'payment_status'        => $row['payment_status'],        // manual and provider attempt statuses
             'payment_review_note'   => $row['payment_review_note'],   // why it was rejected
             'created_at'            => isoDate($row['created_at']),
             'payment_reviewed_at'   => isoDate($row['payment_reviewed_at']),
@@ -511,10 +514,13 @@ class Payment
     {
         $order = $this->db->fetchOne(
             'SELECT o.order_id, o.order_number, o.user_id, o.order_status, o.order_payment_method, o.order_payment_status, o.order_total,
+                    o.order_ship_recipient_name, o.order_ship_phone, o.order_ship_street, o.order_ship_region_name,
+                    u.user_email,
                     o.order_refund_due, ' . Order::AMOUNT_PAID_SQL . ' AS order_amount_paid,
                     o.order_expires_at IS NOT NULL AND o.order_expires_at < UTC_TIMESTAMP() AS is_past_payment_time,
                     o.order_delivery_fee_estimate IS NOT NULL AND o.order_delivery_fee_confirmed_at IS NULL AS is_awaiting_transport_price
-             FROM orders o WHERE o.order_id = :order_id FOR UPDATE',
+             FROM orders o JOIN users u ON u.user_id = o.user_id
+             WHERE o.order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );
         if ($order === null || ($user_id !== null && (int) $order['user_id'] !== $user_id)) {

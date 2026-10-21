@@ -126,6 +126,7 @@ $price_text = fn (array $method): string => match (true) {
 
 $page_title  = 'Settings';
 $active_menu = 'settings';
+$page_scripts = ['legal_editor.js'];
 require __DIR__ . '/includes/header.php';
 ?>
 
@@ -153,10 +154,32 @@ require __DIR__ . '/includes/header.php';
                             <?php foreach ($group_settings as $setting): ?>
                                 <?php $setting_key = $setting['setting_key']; ?>
                                 <div class="mb-3">
-                                    <label class="form-label" for="<?= e($setting_key) ?>"><?= e($setting['label']) ?></label>
+                                    <label class="form-label" id="<?= e($setting_key) ?>-label" for="<?= e($setting_key) ?>"><?= e($setting['label']) ?></label>
                                     <?php if ($input_type($setting_key) === 'textarea'): ?>
-                                        <textarea class="form-control settings-long-text<?= adminInvalidClass($errors, $setting_key) ?>" id="<?= e($setting_key) ?>"
-                                                  name="<?= e($setting_key) ?>" rows="12"><?= e($form[$setting_key] ?? '') ?></textarea>
+                                        <div class="legal-editor" data-legal-editor>
+                                            <div class="legal-editor__toolbar" role="toolbar" aria-label="Text formatting">
+                                                <button class="legal-editor__tool" type="button" data-legal-command="bold" aria-label="Bold" title="Bold"><i class="bi bi-type-bold"></i></button>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="italic" aria-label="Italic" title="Italic"><i class="bi bi-type-italic"></i></button>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="underline" aria-label="Underline" title="Underline"><i class="bi bi-type-underline"></i></button>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="strikeThrough" aria-label="Strikethrough" title="Strikethrough"><i class="bi bi-type-strikethrough"></i></button>
+                                                <span class="legal-editor__divider" aria-hidden="true"></span>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="insertOrderedList" aria-label="Numbered list" title="Numbered list"><i class="bi bi-list-ol"></i></button>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="insertUnorderedList" aria-label="Bulleted list" title="Bulleted list"><i class="bi bi-list-ul"></i></button>
+                                                <span class="legal-editor__divider" aria-hidden="true"></span>
+                                                <select class="legal-editor__style" data-legal-style aria-label="Paragraph style">
+                                                    <option value="p">Normal</option>
+                                                    <option value="h2">Heading 2</option>
+                                                    <option value="h3">Heading 3</option>
+                                                </select>
+                                                <button class="legal-editor__tool" type="button" data-legal-link aria-label="Insert link" title="Insert link"><i class="bi bi-link-45deg"></i></button>
+                                                <button class="legal-editor__tool" type="button" data-legal-command="removeFormat" data-legal-clear aria-label="Clear formatting" title="Clear formatting"><i class="bi bi-eraser"></i></button>
+                                            </div>
+                                            <div class="form-control legal-editor__content<?= adminInvalidClass($errors, $setting_key) ?>" id="<?= e($setting_key) ?>"
+                                                 contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="<?= e($setting_key) ?>-label"
+                                                 data-legal-content data-empty-message="Write the legal text here."></div>
+                                            <textarea class="visually-hidden" name="<?= e($setting_key) ?>" tabindex="-1" aria-hidden="true"
+                                                      data-legal-value><?= e($form[$setting_key] ?? '') ?></textarea>
+                                        </div>
                                     <?php else: ?>
                                         <input class="form-control<?= adminInvalidClass($errors, $setting_key) ?>" type="<?= e($input_type($setting_key)) ?>"
                                                id="<?= e($setting_key) ?>" name="<?= e($setting_key) ?>" value="<?= e($form[$setting_key] ?? '') ?>">

@@ -210,7 +210,7 @@ class User
                  WHERE user_id = :user_id",
                 ['user_id' => $user_id]
             );
-            foreach (['business_profiles', 'wishlist_items', 'cart_items', 'addresses', 'notifications'] as $personal_table) {
+            foreach (['business_profiles', 'wishlist_items', 'cart_items', 'addresses', 'notifications', 'device_tokens'] as $personal_table) {
                 $this->db->execute("DELETE FROM {$personal_table} WHERE user_id = :user_id", ['user_id' => $user_id]);
             }
 

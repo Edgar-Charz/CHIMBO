@@ -11,11 +11,14 @@ $payment = $order['payment'];
 $method = $payment['payment_method'];
 $latest_payment = $payment['latest_payment'];
 $is_mobile_money = $method['payment_method_type'] === 'mobile_money';
+$is_retired_payment_method = !($method['payment_method_is_available'] ?? true);
 $payment_state = match (true) {
     $method['payment_method_type'] === 'cash'                 => null,
     $order['order_status'] === 'pending_payment'
         && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation' => 'transport_pending',
-    $payment['can_submit_payment']                             => 'pay',
+    $payment['payment_deadline_passed'] ?? false             => 'time_over',
+    $is_retired_payment_method                                => 'method_disabled',
+    $payment['can_submit_payment']                            => 'pay',
     ($latest_payment['payment_status'] ?? null) === 'submitted' => 'checking',
     $order['order_payment_status'] === 'paid'                  => 'paid',
     $order['order_payment_status'] === 'refunded'              => 'refunded',
@@ -35,7 +38,9 @@ $payment_state = match (true) {
             </div>
         <?php endif; ?>
 
-        <p class="payment-box__amount">Lipa <?= $payment['is_balance_payment'] ? 'salio la ' : '' ?><strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa <?= e($method['payment_method_name']) ?></p>
+        <p class="payment-box__amount">Lipa <?= $payment['is_balance_payment'] ? 'salio la ' : '' ?><strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa
+            <?php require __DIR__ . '/payment_method_icon.php'; ?> <strong><?= e($method['payment_method_name']) ?></strong>
+        </p>
         <?php if ($payment['is_balance_payment']) : ?>
             <p class="payment-box__hint">Oda imebadilishwa: umeshalipa <?= e(formatTzs($payment['amount_paid'])) ?> kati ya <?= e(formatTzs($order['order_total'])) ?>.</p>
         <?php endif; ?>
@@ -118,5 +123,10 @@ $payment_state = match (true) {
 <?php elseif ($payment_state === 'refunded') : ?>
     <p class="payment-box__result"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Pesa yako imerudishwa.</p>
 <?php elseif ($payment_state === 'time_over') : ?>
-    <p class="payment-box__result payment-box__result--late"><i class="bi bi-clock-history" aria-hidden="true"></i> Muda wa kulipa oda hii umeisha. Kama ulishalipa, <a href="<?= e(url('help.php')) ?>">wasiliana nasi</a>.</p>
+    <p class="payment-box__result payment-box__result--late"><i class="bi bi-clock-history" aria-hidden="true"></i> Huwezi kulipa oda hii tena kwa sababu muda wa kulipa umeisha. Oda itasitishwa hivi karibuni. Kama ulilipa au bado unahitaji kuendelea, <a href="<?= e(url('help.php')) ?>">wasiliana nasi</a>.</p>
+<?php elseif ($payment_state === 'method_disabled') : ?>
+    <section class="payment-box payment-box--checking" aria-live="polite">
+        <h2 class="payment-box__title"><i class="bi bi-exclamation-circle" aria-hidden="true"></i> Njia ya malipo haipatikani</h2>
+        <p class="mb-0">Usiendelee na malipo kupitia njia hii. Ghairi oda hii au <a href="<?= e(url('help.php')) ?>">wasiliana nasi</a> kwa msaada.</p>
+    </section>
 <?php endif; ?>

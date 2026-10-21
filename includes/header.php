@@ -107,7 +107,7 @@ require __DIR__ . '/head.php';
                             </div>
                         </li>
                     <?php endforeach; ?>
-                    <li><a class="category-nav__link category-nav__link--deal" href="<?= e(url('search.php?collection=deals')) ?>"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
+                    <li><a class="category-nav__link category-nav__link--deal" href="<?= e(collectionUrl('offers')) ?>"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
                     <li><a class="category-nav__link" href="<?= e(url('search.php?collection=new')) ?>">Mpya</a></li>
                     <li><a class="category-nav__link" href="<?= e(url('search.php?collection=best_sellers')) ?>">Zinazouzwa Zaidi</a></li>
                 </ul>

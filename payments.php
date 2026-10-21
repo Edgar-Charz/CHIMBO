@@ -77,7 +77,7 @@ require __DIR__ . '/includes/header.php';
         <div class="orders-list">
             <?php foreach ($methods as $method) : ?>
                 <article class="order-card">
-                    <h3 class="h6 mb-2"><?= e($method['payment_method_name']) ?></h3>
+                    <h3 class="h6 mb-2"><?php require __DIR__ . '/includes/payment_method_icon.php'; ?> <?= e($method['payment_method_name']) ?></h3>
                     <?php if ($method['payment_method_type'] === 'cash') : ?>
                         <p class="mb-0">Lipa kwa pesa taslimu unapopokea mzigo.</p>
                     <?php else : ?>

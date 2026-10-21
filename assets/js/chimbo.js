@@ -180,13 +180,13 @@
     // ------------------------------------------------------------------ Choice cards (radio buttons)
 
     /** One selectable card (address, delivery, payment). `lines` are the texts under the title; `tag` a small label. */
-    function choiceCard({ name, value, title, lines, tag = null, iconName = null, isChecked, onSelect }) {
+    function choiceCard({ name, value, title, lines, tag = null, iconName = null, iconElement = null, isChecked, onSelect }) {
         const input = el('input', { className: 'choice-card__input', attrs: { type: 'radio', name, value, checked: isChecked } });
         input.addEventListener('change', () => onSelect(value));
 
         return el('label', { className: 'choice-card' }, [
             input,
-            iconName ? el('span', { className: 'choice-card__icon' }, [icon(iconName)]) : null,
+            iconElement ?? (iconName ? el('span', { className: 'choice-card__icon' }, [icon(iconName)]) : null),
             el('span', { className: 'choice-card__body' }, [
                 el('span', { className: 'choice-card__title' }, [title, tag ? el('span', { className: 'choice-card__tag', text: tag }) : null]),
                 ...lines.filter(Boolean).map((line) => el('span', { className: 'choice-card__line', text: line })),
@@ -203,13 +203,21 @@
 
     /** A payment method (from the API) as a choice card — used at checkout and when changing an order's method. */
     function paymentChoiceCard(method, { isChecked, tag = null, onSelect }) {
-        const kind = PAYMENT_TYPES[method.payment_method_type] ?? PAYMENT_TYPES.mobile_money;
+        const kind = PAYMENT_TYPES[method.payment_method_code] ?? PAYMENT_TYPES[method.payment_method_type] ?? PAYMENT_TYPES.mobile_money;
+        const fallback_icon = icon(kind.icon);
+        const method_icon = method.payment_method_icon_url
+            ? el('img', {
+                className: 'choice-card__payment-icon',
+                attrs: { src: method.payment_method_icon_url, alt: '', loading: 'lazy', decoding: 'async' },
+                on: { error: (event) => event.currentTarget.replaceWith(fallback_icon) },
+            })
+            : fallback_icon;
         return choiceCard({
             name: 'payment_method',
             value: method.payment_method_code,
             title: method.payment_method_name,
             lines: [kind.text],
-            iconName: kind.icon,
+            iconElement: el('span', { className: 'choice-card__icon' }, [method_icon]),
             tag,
             isChecked,
             onSelect,

@@ -13,8 +13,18 @@ $method    = $is_new ? null : adminLoadOrRedirect(fn () => $payment_method_model
 
 $form_error = adminHandleForm(function () use ($payment_method_model, $method_id, $is_new, $current_admin): void {
     $admin_id = (int) $current_admin['admin_id'];
+    if (!$is_new && ($_POST['form_action'] ?? '') === 'upload_icon') {
+        $payment_method_model->setIcon($method_id, $_FILES['payment_method_icon'] ?? null, $admin_id);
+        Session::flash('success', 'Payment method icon uploaded.');
+        redirect(url('admin/payment_method_edit.php?id=' . $method_id));
+    }
+    if (!$is_new && ($_POST['form_action'] ?? '') === 'remove_icon') {
+        $payment_method_model->removeIcon($method_id, $admin_id);
+        Session::flash('success', 'Payment method icon removed. Customers will see the built-in icon.');
+        redirect(url('admin/payment_method_edit.php?id=' . $method_id));
+    }
     if ($is_new) {
-        $payment_method_model->createMethod($_POST, $admin_id);
+        $payment_method_model->createMethod($_POST, $admin_id, $_FILES['payment_method_icon'] ?? null);
         Session::flash('success', 'Payment method added. Switch it on when its details are right.');
     } else {
         $payment_method_model->updateMethod($method_id, $_POST, $admin_id);
@@ -37,7 +47,42 @@ require __DIR__ . '/includes/header.php';
 
 <?php require __DIR__ . '/includes/form_alert.php'; ?>
 
-<form class="admin-panel admin-form-narrow" method="post" novalidate>
+<?php if (!$is_new): ?>
+    <section class="admin-panel admin-form-narrow mb-4">
+        <div class="admin-panel-header"><h2 class="admin-panel-title">Customer icon</h2></div>
+        <div class="admin-panel-body d-flex align-items-center gap-3">
+            <?php if ($method['payment_method_icon_path'] !== null): ?>
+                <img src="<?= e(url($method['payment_method_icon_path'])) ?>" alt="<?= e($method['payment_method_name']) ?> icon"
+                     width="64" height="64" class="rounded border bg-white object-fit-contain">
+            <?php else: ?>
+                <div class="payment-method-icon-fallback rounded border bg-light d-flex align-items-center justify-content-center text-success" aria-hidden="true">
+                    <i class="bi <?= $type === 'bank' ? 'bi-bank' : 'bi-phone' ?> fs-3"></i>
+                </div>
+            <?php endif; ?>
+            <div>
+                <div class="fw-semibold"><?= $method['payment_method_icon_path'] === null ? 'Using the built-in type icon' : 'Uploaded icon is active' ?></div>
+                <div class="small text-muted">Upload a JPG, PNG or WebP logo. It will be resized to a square PNG.</div>
+            </div>
+        </div>
+        <div class="admin-panel-footer d-flex flex-wrap gap-2">
+            <form method="post" enctype="multipart/form-data" class="d-flex flex-grow-1 align-items-center gap-2">
+                <?= Csrf::field() ?>
+                <input class="form-control form-control-sm" type="file" name="payment_method_icon" accept="image/jpeg,image/png,image/webp" required
+                       aria-label="Icon for <?= e($method['payment_method_name']) ?>">
+                <button class="btn btn-sm btn-chimbo text-nowrap" type="submit" name="form_action" value="upload_icon">Upload icon</button>
+            </form>
+            <?php if ($method['payment_method_icon_path'] !== null): ?>
+                <form method="post">
+                    <?= Csrf::field() ?>
+                    <button class="btn btn-sm btn-light" type="submit" name="form_action" value="remove_icon"
+                            data-confirm="Remove this uploaded icon? Customers will see the built-in type icon.">Use built-in icon</button>
+                </form>
+            <?php endif; ?>
+        </div>
+    </section>
+<?php endif; ?>
+
+<form class="admin-panel admin-form-narrow" method="post" enctype="multipart/form-data" novalidate>
     <?= Csrf::field() ?>
     <div class="admin-panel-header">
         <h2 class="admin-panel-title">
@@ -66,6 +111,15 @@ require __DIR__ . '/includes/header.php';
                    value="<?= e($form['payment_method_name'] ?? '') ?>" maxlength="60" required placeholder="e.g. HaloPesa or NMB Bank">
             <?= adminFieldError($errors, 'payment_method_name') ?>
         </div>
+
+        <?php if ($is_new): ?>
+            <div class="mb-3">
+                <label class="form-label" for="payment_method_icon">Payment icon <span class="text-muted">(optional)</span></label>
+                <input class="form-control" id="payment_method_icon" type="file" name="payment_method_icon" accept="image/jpeg,image/png,image/webp">
+                <div class="form-text">Upload a mobile network or bank logo. JPG, PNG or WebP; it will be resized to a square PNG. If omitted, customers see the built-in type icon.</div>
+                <?= adminFieldError($errors, 'payment_method_icon') ?>
+            </div>
+        <?php endif; ?>
 
         <?php if (!$is_cash): ?>
             <div class="row g-3 mb-3">

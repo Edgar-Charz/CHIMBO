@@ -7,7 +7,7 @@
 (() => {
     'use strict';
 
-    const { api, phone, submitForm, toast, setLoading, paymentChoiceCard } = CHIMBO;
+    const { api, phone, submitForm, toast, paymentChoiceCard } = CHIMBO;
 
     // These mean the order's payment state changed elsewhere (already sent, locked, or the time to pay is over):
     // show the message, then reload so the page shows the current state.

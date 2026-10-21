@@ -23,7 +23,15 @@ if ($offer !== null && $offer['product_offer_status'] === 'ended') {
 $form_error = adminHandleForm(function () use ($offer_model, $offer_id, $is_new, $admin_id): void {
     if ($is_new) {
         $saved_offer_id = $offer_model->createOffer($_POST, $admin_id);
-        Session::flash('success', 'Offer saved. Customers see the lower price while it runs.');
+        if (!empty($_POST['notify_wishlist'])) {
+            $offer_model->notifyWishlistUsers((int) $_POST['product_id'], (int) $_POST['product_offer_percent']);
+        }
+        if (!empty($_POST['send_broadcast'])) {
+            $title = trim((string) ($_POST['notification_title'] ?? '')) ?: 'Ofa Mpya! 🔥';
+            $body  = trim((string) ($_POST['notification_body'] ?? '')) ?: "Pata punguzo la {$_POST['product_offer_percent']}% kwenye bidhaa hii! Fungua kuangalia.";
+            $offer_model->broadcastOfferNotification($saved_offer_id, $title, $body);
+        }
+        Session::flash('success', 'Offer saved and push notifications dispatched.');
     } else {
         $offer_model->updateOffer($offer_id, $_POST, $admin_id);
         $saved_offer_id = $offer_id;
@@ -122,6 +130,33 @@ require __DIR__ . '/includes/header.php';
             </div>
             <div class="col-12 form-text mt-1">Tanzania time.</div>
         </div>
+        <?php if ($is_new): ?>
+            <section class="border-top mt-4 pt-4" aria-labelledby="offer-notifications-title">
+                <h3 class="h6 fw-bold mb-3" id="offer-notifications-title"><i class="bi bi-broadcast text-chimbo"></i> Customer notifications <span class="text-muted fw-normal">(optional)</span></h3>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" name="notify_wishlist" id="notify_wishlist" value="1" checked>
+                    <label class="form-check-label fw-semibold" for="notify_wishlist">
+                        Notify customers who saved this product to their wishlist
+                    </label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch" name="send_broadcast" id="send_broadcast" value="1">
+                    <label class="form-check-label fw-semibold" for="send_broadcast">
+                        Send a notification to all app customers
+                    </label>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label class="form-label" for="notification_title">Notification title</label>
+                        <input class="form-control" type="text" name="notification_title" id="notification_title" placeholder="e.g. Special offer! 🔥" maxlength="100">
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label" for="notification_body">Message</label>
+                        <input class="form-control" type="text" name="notification_body" id="notification_body" placeholder="e.g. A special discount is here. Shop now!" maxlength="255">
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
     </div>
     <div class="admin-panel-footer">
         <a class="btn btn-light" href="<?= e(url('admin/offers.php')) ?>">Cancel</a>

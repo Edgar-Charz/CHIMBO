@@ -14,6 +14,9 @@ ErrorDocument 404 /chimbo/404.php
     RewriteRule ^(\.git|\.claude|classes|config|database|cron|storage|tests|vendor|docs|includes)(/|$) - [F,L]
     RewriteRule ^(admin/includes|api/endpoints)(/|$) - [F,L]
 
+    # Packing-slip QR links are signed and dispatched according to the visitor's session.
+    RewriteRule ^o/(CHB[0-9]{6}-[A-Za-z0-9_-]{22})/?$ order_link.php?code=$1 [QSA,L]
+
     # Customer storefront category pages use stable ids with readable slugs.
     RewriteRule ^c/([0-9]+)(?:-[^/]+)?/?$ category.php?id=$1 [QSA,L]
     RewriteRule ^p/([0-9]+)(?:-[^/]+)?/?$ product.php?id=$1 [QSA,L]

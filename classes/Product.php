@@ -141,6 +141,9 @@ class Product
             'product_stock_quantity'    => (int) $row['product_stock_quantity'],
             'product_delivery_days_min' => (int) $row['product_delivery_days_min'],
             'product_delivery_days_max' => (int) $row['product_delivery_days_max'],
+            // How orders reach customers (every option switched on: Bolt in Dar, upcountry, pickup …) — the product
+            // page lists them; the fixed delivery days above are the old per-product guess
+            'delivery_options'          => (new Checkout($this->db))->getDeliveryMethods(),
             'tiers'                     => Pricing::withOffer($this->getPriceTiers($product_id), (int) $row['product_offer_percent']),   // offer taken off; tier_price_before_offer when one runs
             'images'                    => array_column($gallery, 'product_image_medium_url'), // big photo + thumbnails, in order
             'gallery'                   => $gallery,                                           // every size (zoom, website)

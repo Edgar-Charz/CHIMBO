@@ -5,11 +5,11 @@ Update this file at the end of every work session. Newest entry on top.
 ## Current status
 - **Stage:** MVP features built on backend, admin, website and app (catalog, PIN login, cart, checkout, orders, cash on delivery + mobile money / bank checked by staff, notifications, receipts, admin tools, app pictures). Preparing for the first beta.
 - **Next (backend session):** web, app and admin features complete for the MVP. Next: staging server + scheduled jobs → real SMS provider → payment aggregator (blueprint §13).
-- **Planned (designed, not built):** staff for one shop (blueprint §17.2) · smart QR link on the packing slip (blueprint R-24, §12.6) — build with the staging server; switching from ngrok to the real domain = changing `APP_URL`.
+- **Planned (designed, not built):** staff for one shop (blueprint §17.2). The packing-slip QR link is implemented; its destination is controlled by `APP_URL`.
 - **Before the first beta:** real "pay to" accounts in the admin · lawyer-reviewed terms and privacy (drafts seeded) · staging hosting with HTTPS · security review (blueprint §15) · Play Store internal test track.
 - **Committed and pushed:** everything through the end of 2026-10-15 on `main` in both repos (backend and app; see `git log`)
 - **GitHub:** https://github.com/Edgar-Charz/CHIMBO (backend repo, branch `main`)
-- **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice · for push notifications: Firebase project + `google-services.json` + service-account key
+- **Waiting on the user:** answers to D-2, D-3, D-4, D-16 (blueprint §23) · payment aggregator + SMS provider choice (D-10) · hosting choice
 
 ## Decisions made
 | Date | Decision | 
@@ -30,6 +30,172 @@ Update this file at the end of every work session. Newest entry on top.
 | 2026-10-09 | **CHIMBO sells only its own products for now.** A marketplace for other sellers is planned for after launch (blueprint §17.1), decided once real customers show how they buy. |
 
 ## Session log
+
+### 2026-10-21 - Schedule local push queue delivery
+- Configured Windows Task Scheduler to run `cron/send_push_notifications.php` every minute while the local Windows account is logged in. Broadcast push jobs now process automatically; failures remain available for admin retry. Production hosting still needs its own cron schedule.
+
+### 2026-10-21 - Add editable customer notification broadcasts
+- Added an admin broadcast page with editable Kiswahili templates, a live preview and active-customer count. Broadcast notifications and per-customer push jobs are saved in one transaction, then sent by the existing batched worker; the send is audit-logged.
+
+### 2026-10-21 - Send pushes immediately and reserve retries for admins
+- Individual FCM delivery now runs after the in-app notification transaction commits. Bulk promotions enqueue every recipient in one transaction for the scheduled worker to process in batches of 50, keeping broadcast requests short. Failed sends move to `failed` for staff to retry from Push Queue.
+
+### 2026-10-21 - Add formatted legal text editing
+- Added a polished Word-style toolbar for bold, italic, underline, strikethrough, lists, paragraph styles, links and clear formatting in Settings. The server allows only safe formatting and link schemes; the website and app display saved formatting while the API keeps plain-text `page_body` and adds `page_body_html`.
+
+### 2026-10-21 - Offer and Wishlist notification direct navigation in Flutter app
+- Implemented smart navigation for customer notifications: tapping an offer or discount notification with a specific product (e.g. Wishlist price drops like Vaseline Petroleum Jelly 400ml) navigates directly to that product's details page so customers can view discounts and buy immediately.
+- Tapping wishlist notifications without a specific product directs customers to their Vipendwa (Wishlist) page.
+- In-app notification tapping uses `context.push` to maintain the navigation back stack, allowing customers to easily return to their Arifa list.
+- FCM push notifications and system tray clicks mirror the same routing logic with nested payload support.
+- All 159 tests pass and `flutter analyze` is completely clean.
+
+### 2026-10-21 - Simplify Push Queue filters
+- Set a 640px maximum width for queue search, removed the Apply button, and made status selection submit the filter form automatically.
+
+### 2026-10-21 - Standardize admin table search fields
+- Kept an unlabeled, 360px search field beside every searchable admin table heading; filter cards contain only filters, and Clear resets both the filters and table search.
+
+### 2026-10-21 - Standardize admin table header colors
+- Applied the light gray header row and dark column labels across tables throughout the admin content area, including compact dashboard and detail tables.
+
+### 2026-10-21 - Add pagination and status filtering to Push Queue
+- The queue page now shows 25, 50 or 100 notifications per page, supports filtering by delivery status and searching queue IDs, customer phones, messages and errors. It shows retry/lock timing and only offers a confirmed retry for failed notifications, preventing accidental duplicate sends of already-sent pushes. The table and footer match the shared admin table layout, with the page-size selector below the rows.
+
+### 2026-10-21 - Restore the offer form layout
+- Kept notification settings inside the offer form panel so the Cancel and Create offer buttons remain directly below the form.
+
+### 2026-10-21 - Show in-cart quantities on app product tiles
+- App product cards now show an in-cart quantity stepper on the image. Recently ordered tiles show the cart quantity; tapping it opens the quantity editor instead of adding another minimum order quantity.
+
+### 2026-10-21 - Show cart quantity on recently ordered products
+- The reorder train now replaces the plus action with the product's cart quantity after it is added. Tapping the quantity opens the cart drawer for adjustments, and the badge updates when cart contents change.
+
+### 2026-10-21 - Keep reorder plus buttons inside thumbnails
+- Increased selector specificity so each quick-add button stays overlaid at the bottom right of its recent-product image tile.
+
+### 2026-10-21 - Distinguish old prices from timed offers
+- Renamed the admin old-price field and product-list indicator, and changed customer deal fallback labels to “Punguzo” in the website and app. Timed promotions continue to use “Ofa”.
+
+### 2026-10-21 - Add quick-add controls to the reorder train
+- Added a compact plus button to each in-stock recent product tile. It adds the product MOQ to the cart; sold-out items show an “Imeisha” label.
+
+### 2026-10-21 - Place reorder rail after homepage categories
+- Moved the recently ordered product train below the complete “Nunua kwa aina” section and before timed offers, so customers can browse categories first.
+
+### 2026-10-21 - Show recent orders as an image train
+- Replaced full product cards in the homepage reorder section with a horizontal row of product photos or image placeholders, matching the app's compact train pattern. Each tile still opens that product's details.
+
+### 2026-10-21 - Route Ofa links to active timed offers
+- Website and app Ofa links now request the `offers` collection (running timed offers). The separate `deals` collection is labeled "Punguzo" for products with a reduced list price.
+
+### 2026-10-21 - Link homepage Ofa tile to active offers
+- Renamed the hero tile to "Ofa" and linked it to the `offers` collection, which loads the currently active timed offers from the product database filter.
+
+### 2026-10-21 - Place timed offers after homepage categories
+- Moved the "Ofa za muda" product rail below the full "Nunua kwa aina" section, including its subcategory links, so customers can browse the catalog categories first.
+
+### 2026-10-21 - Show available stock on storefront product pages
+- Product details now show the available stock quantity. When the remaining stock is below MOQ, the page explains that the quantity cannot meet the minimum order; zero stock keeps the sold-out message.
+
+### 2026-10-21 - Clarify and tighten storefront card pricing
+- Product cards omit the redundant “Kuanzia” label, show the smallest-order price with its unit, and no longer push the price to the bottom of the card with a flexible margin.
+
+### 2026-10-21 - Show the smallest-order price on storefront cards
+- Product cards now display `product_price` (the unit price at the smallest order quantity) instead of `product_price_from` (the best wholesale tier price).
+
+### 2026-10-21 - Configure Firebase push notifications end-to-end
+- Applied database migration 019 (`019_push_notifications.sql`), creating `device_tokens` and `notification_push_queue`.
+- Saved Firebase service-account private key in `storage/keys/` and configured `FCM_SERVICE_ACCOUNT_FILE` in local `.env`. Verified Google OAuth2 JWT authentication and token generation.
+- Flutter mobile app verified: `google-services.json` connected, `chimbo_orders` notification channel configured, `PushNotificationService` handles device token lifecycle (`POST`/`DELETE /devices`), foreground notifications, and tap routing. All 155 tests pass and `flutter analyze` is clean.
+
+### 2026-10-21 - Add backend push notification delivery
+- Added migration 019 for session-bound mobile device tokens and an asynchronous notification push queue. `POST /devices` registers an FCM token; `DELETE /devices` removes it on logout. Revoked/expired sessions no longer receive pushes.
+- Individual customer notifications are attempted immediately after commit; `Notification::notifyUsers()` queues bulk sends for `cron/send_push_notifications.php`, which processes up to 50 pending recipients per run and removes FCM-unregistered tokens. Failures are retained for staff retry.
+- Local integration is configured and verified. Hosting still needs migration 019, the service-account JSON stored outside the web root, `FCM_SERVICE_ACCOUNT_FILE` set on the server, and the recovery cron scheduled. The Flutter app already registers tokens, requests notification permission and routes push taps.
+
+### 2026-10-20 - Remove PesaPal test checkout
+- Removed the provider checkout and callback runtime, customer checkout hooks, and its settings from local `.env` and `.env.example`. Historical payment attempts and migration 018 are retained; old orders using the retired method are shown as stopped and cannot initiate another provider payment. Older entries below document the abandoned experiment.
+
+### 2026-10-20 - Disable PesaPal sandbox checkout
+- Disabled `PESAPAL_TEST_ENABLED` in the local `.env` after the hosted flow sent a Mixx by Yas PIN prompt. New checkouts no longer offer PesaPal; existing provider attempts remain in the database for audit/history.
+
+### 2026-10-20 - Register PesaPal sandbox IPN
+- Registered the public ngrok callback URL with PesaPal using GET notifications, saved the returned IPN ID in the local `.env`, and enabled the sandbox payment method. Consumer credentials remain local and are not recorded here.
+
+### 2026-10-20 - Apply PesaPal payment schema
+- Applied migration 018 to the local database and confirmed all migrations through 018 are applied. PesaPal IPN registration is pending because the local test flag and sandbox credentials/IPN ID are not configured.
+
+### 2026-10-20 - Connect website checkout to PesaPal sandbox
+- Checkout now starts a PesaPal hosted session after creating an order selected with `PesaPal (Majaribio)`, then redirects to the provider. If session creation fails, the customer returns to the saved order, where they can retry. Pending attempts can be reopened from the order page; the existing manual payment UI is unchanged.
+- Verification: PHP syntax checks and `git diff --check` passed. Migration 018 and a registered public IPN URL are still required to run an end-to-end payment.
+
+### 2026-10-20 - Verify PesaPal sandbox callbacks
+- Added public GET/POST IPN handling that queries PesaPal's transaction-status API and verifies merchant reference, amount, currency and status before confirming eligible orders. The customer return page only links back to order tracking. Verified late payments are stored for staff review. Requires migration 018 and a publicly registered PesaPal IPN URL; neither has been applied/registered here.
+
+### 2026-10-20 - Start PesaPal sandbox checkout flow
+- Added a server-side PesaPal sandbox request that creates a hosted checkout attempt for the order's stored amount and returns a validated sandbox redirect URL. The optional `pesapal_test` method is exposed only in local/staging when explicitly enabled and fully configured; manual payment submission remains unchanged. Added provider reference, redirect URL, idempotency and callback-event storage in migration 018. Migration 018 is not applied.
+
+### 2026-10-20 - Keep Orders filters temporary
+- Orders filters still apply to the current table view, but are no longer saved in session storage or added to the URL. Order detail return links also omit filter values, so returning or reloading starts with the default filters. Explicit filter links can still open the corresponding view.
+
+### 2026-10-20 - Show public QR parcel contents
+- The public signed-order page now shows snapshotted product names and quantities instead of the cash-to-collect amount. It continues to hide prices and customer details.
+
+### 2026-10-20 - Point local QR links at ngrok
+- Updated the local `APP_URL` to the user's ngrok address with the `/chimbo` project path so newly generated packing-slip QR codes open from a phone. Existing printed slips keep their original URL and must be regenerated.
+
+### 2026-10-20 - Add signed order links to packing-slip QR codes
+- Packing slips now encode a 128-bit HMAC-signed URL built from `APP_URL`. The route verifies signatures before querying orders, sends the owning website customer to their order, routes staff with `orders.view` to admin details, and shows everyone else only a minimal public summary. Public requests are rate-limited by a hashed client IP.
+- Verification: changed PHP files passed syntax checks and `git diff --check`; browser preview and automated tests were not run.
+
+### 2026-10-20 - Keep cleared Orders filters cleared
+- Clear now resets the filter controls in place, updates the URL, saves the empty filter values, and reloads the table without navigating away. This prevents order-detail return links or page teardown from restoring the previous filters.
+
+### 2026-10-20 - Make Clear reset admin table state
+- The filter Clear action now cancels the browser's native form reset, removes the saved filters and DataTables state, and reloads the URL without those filters.
+
+### 2026-10-20 - Clear removes saved admin filters
+- The table Clear action now deletes that list's saved filter entry after clearing its controls and filter query parameters, so a reload starts with the default filters.
+
+### 2026-10-20 - Keep order filters when viewing an order
+- Added `balance_due` to the admin order-list payment filter validation. Orders filters now stay in the URL and saved session state; order links carry a validated return URL so the detail page's Orders link and post-action redirects restore the same filters.
+
+### 2026-10-20 - Preserve admin filter state across filtered URLs
+- Admin list state keys now ignore query parameters controlled by that list's filter form, so filters restore when returning from detail pages or opening the list without its original query string. Explicit filter links still initialize the form and seed the remembered state.
+
+### 2026-10-20 - Remember admin tabs
+- Dashboard, offers, payments and settings restore each admin's last selected tab for that page in the current browser session. Explicit tab links continue to take precedence.
+
+### 2026-10-20 - Admin table search alignment
+- Fixed the table search field so the magnifier stays beside the wider input. Kept the top-bar search unchanged.
+
+### 2026-10-20 — Admin top-bar quick search
+- Added a grouped quick search for orders, customers and products. It uses existing search methods and only returns groups the signed-in admin is allowed to view; matching rows open their detail/edit page. The search supports a `/` keyboard shortcut, stays together as a full-width field on narrow screens, and appears in the top bar on all screen sizes.
+- Checks: PHP syntax checks and `git diff --check` passed. JavaScript syntax check could not run because Node.js is not installed; browser preview was unavailable.
+
+### 2026-10-20 — Preserve admin list work between pages
+- Admin tables now retain search, sorting, page size, current page, filters, and scroll position in the current browser tab, scoped to the signed-in admin and list/tab. Returning from a detail page restores the list. Clear resets the table state while keeping its active tab.
+- Made the table search control more visible by widening it while keeping its original styling.
+- Checks: PHP syntax check and `git diff --check` passed. JavaScript syntax check could not run because Node.js is not installed; browser preview was unavailable.
+
+### 2026-10-20 — Refresh delivery estimate when an expired order is reactivated
+- Reactivation now recalculates `order_estimated_delivery_date` from the order's saved delivery-day window. The admin preview shows the new date, and the customer notification includes it for delivery orders. App and website order details read the updated value from the order API after refresh or reopen.
+- Checks: PHP syntax checks passed. Tests were not run.
+
+### 2026-10-20 — Clear overdue unpaid orders across app, website and admin
+- The order API now returns `payment.payment_deadline_passed` while an unpaid order is past its deadline but the expiry job has not run yet. The app and website show that payment is closed instead of telling the customer to pay; the website also hides the delivery estimate during this interval.
+- The admin Orders page has an **Expired orders (N)** shortcut to the expired filter and the existing reactivation preview. No new order status was added.
+- Checks: PHP syntax checks and `flutter analyze` passed. Browser preview was unavailable in this session; tests were not run.
+
+### 2026-10-19 — Easier-to-hit admin row menus
+- Enlarged the row action button and menu items to 44 px touch targets, and raised the open menu above clickable table rows so selection doesn't fall through to row cells.
+
+### 2026-10-19 — Payment method logos (backend, admin, website)
+- Admins can upload a validated logo when adding or editing a payment method and restore the built-in icon. The API exposes `payment_method_icon_url`; the website shows it at checkout, on the pay-to view, and in the payment list/footer, with built-in icons when the URL is absent or the image fails to load. Migration 017 adds the nullable stored path.
+
+### 2026-10-15 — App product page: real delivery options (backend session; app files)
+- `GET /products/{id}` returns `delivery_options` (every option switched on). App product page: the info strip's delivery box shows the quickest real option ("leo au kesho" with Bolt) and a list under it shows each option with its time ("Nitachukua mwenyewe dukani · Bure") — the same as the website. Falls back to the product's own days with an older server. Test: `product_delivery_options_test.dart`.
 
 ### 2026-10-15 — Website: Google, link previews, Home order card, tab counts, delivery wording (backend session; website and app files)
 - **robots.txt / sitemap.xml** (robots.php, sitemap.php; .htaccess rewrites — sitemap.xml allowed past the ".xml files are private" rule): the sitemap lists Home, Help, legal pages, every category and product on sale, from the database. robots.txt keeps search engines out of admin, API and customers' own pages. (robots.txt only counts at the domain root — fine once hosted.)

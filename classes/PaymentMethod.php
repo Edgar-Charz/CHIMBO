@@ -15,6 +15,8 @@
  */
 class PaymentMethod
 {
+    private const ICON_SIZES = ['128' => 128];
+
     private const RULES = [
         'payment_method_name'           => 'required|string|min:2|max:60',
         'payment_method_account_name'   => 'nullable|string|max:100',
@@ -65,24 +67,38 @@ class PaymentMethod
         return array_values(array_map(fn (array $method) => $this->formatMethod($method), $active));
     }
 
-    /** One method's public details by code (also for switched-off ones, e.g. an older order). Null if unknown. */
+    /** One method's public details by code; old orders with removed methods receive a safe unavailable placeholder. */
     public function getDetailsByCode(string $payment_method_code): ?array
     {
         $method = $this->allMethods()[$payment_method_code] ?? null;
+        if ($method === null) {
+            return [
+                'payment_method_code' => $payment_method_code,
+                'payment_method_name' => 'Njia ya malipo isiyopatikana',
+                'payment_method_type' => 'mobile_money',
+                'payment_method_account_name' => null,
+                'payment_method_account_number' => null,
+                'payment_method_bank_name' => null,
+                'payment_method_instructions' => null,
+                'payment_method_icon_url' => null,
+                'payment_method_is_available' => false,
+            ];
+        }
         return $method === null ? null : $this->formatMethod($method);
     }
 
     /** The name customers see for a code ("mpesa" → "M-Pesa"), also for switched-off methods; the code if unknown. */
     public function nameOf(string $payment_method_code): string
     {
-        return $this->allMethods()[$payment_method_code]['payment_method_name'] ?? $payment_method_code;
+        $method = $this->allMethods()[$payment_method_code] ?? null;
+        return $method['payment_method_name'] ?? 'Njia ya malipo isiyopatikana';
     }
 
     /**
      * Adds a mobile money or bank method (e.g. "HaloPesa", "NMB Bank"). Its code — what orders store — is made from the
      * name ("halopesa", "nmb-bank") and never changes. Returns the new payment_method_id.
      */
-    public function createMethod(array $input, int $admin_id): int
+    public function createMethod(array $input, int $admin_id, ?array $icon_upload = null): int
     {
         $data = Validator::validate($input, self::RULES + ['payment_method_type' => 'required|in:' . implode(',', array_keys(self::ADDABLE_TYPES))]);
         $values = $this->formValues($data) + ['payment_method_type' => $data['payment_method_type']];
@@ -91,18 +107,36 @@ class PaymentMethod
         }
         $values['payment_method_code'] = Slug::unique($this->db, $values['payment_method_name'], 'payment_methods', 'payment_method_code', 'payment_method_id', null);
 
-        $payment_method_id = $this->db->insert(
-            'INSERT INTO payment_methods (payment_method_code, payment_method_name, payment_method_type, payment_method_account_name,
+        $uploader = new ImageUploader();
+        $icon_path = $this->saveOptionalUploadedIcon($icon_upload, $uploader);
+
+        try {
+            $payment_method_id = $this->db->insert(
+                'INSERT INTO payment_methods (payment_method_code, payment_method_name, payment_method_type, payment_method_account_name,
                                           payment_method_account_number, payment_method_bank_name, payment_method_instructions,
-                                          payment_method_is_active, payment_method_sort_order)
+                                          payment_method_icon_path, payment_method_is_active, payment_method_sort_order)
              VALUES (:payment_method_code, :payment_method_name, :payment_method_type, :payment_method_account_name,
                      :payment_method_account_number, :payment_method_bank_name, :payment_method_instructions,
-                     :payment_method_is_active, :payment_method_sort_order)',
-            $values
-        );
+                     :payment_method_icon_path, :payment_method_is_active, :payment_method_sort_order)',
+                $values + ['payment_method_icon_path' => $icon_path]
+            );
+        } catch (Throwable $exception) {
+            if ($icon_path !== null) {
+                $uploader->deleteImageFiles([$icon_path]);
+            }
+            throw $exception;
+        }
         self::$cached_methods = null;
 
-        (new AuditLog($this->db))->record('admin', $admin_id, 'payment_method.created', 'payment_method', $payment_method_id, null, $values);
+        (new AuditLog($this->db))->record(
+            'admin',
+            $admin_id,
+            'payment_method.created',
+            'payment_method',
+            $payment_method_id,
+            null,
+            $values + ['payment_method_icon_path' => $icon_path]
+        );
         return $payment_method_id;
     }
 
@@ -141,6 +175,41 @@ class PaymentMethod
         return $changed;
     }
 
+    /** Saves a customer-facing logo for this method. A transparent square PNG is generated for consistent display. */
+    public function setIcon(int $payment_method_id, ?array $uploaded_file, int $admin_id): void
+    {
+        if ($uploaded_file === null || ($uploaded_file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+            || !is_uploaded_file($uploaded_file['tmp_name'] ?? '')) {
+            throw ApiException::validation(['payment_method_icon' => 'Choose an icon to upload.']);
+        }
+
+        $this->saveIconFromFile($payment_method_id, $uploaded_file['tmp_name'], $admin_id);
+    }
+
+    /** Same as setIcon() for files already on the server (tests and scripts). */
+    public function setIconFromFile(int $payment_method_id, string $file_path, int $admin_id): void
+    {
+        $this->saveIconFromFile($payment_method_id, $file_path, $admin_id);
+    }
+
+    /** Removes the uploaded logo so clients return to their built-in type icon. */
+    public function removeIcon(int $payment_method_id, int $admin_id): void
+    {
+        $method = $this->getMethodById($payment_method_id);
+        $old_path = $method['payment_method_icon_path'];
+        if ($old_path === null) {
+            return;
+        }
+
+        $this->db->execute(
+            'UPDATE payment_methods SET payment_method_icon_path = NULL WHERE payment_method_id = :payment_method_id',
+            ['payment_method_id' => $payment_method_id]
+        );
+        self::$cached_methods = null;
+        (new ImageUploader())->deleteImageFiles([$old_path]);
+        (new AuditLog($this->db))->record('admin', $admin_id, 'payment_method.icon_removed', 'payment_method', $payment_method_id);
+    }
+
     /** The checked form → the column values (the type and code are set once, on creation). */
     private function formValues(array $data): array
     {
@@ -153,6 +222,43 @@ class PaymentMethod
             'payment_method_is_active'      => (int) ($data['payment_method_is_active'] ?? false),
             'payment_method_sort_order'     => $data['payment_method_sort_order'] ?? 0,
         ];
+    }
+
+    private function saveIconFromFile(int $payment_method_id, string $file_path, int $admin_id): void
+    {
+        $method = $this->getMethodById($payment_method_id);
+        $uploader = new ImageUploader();
+        $paths = $uploader->saveSquareIcons($file_path, 'payment-methods/' . $payment_method_id, self::ICON_SIZES);
+        $new_path = $paths['128'];
+        $old_path = $method['payment_method_icon_path'];
+
+        try {
+            $this->db->execute(
+                'UPDATE payment_methods SET payment_method_icon_path = :payment_method_icon_path WHERE payment_method_id = :payment_method_id',
+                ['payment_method_icon_path' => $new_path, 'payment_method_id' => $payment_method_id]
+            );
+        } catch (Throwable $exception) {
+            $uploader->deleteImageFiles(array_values($paths));
+            throw $exception;
+        }
+
+        self::$cached_methods = null;
+        if ($old_path !== null) {
+            $uploader->deleteImageFiles([$old_path]);
+        }
+        (new AuditLog($this->db))->record('admin', $admin_id, 'payment_method.icon_changed', 'payment_method', $payment_method_id);
+    }
+
+    private function saveOptionalUploadedIcon(?array $uploaded_file, ImageUploader $uploader): ?string
+    {
+        if ($uploaded_file === null || ($uploaded_file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        if (($uploaded_file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file($uploaded_file['tmp_name'] ?? '')) {
+            throw ApiException::validation(['payment_method_icon' => 'Choose a valid icon to upload.']);
+        }
+
+        return $uploader->saveSquareIcons($uploaded_file['tmp_name'], 'payment-methods', self::ICON_SIZES)['128'];
     }
 
     /** Forgets the cached list (used by tests). */
@@ -203,6 +309,8 @@ class PaymentMethod
             'payment_method_account_number' => $method['payment_method_account_number'],
             'payment_method_bank_name'      => $method['payment_method_bank_name'],
             'payment_method_instructions'   => $method['payment_method_instructions'],
+            'payment_method_icon_url'       => $method['payment_method_icon_path'] === null ? null : url($method['payment_method_icon_path']),
         ];
     }
+
 }

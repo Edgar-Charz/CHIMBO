@@ -13,10 +13,10 @@
     const { el, icon, formatTzs, productUrl, productImage, quantityStepper, setLoading, skeleton } = CHIMBO;
 
     const CARD_MAX_QUANTITY = 9999; // the server checks the real stock and answers with a clear message
-    const BADGE_LABELS = { deal: 'Ofa', bestseller: 'Inauzwa sana', new: 'Mpya' };
+    const BADGE_LABELS = { deal: 'Punguzo', bestseller: 'Inauzwa sana', new: 'Mpya' };
     const productsByCard = new WeakMap(); // card element → its product, to redraw the add button later
 
-    /** "Ofa −15%" during a time-limited offer, "−12%" for a deal with an old price, otherwise the badge name. */
+    /** "Ofa −15%" during a time-limited offer, "−12%" for a regular price reduction, otherwise the badge name. */
     function badgeText(product) {
         const { product_badge: badge, product_compare_at_price: compareAt, product_price: price, product_offer: offer } = product;
         if (badge === 'offer' && offer) {
@@ -71,8 +71,8 @@
     function renderPrice(product) {
         const hasOffer = product.product_compare_at_price > product.product_price;
         return el('p', { className: 'product-card__price' }, [
-            el('span', { className: 'product-card__price-label', text: 'Kuanzia' }),
-            el('strong', { text: formatTzs(product.product_price_from) }),
+            el('strong', { text: formatTzs(product.product_price) }),
+            el('span', { className: 'product-card__unit', text: `/ ${product.product_unit_label}` }),
             hasOffer ? el('del', { className: 'product-card__compare', text: formatTzs(product.product_compare_at_price) }) : null,
         ]);
     }

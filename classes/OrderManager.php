@@ -59,7 +59,7 @@ class OrderManager
         $filters = Validator::validate($input, [
             'q'                    => 'nullable|string|max:100',
             'order_status'         => 'nullable|in:pending_payment,confirmed,packed,dispatched,in_transit,delivered,cancelled,expired',
-            'order_payment_status' => 'nullable|in:unpaid,pending,paid,cod_pending,refunded,failed,cancelled',
+            'order_payment_status' => 'nullable|in:unpaid,pending,paid,cod_pending,balance_due,refunded,failed,cancelled',
             'overdue'              => 'nullable|bool',
             'transport_to_confirm' => 'nullable|bool',
             'page'                 => 'nullable|int|min:1',
@@ -595,12 +595,17 @@ class OrderManager
      * Reactivating an expired order (R-28): what would change, for the order page — each line's old and today's
      * price, the new total, and why it can't be done (switched off, short of stock, a higher minimum).
      * {can_reactivate, lines: [{product_name, quantity, unit_label, old_unit_price, new_unit_price, new_line_total,
-     *  offer_percent}], problems: [message], old_total, new_subtotal, delivery_fee, new_total}
+     *  offer_percent}], problems: [message], old_total, new_subtotal, delivery_fee, new_total,
+     *  estimated_delivery_date}
      */
     public function previewReactivation(int $order_id): array
     {
         $order = $this->db->fetchOne(
-            'SELECT order_status, order_total, order_delivery_fee, order_discount_total FROM orders WHERE order_id = :id',
+            'SELECT order_status, order_total, order_delivery_fee, order_discount_total, order_is_pickup,
+                    order_delivery_days_max,
+                    CASE WHEN order_is_pickup = 1 THEN NULL
+                         ELSE DATE_ADD(UTC_DATE(), INTERVAL order_delivery_days_max DAY) END AS estimated_delivery_date
+             FROM orders WHERE order_id = :id',
             ['id' => $order_id]
         );
         if ($order === null) {
@@ -629,6 +634,7 @@ class OrderManager
             'new_subtotal'   => $priced['subtotal'],
             'delivery_fee'   => (int) $order['order_delivery_fee'],
             'new_total'      => $new_total,
+            'estimated_delivery_date' => $order['order_is_pickup'] ? null : $order['estimated_delivery_date'],
         ];
     }
 
@@ -643,7 +649,8 @@ class OrderManager
 
         $this->db->transaction(function (Database $db) use ($order_id, $data, $admin_id) {
             $order = $db->fetchOne(
-                'SELECT order_id, order_number, user_id, order_status, order_total, order_delivery_fee, order_discount_total
+                'SELECT order_id, order_number, user_id, order_status, order_total, order_delivery_fee, order_discount_total,
+                        order_is_pickup, order_delivery_days_max
                  FROM orders WHERE order_id = :id FOR UPDATE',
                 ['id' => $order_id]
             );
@@ -680,6 +687,8 @@ class OrderManager
                 "UPDATE orders
                  SET order_status = 'pending_payment', order_payment_status = 'unpaid', order_subtotal = :subtotal, order_total = :total,
                      order_cancelled_at = NULL, order_cancel_reason = NULL,
+                     order_estimated_delivery_date = CASE WHEN order_is_pickup = 1 THEN NULL
+                         ELSE DATE_ADD(UTC_DATE(), INTERVAL order_delivery_days_max DAY) END,
                      order_expires_at = UTC_TIMESTAMP() + INTERVAL {$expiry_minutes} MINUTE
                  WHERE order_id = :id",
                 ['subtotal' => $priced['subtotal'], 'total' => $total, 'id' => $order_id]
@@ -687,9 +696,16 @@ class OrderManager
             $this->order_model->recordStatus($order_id, 'pending_payment', 'admin', $admin_id,
                 trim('Imerejeshwa na CHIMBO. ' . ($data['status_note'] ?? '')));
 
-            $pay_by = localDateTime((string) $db->fetchValue('SELECT order_expires_at FROM orders WHERE order_id = :id', ['id' => $order_id]), 'd/m/Y, H:i');
+            $updated_order = $db->fetchOne(
+                'SELECT order_expires_at, order_estimated_delivery_date FROM orders WHERE order_id = :id',
+                ['id' => $order_id]
+            );
+            $pay_by = localDateTime((string) $updated_order['order_expires_at'], 'd/m/Y, H:i');
+            $estimated_delivery = $updated_order['order_estimated_delivery_date'] === null
+                ? ''
+                : ' Inatarajiwa kufika: ' . (new DateTimeImmutable((string) $updated_order['order_estimated_delivery_date']))->format('d/m/Y') . '.';
             (new Notification($db))->notifyUser((int) $order['user_id'], 'order_status', 'Oda imerejeshwa',
-                "Oda #{$order['order_number']} iko hai tena kwa bei za leo. Jumla: TZS " . number_format($total) . ". Lipa kabla ya {$pay_by}.",
+                "Oda #{$order['order_number']} iko hai tena kwa bei za leo. Jumla: TZS " . number_format($total) . ". Lipa kabla ya {$pay_by}.{$estimated_delivery}",
                 ['order_id' => $order_id]);
             (new AuditLog($db))->record('admin', $admin_id, 'order.reactivated', 'order', $order_id,
                 ['order_status' => 'expired', 'order_total' => (int) $order['order_total']],

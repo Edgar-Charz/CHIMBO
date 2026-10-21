@@ -48,7 +48,8 @@ require __DIR__ . '/includes/header.php';
 <div class="admin-panel admin-table-panel">
     <table class="table admin-table w-100" data-datatable-source="<?= e(url('admin/ajax/customers.php')) ?>"
            data-filter-form="#customer-filters" data-title="All customers" data-icon="bi-people"
-           data-order='[[5,"desc"]]' data-search-placeholder="Search name, phone or shop"
+           data-order='[[5,"desc"]]' data-search-placeholder="Name, phone or shop"
+           data-search-label="Search customers"
            data-empty-message="No customers yet. They appear here after registering in the app.">
         <thead>
             <tr>

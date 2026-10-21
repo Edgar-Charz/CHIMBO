@@ -182,7 +182,7 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 | R-8 | "Waiting for payment" screen | Mobile money is asynchronous (PIN on phone) | MVP |
 | R-9 | Cancel order before packing | Common need | MVP |
 | R-10 | In-app notifications list + bell badge | Bell exists in the doc | MVP |
-| R-11 | Push notifications (FCM) | Re-engagement | v1.1 |
+| R-11 | Push notifications (FCM) | Re-engagement | MVP (backend delivery; app integration pending) |
 | R-12 | Loading / empty / error / offline states on every screen | Polished UX on weak networks | MVP |
 | R-13 | Kiswahili + English | Doc shows both; p.11 "Lugha" | MVP |
 | R-14 | Audit log of admin and payment actions | Financial accountability | MVP |
@@ -198,7 +198,7 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 | R-27 | **Logo uploaded in the admin** — one upload replaces the CHIMBO mark on the website, admin, PDFs and the app's screens (design in §12.9) | A new logo may come; it shouldn't need a developer | Built 2026-10-15 |
 | R-28 | **Reactivate an expired order** (staff) at today's prices, and "Agiza Tena" on expired orders (customer) (design in §12.10) | Customers call after their time to pay ran out and still want the order | Built 2026-10-15 |
 | R-29 | **Staff edit orders** — items, address, delivery / payment method, discount and private notes; after payment, "add to this order" with a balance to pay (design in §12.11) | Customers call to change orders; staff could only move the status | Built 2026-10-15 (both steps) |
-| R-24 | **Smart QR link on the packing slip** — one signed link that opens the admin order page for staff, the order for its customer, and a minimal page (status, cash to collect) for anyone else (design in §12.6) | Packing check, customer support from the box, agents know the cash to collect | Planned — build with the staging server |
+| R-24 | **Smart QR link on the packing slip** — one signed link that opens the admin order page for staff, the order for its customer, and a minimal page (status, cash to collect) for anyone else (design in §12.6) | Packing check, customer support from the box, agents know the cash to collect | Built — uses `APP_URL`; use test orders until a stable HTTPS domain is configured |
 | R-23 | **PIN login** (4–6 digits, like M-Pesa) — phone → PIN; SMS code only for new numbers and "Umesahau PIN?" (design in §12.5) | Saves an SMS per login; works when SMS is slow | Before the first beta (built 2026-09-30) |
 | R-22 | **Time-limited offers ("Ofa")** — a % discount on a product for a set period, with a countdown (design in §12.4) | Brings shop owners back; clears slow stock | Before the first beta |
 
@@ -615,7 +615,7 @@ Enforced in `OrderService::transition()`. Tabs: *Zinazoendelea* = pending_paymen
 |---|---|---|
 | `reviews` (+ show ratings) | v1.1 | Needs delivered orders; ratings hidden until real reviews exist |
 | `coupons`, `promotions` | v1.1 | "Punguzo" rule not defined |
-| `device_tokens` | v1.1 | Push notifications |
+| `device_tokens`, push delivery queue | MVP | Firebase push notifications |
 | `refunds` | v1.1 | v1 refunds manual + logged in `payment_events` |
 | `search_logs`, `business_documents` | v1.1 | Search insights, document verification |
 | `product_variants`, `product_attributes` | v2 | No variants in the mocks |
@@ -715,7 +715,8 @@ Auth: **P** public · **O** optional login · **A** logged-in customer (token or
 | GET | `/payments/{id}` | A | Poll status | — | `{status, order_status, failure_reason?}` | payments |
 | GET | `/me/payments` | A | Payment history | `page` | paginated | payments, orders |
 | POST | `/webhooks/payments/{provider}` | S | Provider callback | raw body + signature | provider ack | payment_events, payments, orders |
-| POST | `/devices` (v1.1) | A | Register FCM token | `token, platform` | `{}` | device_tokens |
+| POST | `/devices` | A | Register/refresh this session's FCM token | `device_token, device_platform` | `{}` | device_tokens |
+| DELETE | `/devices` | A | Remove this session's FCM token on logout | `device_token` | `{}` | device_tokens |
 
 ### 12.3 Pricing rules (`PricingService` — the only place prices are calculated)
 1. Tiers ordered by `min_qty`; `unit_price` = highest tier with `min_qty ≤ quantity`.
@@ -836,26 +837,28 @@ Staff with `orders.manage` open **Edit order** on the order page. The customer i
 
 **Step 2 — after payment, before packing ("add to this order")**: staff change items on the paid order; for upcountry they re-confirm the transport for the bigger load (often +0); the customer sees "**Salio la kulipa: TZS …**" and pays only the balance with "Nimelipa"; packing waits for it. A lower total becomes a refund due. Still one order number and one receipt. **Data:** payment status `balance_due` (packing waits for it; a balance payment is confirmed or rejected like any payment); `order_refund_due` (Payments → Refunds due, marked refunded like a cancelled order's) and `order_refunded_amount`; amount paid = confirmed payments − refunded (`Order::AMOUNT_PAID_SQL`).
 
-### 12.6 Smart QR link on the packing slip (planned, R-24)
-Today the slip's QR holds only the order number. Planned: one short, signed link that opens the right page for whoever scans it.
+### 12.6 Smart QR link on the packing slip (built, R-24)
+The slip's QR contains a short, signed link that opens the right page for whoever scans it.
 
-**The link:** `{APP_URL}/o/CHB123456-k7Qx` — the order number + a short signature (HMAC of the order number with `APP_KEY`), so nobody can guess other orders' links. The order number stays printed big next to the QR (and readable inside the link).
+**The link:** `{APP_URL}/o/CHB123456-{signature}` — the order number + a 128-bit URL-safe signature (HMAC of the order number with `APP_KEY`), so nobody can guess or alter other orders' links. The order number stays printed big next to the QR (and readable inside the link).
 
 **What it opens**
 | Who scans | Sees |
 |---|---|
 | Staff logged in to the admin | the admin order page — check the items while packing, then "Packed" |
-| The customer, logged in on the website | their order: tracking, receipt, "report a problem" (damaged / missing item) |
-| Anyone else (delivery agent, neighbour) | a minimal public page: order number, number of items, status, **cash to collect** if any, CHIMBO support number — **no name, phone or address** (those are printed on the slip for the agent, never shown to strangers) |
+| The customer, logged in on the website | their existing order page: tracking, receipt and available order actions |
+| Anyone else (delivery agent, neighbour) | a minimal public page: order number, status, product names and quantities, CHIMBO support number — **no prices, cash amount, customer name, phone or address** (those are printed on the slip for the agent, never shown to strangers) |
 
 **Rules**
 1. The link is built from the `APP_URL` setting only (never the address the admin page was opened from), so moving from ngrok to the real domain is a change of `APP_URL` in `.env` — no code change.
-2. A wrong or changed signature → the same "not found" page as an unknown order (nothing is revealed). The public page is rate-limited.
+2. A wrong or changed signature → the same "not found" page as an unknown order (nothing is revealed). The public page is rate-limited to 120 requests per hour per client IP; the stored rate-limit key is a hash of the IP.
 3. The real server gets its own new `APP_KEY`: QR codes printed during testing don't open real orders.
 4. Printed paper doesn't update: don't put slips on real customers' boxes until `APP_URL` is the real domain.
 5. Later (delivery-agent side, §17 v2): the same QR + a code from the customer confirms delivery — no change to slips printed now.
 
-**Build list:** `OrderLink` class (make / check the signed code) · public route `o/{code}` (root `.htaccess`) + a page that redirects staff / the customer and shows the minimal page to others · the packing slip's QR uses the link · tests (signature, wrong code, who-sees-what, nothing personal on the public page). Testing now: set `APP_URL` to the ngrok address (`https://unusual-handbook-breeding.ngrok-free.dev/chimbo`); ngrok's free plan shows a one-time "Visit site" warning page.
+**Built:** `OrderLink` creates and verifies the signed code; root `.htaccess` maps `o/{code}` to the public landing page; the packing slip QR uses the absolute URL from `APP_URL`. The customer's own website session opens their order. Staff with `orders.view` are redirected to the admin detail page after a same-origin session check. Everyone else sees the order number, status, product names and quantities, and CHIMBO's support contact; no prices, cash amount, customer name, phone or address are included. Invalid links use the same not-found page as unknown orders.
+
+Testing now: set `APP_URL` to the ngrok address (`https://unusual-handbook-breeding.ngrok-free.dev/chimbo`); ngrok's free plan shows a one-time "Visit site" warning page. Use test orders only until the stable HTTPS domain is configured.
 
 ---
 
@@ -890,7 +893,7 @@ interface PaymentGatewayInterface {
 - `CashOnDeliveryGateway` confirms orders with `payment_status = cod_pending`.
 - `PaymentService` is the **only** class that changes payment state and order payment state.
 
-**Provider strategy:** reach M-Pesa, Airtel Money and Mixx by Yas through **one licensed Tanzanian aggregator** (evaluate AzamPay, Selcom, ClickPesa, Pesapal, DPO — fees, settlement, sandbox, webhook signing, onboarding documents). Start the application early (D-10).
+**Provider strategy:** reach M-Pesa, Airtel Money and Mixx by Yas through **one licensed Tanzanian aggregator** (evaluate AzamPay, Selcom, ClickPesa, DPO — fees, settlement, sandbox, webhook signing, onboarding documents). Start the application early (D-10).
 
 ### 13.3 Mobile-money flow
 ```
@@ -1032,7 +1035,7 @@ A staff account gets an optional **shop** (`admins.seller_id`): empty = everythi
 **Data changes (when built):** `sellers.user_id` (the account that runs the shop), seller application status, `seller_commission_percent`, payout account · `products.product_review_status` (draft / pending / approved / rejected) · a per-seller status on order lines · `seller_ledger_entries` (sale, commission, refund, payout).
 
 ---|---|
-| **v1.1** | Push notifications · reviews & ratings · coupons / "spend X save Y" (Punguzo) · bank payment · document-based business verification · search suggestions & logs · crash reporting/analytics · SMS order updates · refunds table |
+| **v1.1** | Reviews & ratings · coupons / "spend X save Y" (Punguzo) · bank payment · document-based business verification · search suggestions & logs · crash reporting/analytics · SMS order updates · refunds table |
 | **v1.2** | Camera image search · "Because you ordered…" recommendations · back-in-stock / price-drop alerts · saved "usual order" lists · product variants |
 | **v2** | Seller portal & multi-vendor (payouts, commission) · in-app chat · delivery-agent app + live map · credit / "Lipa baadaye" for verified shops · loyalty & referrals · iOS release |
 

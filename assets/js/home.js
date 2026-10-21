@@ -13,10 +13,80 @@
 
     const showProducts = (grid, products) => grid.replaceChildren(...products.map(CHIMBO.productCard.render));
 
+    const recentActions = new Map();
+
+    function renderRecentAction(product, actionContainer) {
+        const cartQuantity = CHIMBO.cart.quantityOf(product.product_id);
+
+        if (cartQuantity > 0) {
+            const quantityBadge = CHIMBO.el('button', {
+                className: 'product-card__add recent-product-rail__add recent-product-rail__cart-count',
+                attrs: {
+                    type: 'button',
+                    'aria-label': `Kikapu: ${product.product_name}, idadi ${CHIMBO.formatPieces(cartQuantity)}. Fungua kikapu kubadilisha idadi.`,
+                },
+            }, [String(cartQuantity > 99 ? '99+' : cartQuantity)]);
+            quantityBadge.addEventListener('click', () => CHIMBO.cart.open());
+            actionContainer.replaceChildren(quantityBadge);
+            return;
+        }
+
+        if (!product.product_in_stock) {
+            actionContainer.replaceChildren(CHIMBO.el('span', { className: 'recent-product-rail__sold-out', text: 'Imeisha' }));
+            return;
+        }
+
+        const addButton = CHIMBO.el('button', {
+            className: 'product-card__add recent-product-rail__add',
+            attrs: {
+                type: 'button',
+                'aria-label': `Ongeza ${product.product_name} kikapuni (pcs ${product.product_moq})`,
+            },
+        }, [CHIMBO.icon('plus-lg')]);
+
+        addButton.addEventListener('click', async () => {
+            CHIMBO.setLoading(addButton, true);
+            try {
+                await CHIMBO.cart.add(product.product_id, product.product_moq);
+            } catch {
+                // The cart helper already shows the error message.
+            } finally {
+                CHIMBO.setLoading(addButton, false);
+            }
+        });
+        actionContainer.replaceChildren(addButton);
+    }
+
+    function updateRecentActions() {
+        recentActions.forEach(({ product, container }) => renderRecentAction(product, container));
+    }
+
     // ------------------------------------------------------------------ "Karibu tena" (logged-in customers)
 
     const recentGrid = document.querySelector('[data-home-recent]');
-    if (recentGrid) showProducts(recentGrid, homeProducts.recently_ordered);
+    if (recentGrid) {
+        recentGrid.replaceChildren(...homeProducts.recently_ordered.map((product) => {
+            const image = CHIMBO.productImage(product.product_image_url, product.product_name, 'recent-product-rail__image');
+            const link = CHIMBO.el('a', {
+                className: 'recent-product-rail__link',
+                attrs: {
+                    href: CHIMBO.productUrl(product),
+                    'aria-label': `Agiza tena ${product.product_name}`,
+                },
+            }, [image]);
+            const actionContainer = CHIMBO.el('div', { className: 'recent-product-rail__action' });
+            const tile = CHIMBO.el('div', { className: 'recent-product-rail__tile' }, [link, actionContainer]);
+            recentActions.set(product.product_id, { product, container: actionContainer });
+            renderRecentAction(product, actionContainer);
+
+            return CHIMBO.el('li', { className: 'recent-product-rail__item' }, [tile]);
+        }));
+
+        document.addEventListener(CHIMBO.cart.changedEvent, updateRecentActions);
+        CHIMBO.cart.whenLoaded().then(updateRecentActions).catch(() => {
+            // The cart drawer reports load failures; keep the product rail available.
+        });
+    }
 
     // ------------------------------------------------------------------ "Ofa za muda" (shown only while offers run)
 

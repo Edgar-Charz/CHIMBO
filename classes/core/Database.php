@@ -24,6 +24,9 @@ class Database
     // How many transaction() calls are currently open (used to allow one inside another)
     private int $transaction_depth = 0;
 
+    /** @var list<callable> Work that must happen only after the outer transaction commits. */
+    private array $after_commit_callbacks = [];
+
     /** Returns the shared Database object, so the whole request uses one connection. */
     public static function instance(): Database
     {
@@ -97,6 +100,17 @@ class Database
         return $this->query($sql, $params)->rowCount();
     }
 
+    /** Run external side effects after data is committed, or immediately when no transaction is open. */
+    public function afterCommit(callable $callback): void
+    {
+        if ($this->transaction_depth === 0) {
+            $callback();
+            return;
+        }
+
+        $this->after_commit_callbacks[] = $callback;
+    }
+
     /**
      * Runs $work inside a transaction:
      * - if $work finishes, everything is saved (commit)
@@ -121,10 +135,11 @@ class Database
         $this->pdo()->beginTransaction();
         $this->transaction_depth = 1;
 
+        $callbacks = [];
         try {
             $result = $work($this);
             $this->pdo()->commit();
-            return $result;
+            $callbacks = $this->after_commit_callbacks;
         } catch (Throwable $exception) {
             if ($this->pdo()->inTransaction()) {
                 $this->pdo()->rollBack();
@@ -132,6 +147,17 @@ class Database
             throw $exception;
         } finally {
             $this->transaction_depth = 0;
+            $this->after_commit_callbacks = [];
         }
+
+        foreach ($callbacks as $callback) {
+            try {
+                $callback();
+            } catch (Throwable $exception) {
+                Logger::warning('After-commit callback failed.', ['error' => $exception->getMessage()]);
+            }
+        }
+
+        return $result;
     }
 }

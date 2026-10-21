@@ -24,7 +24,7 @@ This file lists only endpoints that **exist and are tested**. The full plan is i
 |---|---|---|
 | GET | `/support` | `{support_phone, support_whatsapp, support_whatsapp_url, support_hours, help_questions: [{question, answer}]}` (the same "Maswali ya mara kwa mara" as the website; "Ninalipaje?" follows the switched-on payment methods) — "Msaada": call button `tel:`, WhatsApp button = `support_whatsapp_url` |
 | GET | `/app-images` | `[{app_image_slot, app_image_url, updated_at}]` — pictures staff uploaded for the app's fixed screens. Slots: `logo` (the logo uploaded in the admin — a square 512 px PNG for the splash, login and Home header; R-27), `onboarding_products`, `onboarding_wholesale`, `onboarding_delivery`, `auth_welcome`, `auth_verify`, `auth_business`, `order_success`. A slot missing from the list → use the picture built into the app. A new upload always has a new URL (cache by URL) |
-| GET | `/pages/terms` · `/pages/privacy` | `{page_title, page_body, updated_at}` — `page_body` is plain text, paragraphs separated by an empty line (escape it, then split on `\n\n`). Other names → 404 `NOT_FOUND` |
+| GET | `/pages/terms` · `/pages/privacy` | `{page_title, page_body, page_body_html, updated_at}` — `page_body` remains plain text; `page_body_html` contains safe paragraphs, headings, bold, italic, underline, strikethrough, links (`http`, `https`, `mailto`, `tel`, same-site relative), block quotes and lists. Other names → 404 `NOT_FOUND` |
 
 ## Locations
 | Method | Path | Auth | Returns |
@@ -213,8 +213,9 @@ Everything on the card, plus:
 Address: `{address_id, address_recipient_name, address_phone, region_id, region_name, district_id, district_name, address_street, address_landmark, address_is_default}`.
 
 ## Checkout · 🔒 all
-- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, delivery_days_min, delivery_days_max, delivery_method_area, region_id}], "pickup_point": {"pickup_address", "pickup_hours"}, "payment_methods": ["mpesa", "cod"], "payment_method_details": [ …payment method objects… ]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the codes staff switched on; `payment_method_details` = the same methods with their name and "pay to" details (show the name in the list; show the pay-to box after ordering).
-- **Payment method object** (also `GET /payment-methods`, public): `{payment_method_code, payment_method_name, payment_method_type (mobile_money | bank | cash), payment_method_account_name, payment_method_account_number (Lipa Namba / phone / bank account), payment_method_bank_name, payment_method_instructions}`.
+- `GET /checkout/options?address_id=3` → `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, delivery_days_min, delivery_days_max, delivery_method_area, region_id}], "pickup_point": {"pickup_address", "pickup_hours"}, "payment_methods": ["mpesa", "cod"], "payment_method_details": [ …payment method objects… ]}` — with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the active codes staff configured.
+- **Payment method object** (also `GET /payment-methods`, public): `{payment_method_code, payment_method_name, payment_method_type (mobile_money | bank | cash), payment_method_account_name, payment_method_account_number (Lipa Namba / phone / bank account), payment_method_bank_name, payment_method_instructions, payment_method_icon_url}`. The icon URL is `null` when no logo is uploaded; customer clients show their built-in icon for the method type. An order saved with a removed method returns a safe placeholder with `payment_method_is_available: false`; customers cannot submit payment through that method.
+- `GET /products/{id}` also returns `delivery_options` (every delivery option switched on, the same shape as above, without a region) — show them on the product page ("Bolt (Dar es Salaam): leo au kesho · Usafiri wa mikoani: siku 2–5 · Nitachukua mwenyewe dukani: bure"). Days read 0–0 "leo", 0–1 "leo au kesho", 1–1 "kesho", else "siku min–max".
 - **Dar by Bolt and pickup (R-26):** `delivery_fee_paid_to_rider` true ("Bolt (Dar es Salaam)") → the customer pays the rider directly: show "Unamlipa dereva" (never "Bure" or an amount) with "Usafiri unamlipa dereva ukipokea mzigo — hauko kwenye jumla."; the fee is 0 in every total. `delivery_method_is_pickup` true ("Nitachukua mwenyewe dukani", every region, free) → show `pickup_point` (address · hours) under it.
 - **Upcountry transport (R-25):** `delivery_method_area` is `all`, `only` (just `region_id`) or `except` (every region but `region_id`); today Dar es Salaam gets Bolt, every other region gets "Usafiri wa mikoani", and every region can choose pickup. When `delivery_fee_needs_confirmation` is true the fee is **the region's estimate** — show it as "~TZS 15,000" with "Bei ni makadirio. Tutapima mzigo na kukuthibitishia bei kabla hujalipa." `delivery_method_fee` = `null` means the region has no estimate yet → show "Bei itathibitishwa" (the order is placed with transport 0 and staff set the price). Such an option needs `address_id`, and cash on delivery is refused for it (`VALIDATION_ERROR` on `payment_method`) — hide cash methods while it is chosen.
 - `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` → `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, discount_total, grand_total, delivery_days_min, delivery_days_max}` (with `delivery_fee_needs_confirmation` true, label the totals "Usafiri (makadirio)" / "Jumla (makadirio)"). Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
@@ -255,7 +256,7 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
  "events": [{"order_status": "confirmed", "status_note": null, "created_at": "2026-09-29T13:10:00+00:00"}],
  "delivery_agent": null,
  "payment": {"payment_method": { …payment method object… }, "payment_amount": 96000, "payment_note_hint": "CHB765068",
-             "can_submit_payment": false, "can_change_payment_method": false,
+             "can_submit_payment": false, "can_change_payment_method": false, "payment_deadline_passed": false,
              "latest_payment": {"payment_id": 4, "payment_payer_account": "+255712000111", "payment_reference": "QJK3X7ABC1",
                                 "payment_status": "submitted", "payment_review_note": null, "created_at": "…"}}}
 ```
@@ -270,10 +271,11 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 
 **Paying by mobile money or bank (checked by CHIMBO staff until a provider is connected)**
 1. The order is placed as `pending_payment` / `unpaid` with `order_expires_at` (the admin's "time to pay" setting, 24 hours by default; orders staff create have none). After a rejected payment the customer gets at least that time again from the rejection.
-2. Order screen, while `payment.can_submit_payment`: show the pay-to box — "Lipa **TZS {payment_amount}** kwa {payment_method_name}: **{payment_method_account_number}** ({payment_method_account_name})", the bank name for banks, `payment_method_instructions`, and "Andika **{payment_note_hint}** kama maelezo/kumbukumbu" — then the **"Nimelipa"** form (number paid from + confirmation code from the SMS).
-3. After sending: `order_payment_status` = `pending`, `latest_payment.payment_status` = `submitted` → show "Tunakagua malipo yako". Cancelling is blocked while it is checked (`can_cancel` false).
-4. Staff confirm → order `confirmed`, payment `paid` (notification "Oda imethibitishwa"). Staff reject → payment `unpaid` again, `latest_payment.payment_status` = `rejected` with `payment_review_note` (show it), notification type `payment`, and the form is shown again.
-5. A paid order that is cancelled is refunded by staff → `order_payment_status` = `refunded` (notification "Pesa imerudishwa").
+2. `payment.payment_deadline_passed` is true when an unpaid mobile-money / bank order's deadline has passed but the expiry job has not yet changed its order status. Payment and payment-method changes are blocked during this interval; show that the deadline passed instead of asking the customer to pay.
+3. Order screen, while `payment.can_submit_payment`: show the pay-to box — "Lipa **TZS {payment_amount}** kwa {payment_method_name}: **{payment_method_account_number}** ({payment_method_account_name})", the bank name for banks, `payment_method_instructions`, and "Andika **{payment_note_hint}** kama maelezo/kumbukumbu" — then the **"Nimelipa"** form (number paid from + confirmation code from the SMS).
+4. After sending: `order_payment_status` = `pending`, `latest_payment.payment_status` = `submitted` → show "Tunakagua malipo yako". Cancelling is blocked while it is checked (`can_cancel` false).
+5. Staff confirm → order `confirmed`, payment `paid` (notification "Oda imethibitishwa"). Staff reject → payment `unpaid` again, `latest_payment.payment_status` = `rejected` with `payment_review_note` (show it), notification type `payment`, and the form is shown again.
+6. A paid order that is cancelled is refunded by staff → `order_payment_status` = `refunded` (notification "Pesa imerudishwa").
 
 **Bolt (paid to the rider) and pickup orders (R-26)**
 - `delivery_method.delivery_fee_paid_to_rider`: the transport line reads "Unamlipa dereva"; `order_total` is the products only (that's all CHIMBO is paid).
@@ -292,7 +294,7 @@ With the same `Idempotency-Key`, a repeated request (double tap, retry after a t
 ## Malipo yangu · 🔒
 `GET /payments?page=1` → the customer's own payments, newest first, 20 per page (`meta` as other lists):
 `[{payment_id, order_id, order_number, payment_method_code, payment_method_name, payment_amount, payment_payer_account,
-payment_reference, payment_status (submitted | confirmed | rejected), payment_review_note, created_at, payment_reviewed_at}]`.
+payment_reference, payment_status (submitted | confirmed | rejected | initiated | pending | successful | failed | cancelled | expired | refunded), payment_review_note, created_at, payment_reviewed_at}].
 Every "Nimelipa" is listed (also rejected ones, with the reason), payments staff recorded, and cash collected on delivery
 (`payment_method_code` `cod`, reference `CASH-{order_number}`). Show "Njia za malipo tunazokubali" below it from `GET /payment-methods`.
 
@@ -304,3 +306,11 @@ Every "Nimelipa" is listed (also rejected ones, with the reason), payments staff
 | POST | `/notifications/{id}/read` | `null` |
 | POST | `/notifications/read-all` | `null` |
 Every order status change creates a notification (Kiswahili title + text). `notification_data.order_id` → open that order.
+
+## Mobile push registrations · 🔒 app login
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| POST | `/devices` | `{"device_token": "FCM token", "device_platform": "android"}` (`android` or `ios`) | `null`; registers or refreshes this installation for the current login session |
+| DELETE | `/devices` | `{"device_token": "FCM token"}` | `null`; removes this installation on logout |
+
+The device token is saved against the current auth session. Revoked or expired sessions are excluded from push delivery. When `FCM_SERVICE_ACCOUNT_FILE` points to a readable Firebase service-account JSON file, individual in-app notifications are queued and attempted through FCM immediately after their database transaction commits. Bulk notifications are saved and queued in one transaction, then the scheduled CLI worker processes recipients in batches of 50 so a broadcast does not hold the admin request open. Failed pushes are marked failed for staff to retry in Push Queue; unregistered tokens are removed. The worker also recovers pending work interrupted before an immediate attempt. Push data includes string `notification_id`, `notification_type`, and the notification's scalar `notification_data` fields (including `order_id` when present).

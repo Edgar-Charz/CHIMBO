@@ -109,6 +109,31 @@ final class PaymentTest extends TestCase
         $this->assertSame(['mpesa', 'cod'], $options['payment_methods']);
         $this->assertSame('123456', $options['payment_method_details'][0]['payment_method_account_number']);
         $this->assertSame('CHIMBO LTD', $options['payment_method_details'][0]['payment_method_account_name']);
+        $this->assertArrayHasKey('payment_method_icon_url', $options['payment_method_details'][0]);
+        $this->assertNull($options['payment_method_details'][0]['payment_method_icon_url']);
+    }
+
+    public function testPaymentMethodIconCanBeUploadedAndRemovedToRestoreClientFallback(): void
+    {
+        $method = $this->methodRow('mpesa');
+        $model = new PaymentMethod($this->db);
+        $source_path = $this->makePaymentIcon();
+
+        try {
+            $model->setIconFromFile((int) $method['payment_method_id'], $source_path, self::ADMIN_ID);
+            $icon_url = $model->getDetailsByCode('mpesa')['payment_method_icon_url'];
+            $icon_path = $model->getMethodById((int) $method['payment_method_id'])['payment_method_icon_path'];
+
+            $this->assertStringContainsString('/media/payment-methods/', $icon_url);
+            $this->assertFileExists(BASE_PATH . '/' . $icon_path);
+            $this->assertSame(IMAGETYPE_PNG, getimagesize(BASE_PATH . '/' . $icon_path)[2]);
+
+            $model->removeIcon((int) $method['payment_method_id'], self::ADMIN_ID);
+            $this->assertNull($model->getDetailsByCode('mpesa')['payment_method_icon_url']);
+            $this->assertFileDoesNotExist(BASE_PATH . '/' . $icon_path);
+        } finally {
+            unlink($source_path);
+        }
     }
 
     // ------------------------------------------------------------------ customer
@@ -415,6 +440,22 @@ final class PaymentTest extends TestCase
     private function methodRow(string $code): array
     {
         return $this->db->fetchOne('SELECT * FROM payment_methods WHERE payment_method_code = :code', ['code' => $code]);
+    }
+
+    private function makePaymentIcon(): string
+    {
+        $image = imagecreatetruecolor(256, 256);
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+        imagefill($image, 0, 0, imagecolorallocatealpha($image, 0, 0, 0, 127));
+        imagefilledellipse($image, 128, 128, 180, 180, imagecolorallocate($image, 14, 59, 42));
+
+        $path = tempnam(sys_get_temp_dir(), 'chimbo-payment-icon');
+        unlink($path);
+        $path .= '.png';
+        imagepng($image, $path);
+        imagedestroy($image);
+        return $path;
     }
 
     /** 8 Vaseline with Bolt delivery (40,000: the rider is paid separately). */

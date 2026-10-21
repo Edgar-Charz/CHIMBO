@@ -33,7 +33,7 @@ adminDataTablesJson($pagination, function (array $product) use ($can_adjust_stoc
         'stock'    => adminStockBadge((int) $product['product_stock_quantity']),
         'status'   => adminStatusBadge($product['product_is_active'] ? 'active' : 'hidden')
             . ($product['product_is_bestseller'] ? ' <i class="bi bi-star-fill product-flag" title="Bestseller" aria-label="Bestseller"></i>' : '')
-            . ($product['product_compare_at_price'] ? ' <i class="bi bi-tag-fill product-flag" title="On deal" aria-label="On deal"></i>' : ''),
+            . ($product['product_compare_at_price'] ? ' <i class="bi bi-tag-fill product-flag" title="Has old price" aria-label="Has old price"></i>' : ''),
         'added'    => e(adminDate($product['created_at'])),
         'actions'  => adminRowActions(
             adminActionLink('bi-pencil', 'Edit', url("admin/product_edit.php?id={$product_id}")),

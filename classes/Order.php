@@ -710,11 +710,16 @@ class Order
 
     private function formatPayment(array $row, ?array $latest_payment): array
     {
+        $payment_deadline_passed = $row['order_status'] === 'pending_payment'
+            && $row['order_payment_status'] === 'unpaid'
+            && $row['order_payment_method'] !== 'cod'
+            && $row['order_expires_at'] !== null
+            && $row['order_expires_at'] <= gmdate('Y-m-d H:i:s');
         $is_first_payment = $row['order_status'] === 'pending_payment'
             && $row['order_payment_status'] === 'unpaid'
             && $row['order_payment_method'] !== 'cod'
             && self::deliveryFeeStatus($row) !== 'awaiting_confirmation'   // staff confirm the transport price first
-            && ($row['order_expires_at'] === null || $row['order_expires_at'] > gmdate('Y-m-d H:i:s'));
+            && !$payment_deadline_passed;
         // Staff added to a paid order (R-29): the customer pays only the difference ("Salio la kulipa")
         $is_balance  = self::isBalanceDue($row);
         $amount_paid = (int) ($row['order_amount_paid'] ?? 0);
@@ -724,6 +729,7 @@ class Order
             'payment_amount'     => $is_balance ? (int) $row['order_total'] - $amount_paid : (int) $row['order_total'],   // what to pay now
             'payment_note_hint'  => $row['order_number'],   // ask the customer to write this as the payment's reference/description
             'can_submit_payment' => $is_first_payment || $is_balance,
+            'payment_deadline_passed' => $payment_deadline_passed,
             'is_balance_payment' => $is_balance,            // true: "Salio la kulipa" — the rest is already paid
             'amount_paid'        => $amount_paid,
             'refund_due'         => (int) $row['order_refund_due'],   // money CHIMBO will give back after a change
@@ -733,7 +739,7 @@ class Order
                 'payment_id'            => (int) $latest_payment['payment_id'],
                 'payment_payer_account' => $latest_payment['payment_payer_account'],
                 'payment_reference'     => $latest_payment['payment_reference'],
-                'payment_status'        => $latest_payment['payment_status'],        // submitted | confirmed | rejected
+                'payment_status'        => $latest_payment['payment_status'],        // manual and provider attempt statuses
                 'payment_review_note'   => $latest_payment['payment_review_note'],   // why it was rejected
                 'created_at'            => isoDate($latest_payment['created_at']),
             ],

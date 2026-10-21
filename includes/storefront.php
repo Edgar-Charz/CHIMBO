@@ -16,7 +16,7 @@ const CATALOG_SORT_OPTIONS = [
     'price_asc'  => 'Bei: ndogo kwanza',
     'price_desc' => 'Bei: kubwa kwanza',
 ];
-const PRODUCT_BADGE_LABELS = ['deal' => 'Ofa', 'bestseller' => 'Inauzwa sana', 'new' => 'Mpya'];
+const PRODUCT_BADGE_LABELS = ['deal' => 'Punguzo', 'bestseller' => 'Inauzwa sana', 'new' => 'Mpya'];
 const PRODUCT_SUGGESTION_COUNT = 10;
 
 // Order words — the same as the mobile app, so customers see one language everywhere
@@ -59,13 +59,15 @@ const ORDER_STAGE_LABELS = [
     'checking_payment' => 'Malipo yanakaguliwa',
     'measuring_load'   => 'Tunapima mzigo',
     'balance_due'      => 'Salio la kulipa',
+    'payment_expired'  => 'Muda wa kulipa umeisha',
 ];
 const ORDER_STAGE_MESSAGES = [
     'checking_payment' => 'Tumepokea uthibitisho wa malipo yako; tunaukagua sasa. Tutakujulisha.',
     'measuring_load'   => 'Tunapima mzigo ili kuthibitisha bei ya usafiri. Usilipe bado — tutakujulisha.',
     'balance_due'      => 'Oda imebadilishwa: lipa salio ili tuendelee kuiandaa.',
+    'payment_expired'  => 'Muda wa kulipa umeisha. Huwezi kulipa oda hii tena. Oda itasitishwa hivi karibuni; wasiliana nasi ikiwa bado unahitaji kuendelea.',
 ];
-const ORDER_STAGE_TONES = ['checking_payment' => 'info', 'measuring_load' => 'warning', 'balance_due' => 'warning'];
+const ORDER_STAGE_TONES = ['checking_payment' => 'info', 'measuring_load' => 'warning', 'balance_due' => 'warning', 'payment_expired' => 'danger'];
 const ORDER_STOPPED_STATUSES = ['cancelled', 'expired'];
 const ORDER_REORDER_STATUSES = ['delivered', 'cancelled', 'expired']; // "Agiza Tena" once an order is finished (expired: R-28)
 const ORDER_CARD_PHOTOS = 4; // product photos shown on an order in "Oda Zangu"
@@ -166,7 +168,7 @@ function formatPieces(int $count): string
 }
 
 /**
- * The card badge: "Ofa −15%" during a time-limited offer, "−8%" for a deal with an old price, otherwise the
+ * The card badge: "Ofa −15%" during a time-limited offer, "−8%" for a regular price reduction, otherwise the
  * badge name (null = no badge). Same rules as badgeText() in product_card.js.
  */
 function productBadgeText(array $product): ?string
@@ -222,6 +224,7 @@ function orderStage(array $order): ?string
     return match (true) {
         $order['order_status'] === 'pending_payment' && $order['order_payment_status'] === 'pending'                 => 'checking_payment',
         $order['order_status'] === 'pending_payment' && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation' => 'measuring_load',
+        $order['payment']['payment_deadline_passed'] ?? false => 'payment_expired',
         $order['order_status'] === 'confirmed' && $order['order_payment_status'] === 'balance_due'                    => 'balance_due',
         default                                                                                                       => null,
     };

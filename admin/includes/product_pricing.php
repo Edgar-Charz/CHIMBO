@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Product form — "Pricing" panel: MOQ, unit, price levels (tiers) and the old price for deals.
+ * Product form — "Pricing" panel: MOQ, unit, price levels (tiers) and the old price for regular reductions.
  * Included by product_edit.php inside its main form (uses $form and $errors).
  */
 
@@ -59,13 +59,13 @@ $tier_rows[] = ['tier_min_quantity' => '', 'tier_unit_price' => ''];
 
         <hr class="my-4">
 
-        <label class="form-label" for="product_compare_at_price">Old price for a deal ("Ofa") <span class="text-muted">(optional)</span></label>
+        <label class="form-label" for="product_compare_at_price">Old price <span class="text-muted">(optional)</span></label>
         <div class="input-group admin-input-medium">
             <span class="input-group-text">TZS</span>
             <input class="form-control<?= adminInvalidClass($errors, 'product_compare_at_price') ?>" type="number" min="1"
                 id="product_compare_at_price" name="product_compare_at_price" value="<?= e($form['product_compare_at_price'] ?? '') ?>">
         </div>
-        <div class="form-text">Shown struck through next to the normal price. Must be higher than the first level's price.</div>
+        <div class="form-text">Shown struck through next to the current price. Must be higher than the first level's price.</div>
         <?= adminFieldError($errors, 'product_compare_at_price') ?>
     </div>
 </div>

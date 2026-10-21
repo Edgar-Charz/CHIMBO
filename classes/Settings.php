@@ -109,6 +109,13 @@ class Settings
         $new_values = [];
         foreach ($data as $setting_key => $value) {
             $value = trim((string) $value);
+            if (str_starts_with($setting_key, 'legal_')) {
+                $value = $this->sanitizeLegalHtml($value);
+                $legal_text = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                if (trim($legal_text) === '') {
+                    throw ApiException::validation([$setting_key => 'Legal text cannot be empty.']);
+                }
+            }
             if ($value !== $this->get($setting_key)) {
                 $old_values[$setting_key] = $this->get($setting_key);
                 $new_values[$setting_key] = $value;
@@ -164,7 +171,7 @@ class Settings
         ];
     }
 
-    /** A legal page ("terms" or "privacy") for the apps and website: {page_title, page_body, updated_at}. 404 for others. */
+    /** A legal page for the website and app: plain text, safe HTML, and its last update time. */
     public function getLegalPage(string $page_name): array
     {
         if (!isset(self::LEGAL_PAGES[$page_name])) {
@@ -177,10 +184,81 @@ class Settings
             ['setting_key' => $setting_key]
         );
 
+        $stored_body = (string) ($row['setting_value'] ?? '');
+        $page_body_html = $this->legalPageHtml($stored_body);
+        $plain_body = str_ireplace(
+            ['<li>', '</p>', '</h2>', '</h3>', '</li>', '</blockquote>', '<br>'],
+            ["\n• ", "\n\n", "\n\n", "\n\n", "\n\n", "\n\n", "\n"],
+            $page_body_html
+        );
+        $page_body = html_entity_decode(
+            strip_tags($plain_body),
+            ENT_QUOTES | ENT_HTML5,
+            'UTF-8'
+        );
+        $page_body = trim(preg_replace('/\n{3,}/', "\n\n", $page_body) ?? $page_body);
+
         return [
             'page_title' => $page_title,
-            'page_body'  => $row['setting_value'] ?? '',   // plain text; paragraphs separated by empty lines
+            'page_body'  => $page_body,
+            'page_body_html' => $page_body_html,
             'updated_at' => isoDate($row['updated_at'] ?? null),
         ];
+    }
+
+    /** Keep only safe legal formatting and link destinations. */
+    private function sanitizeLegalHtml(string $html): string
+    {
+        $html = preg_replace('#<(script|style|iframe|object)\b[^>]*>.*?</\1\s*>#is', '', $html) ?? $html;
+        $html = preg_replace('/<\s*div\b[^>]*>/i', '<p>', $html) ?? $html;
+        $html = preg_replace('/<\s*\/\s*div\s*>/i', '</p>', $html) ?? $html;
+        $html = strip_tags($html, '<p><br><strong><b><em><i><u><s><strike><del><h2><h3><ul><ol><li><blockquote><a>');
+        $allowed_tags = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del', 'h2', 'h3', 'ul', 'ol', 'li', 'blockquote', 'a'];
+
+        return preg_replace_callback('/<\s*(\/?)\s*([a-z0-9]+)\b[^>]*>/i', static function (array $matches) use ($allowed_tags): string {
+            $tag = strtolower($matches[2]);
+            if (!in_array($tag, $allowed_tags, true)) {
+                return '';
+            }
+            if ($matches[1] === '/') {
+                return '</' . $tag . '>';
+            }
+            if ($tag === 'br') {
+                return '<br>';
+            }
+            if ($tag === 'a') {
+                preg_match('/\bhref\s*=\s*(["\'])(.*?)\1/i', $matches[0], $href_match);
+                $safe_href = isset($href_match[2]) ? self::safeLegalLink(html_entity_decode($href_match[2], ENT_QUOTES | ENT_HTML5, 'UTF-8')) : null;
+                return $safe_href === null ? '<a>' : '<a href="' . htmlspecialchars($safe_href, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+            }
+            return '<' . $tag . '>';
+        }, $html) ?? $html;
+    }
+
+    private static function safeLegalLink(string $href): ?string
+    {
+        $href = trim($href);
+        if ($href === '' || str_starts_with($href, '//')) {
+            return null;
+        }
+        if (str_starts_with($href, '/') || str_starts_with($href, '#')) {
+            return $href;
+        }
+        $scheme = strtolower((string) parse_url($href, PHP_URL_SCHEME));
+        return in_array($scheme, ['http', 'https', 'mailto', 'tel'], true) ? $href : null;
+    }
+
+    /** Convert old plain-text settings to paragraphs; stored rich text goes through the allowlist sanitizer. */
+    private function legalPageHtml(string $body): string
+    {
+        if (preg_match('/<\/?(?:p|br|strong|b|em|i|u|s|strike|del|h2|h3|ul|ol|li|blockquote|a)\b/i', $body)) {
+            return $this->sanitizeLegalHtml($body);
+        }
+
+        $paragraphs = preg_split('/\R\s*\R/u', trim($body)) ?: [];
+        return implode("\n", array_map(
+            static fn (string $paragraph): string => '<p>' . nl2br(htmlspecialchars(trim($paragraph), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</p>',
+            array_filter($paragraphs, static fn (string $paragraph): bool => trim($paragraph) !== '')
+        ));
     }
 }

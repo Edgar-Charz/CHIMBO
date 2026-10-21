@@ -7,7 +7,7 @@
 require __DIR__ . '/includes/init.php';
 
 $collection_shortcuts = [
-    ['collection' => 'deals',        'title' => 'Ofa',              'icon' => 'lightning-charge-fill', 'modifier' => 'deal'],
+    ['collection' => 'offers',       'title' => 'Ofa',              'icon' => 'lightning-charge-fill', 'modifier' => 'deal'],
     ['collection' => 'new',          'title' => 'Bidhaa mpya',      'icon' => 'stars',                 'modifier' => 'new'],
     ['collection' => 'best_sellers', 'title' => 'Zinazouzwa zaidi', 'icon' => 'graph-up-arrow',        'modifier' => 'best'],
 ];

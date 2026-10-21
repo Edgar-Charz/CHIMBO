@@ -1416,6 +1416,120 @@ img {
     scroll-behavior: smooth;
 }
 
+.scroll-rail--recent {
+    margin-top: var(--chimbo-space-4);
+}
+
+.scroll-rail--recent .scroll-rail__button {
+    top: 50%;
+}
+
+.recent-product-rail {
+    display: flex;
+    gap: var(--chimbo-space-3);
+    margin: 0;
+    padding: 0 0 var(--chimbo-space-2);
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+}
+
+.recent-product-rail::-webkit-scrollbar {
+    display: none;
+}
+
+.recent-product-rail__item {
+    flex: 0 0 88px;
+    list-style: none;
+    scroll-snap-align: start;
+}
+
+.recent-product-rail__tile {
+    position: relative;
+}
+
+.recent-product-rail__link {
+    display: grid;
+    width: 88px;
+    aspect-ratio: 1;
+    overflow: hidden;
+    place-items: center;
+    border: 1px solid var(--chimbo-line);
+    border-radius: var(--chimbo-radius-lg);
+    background: var(--chimbo-surface);
+    transition: border-color var(--chimbo-duration), transform var(--chimbo-duration) var(--chimbo-ease);
+}
+
+.recent-product-rail .recent-product-rail__add {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    width: 32px;
+    height: 32px;
+    z-index: 1;
+}
+
+.recent-product-rail__add:focus-visible {
+    outline: 3px solid var(--chimbo-green);
+    outline-offset: 2px;
+}
+
+.recent-product-rail__cart-count {
+    font-size: var(--chimbo-text-xs);
+}
+
+.recent-product-rail__sold-out {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    padding: 2px 6px;
+    border-radius: var(--chimbo-radius-pill);
+    background: var(--chimbo-surface);
+    color: var(--chimbo-muted);
+    font-size: var(--chimbo-text-xs);
+    font-weight: 600;
+}
+
+.recent-product-rail__link:hover {
+    border-color: var(--chimbo-green);
+    transform: translateY(-2px);
+}
+
+.recent-product-rail__link:focus-visible {
+    outline: 3px solid var(--chimbo-orange);
+    outline-offset: 2px;
+}
+
+.recent-product-rail__image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.recent-product-rail__image.image-placeholder {
+    display: grid;
+    place-items: center;
+    color: var(--chimbo-muted);
+    background: var(--chimbo-cream-dark);
+    font-size: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .recent-product-rail {
+        gap: var(--chimbo-space-4);
+    }
+
+    .recent-product-rail__item,
+    .recent-product-rail__link {
+        width: 104px;
+    }
+
+    .recent-product-rail__item {
+        flex-basis: 104px;
+    }
+}
+
 .scroll-rail::before,
 .scroll-rail::after {
     content: "";
@@ -1823,13 +1937,13 @@ img {
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0 var(--chimbo-space-1);
-    margin: auto 0 0;
+    margin: 0;
     padding-top: var(--chimbo-space-1);
 }
 
-.product-card__price-label {
+.product-card__unit {
     color: var(--chimbo-muted);
-    font-size: 0.6875rem;
+    font-size: var(--chimbo-text-xs);
 }
 
 .product-card__price strong {
@@ -1881,6 +1995,10 @@ img {
 
     .product-card__add {
         width: 100%;
+    }
+
+    .recent-product-rail .recent-product-rail__add {
+        width: 32px;
     }
 
     .product-card__add-label {
@@ -2405,6 +2523,11 @@ img {
 .product-buy__moq {
     color: var(--chimbo-muted);
     font-weight: 400;
+}
+
+.product-buy__stock-quantity {
+    color: var(--chimbo-text);
+    font-weight: 500;
 }
 
 .product-buy__row {
@@ -3111,6 +3234,30 @@ body.is-focused {
 .choice-card__icon {
     color: var(--chimbo-green);
     font-size: 1.25rem;
+}
+
+.choice-card__payment-icon {
+    width: 2rem;
+    height: 2rem;
+    object-fit: contain;
+}
+
+.payment-method-icon {
+    display: inline-flex;
+    width: 1.5rem;
+    height: 1.5rem;
+    align-items: center;
+    justify-content: center;
+    margin-right: var(--chimbo-space-1);
+    color: var(--chimbo-green);
+    vertical-align: middle;
+}
+
+.payment-method-icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 .choice-card__body {
@@ -4013,6 +4160,30 @@ body.is-focused {
 
 .text-page p {
     line-height: 1.7;
+}
+
+.text-page__body h2,
+.text-page__body h3 {
+    margin: var(--chimbo-space-6) 0 var(--chimbo-space-3);
+    font-weight: 700;
+}
+
+.text-page__body a {
+    color: var(--chimbo-green);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.text-page__body ul,
+.text-page__body ol {
+    padding-left: 1.5rem;
+    line-height: 1.7;
+}
+
+.text-page__body blockquote {
+    margin: var(--chimbo-space-4) 0;
+    padding-left: var(--chimbo-space-4);
+    border-left: 3px solid var(--chimbo-orange);
 }
 
 .text-page__contact {

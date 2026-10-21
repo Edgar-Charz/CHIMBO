@@ -305,8 +305,8 @@ function adminRowActions(string ...$items): string
         return '';
     }
     return '<div class="dropdown row-actions">'
-        . '<button class="btn btn-sm btn-light row-actions__toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"'
-        . ' title="Actions" aria-label="Actions"><i class="bi bi-three-dots-vertical"></i></button>'
+        . '<button class="btn btn-light row-actions__toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"'
+        . ' title="Open actions menu" aria-label="Open actions menu"><i class="bi bi-three-dots-vertical"></i></button>'
         . '<ul class="dropdown-menu dropdown-menu-end row-actions__menu">' . implode('', $items) . '</ul>'
         . '</div>';
 }
@@ -671,6 +671,8 @@ const ADMIN_MENU = [
     ],
     'Management' => [
         'reports'         => ['Reports', 'bi-bar-chart-line', 'reports.php', 'reports.view'],
+        'push_queue'      => ['Push Queue', 'bi-broadcast', 'push_queue.php', 'settings.manage'],
+        'notification_broadcast' => ['Customer Broadcast', 'bi-megaphone', 'notification_broadcast.php', 'settings.manage'],
         'settings'        => ['Settings', 'bi-gear', 'settings.php', 'settings.manage'],
         'admin_users'     => ['Admin Users', 'bi-person-badge', 'admin_users.php', 'admins.manage'],
         'audit_log'       => ['Audit Log', 'bi-journal-text', 'audit_log.php', 'audit.view'],

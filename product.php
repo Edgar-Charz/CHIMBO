@@ -151,7 +151,16 @@ require __DIR__ . '/includes/header.php';
                 <div class="product-buy" data-buy-box>
                     <p class="product-buy__stock<?= $product['product_in_stock'] ? '' : ' is-sold-out' ?>">
                         <i class="bi bi-<?= $product['product_in_stock'] ? 'check-circle-fill' : 'x-circle-fill' ?>" aria-hidden="true"></i>
-                        <?= $product['product_in_stock'] ? 'Inapatikana' : 'Imeisha kwa sasa' ?>
+                        <?php if ($product['product_in_stock']) : ?>
+                            Inapatikana
+                        <?php elseif ($product['product_stock_quantity'] > 0) : ?>
+                            Kiasi kilichopo hakifiki MOQ
+                        <?php else : ?>
+                            Imeisha kwa sasa
+                        <?php endif; ?>
+                        <?php if ($product['product_stock_quantity'] > 0) : ?>
+                            <span class="product-buy__stock-quantity">· Zilizopo <?= e(formatPieces($product['product_stock_quantity'])) ?></span>
+                        <?php endif; ?>
                         <span class="product-buy__moq">· MOQ <?= e(formatPieces($product['product_moq'])) ?></span>
                     </p>
 

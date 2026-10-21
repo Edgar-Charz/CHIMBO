@@ -24,7 +24,7 @@ if ($customer !== null) {
 $product_tabs = array_values(array_filter([
     ['key' => 'best_sellers', 'label' => 'Zinazouzwa Zaidi', 'products' => $home['best_sellers']],
     ['key' => 'new',          'label' => 'Mpya',             'products' => $home['new_arrivals']],
-    ['key' => 'deals',        'label' => 'Ofa',              'products' => $home['deals']],
+    ['key' => 'deals',        'label' => 'Punguzo',          'products' => $home['deals']],
 ], fn(array $tab): bool => $tab['products'] !== []));
 
 $has_subcategories = array_merge(...array_column($home['top_categories'], 'children')) !== [];
@@ -117,9 +117,9 @@ require __DIR__ . '/includes/header.php';
     <?php endif; ?>
 
     <div class="home-hero__tiles">
-        <a class="promo-tile promo-tile--deal" href="<?= e(collectionUrl('deals')) ?>">
+        <a class="promo-tile promo-tile--deal" href="<?= e(collectionUrl('offers')) ?>">
             <span class="promo-tile__icon"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i></span>
-            <span class="promo-tile__title">Ofa za wiki</span>
+            <span class="promo-tile__title">Ofa</span>
             <span class="promo-tile__text">Bei maalum kwa muda mfupi</span>
             <i class="bi bi-arrow-right promo-tile__arrow" aria-hidden="true"></i>
         </a>
@@ -144,32 +144,6 @@ require __DIR__ . '/includes/header.php';
         <li class="trust-strip__item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong>Tunakuletea dukani</strong> Fuatilia oda yako</span></li>
     </ul>
 </section>
-
-<?php if ($home['offers'] !== []) : ?>
-    <section class="container-xl home-section home-offers" aria-labelledby="home-offers-title">
-        <div class="section-heading">
-            <div>
-                <h2 class="section-heading__title" id="home-offers-title"><i class="bi bi-alarm" aria-hidden="true"></i> Ofa za muda</h2>
-                <p class="section-heading__text">Bei maalum kwa muda mfupi tu — wahi kabla hazijaisha.</p>
-            </div>
-            <a class="section-heading__link" href="<?= e(collectionUrl('offers')) ?>">Ona zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-        </div>
-        <div class="product-grid product-grid--rail" data-home-offers></div>
-    </section>
-<?php endif; ?>
-
-<?php if ($home['recently_ordered'] !== []) : ?>
-    <section class="container-xl home-section" aria-labelledby="home-reorder-title">
-        <div class="section-heading">
-            <div>
-                <h2 class="section-heading__title" id="home-reorder-title">Karibu tena, <?= e(customerFirstName() ?? 'mteja') ?></h2>
-                <p class="section-heading__text">Agiza tena bidhaa ulizonunua hivi karibuni.</p>
-            </div>
-            <a class="section-heading__link" href="<?= e(url('orders.php')) ?>">Oda zangu <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
-        </div>
-        <div class="product-grid product-grid--rail" data-home-recent></div>
-    </section>
-<?php endif; ?>
 
 <section class="container-xl home-section" aria-labelledby="home-categories-title">
     <div class="section-heading">
@@ -212,6 +186,40 @@ require __DIR__ . '/includes/header.php';
         </div>
     <?php endif; ?>
 </section>
+
+<?php if ($home['recently_ordered'] !== []) : ?>
+    <section class="container-xl home-section" aria-labelledby="home-reorder-title">
+        <div class="section-heading">
+            <div>
+                <h2 class="section-heading__title" id="home-reorder-title">Karibu tena, <?= e(customerFirstName() ?? 'mteja') ?></h2>
+                <p class="section-heading__text">Agiza tena bidhaa ulizonunua hivi karibuni.</p>
+            </div>
+            <a class="section-heading__link" href="<?= e(url('orders.php')) ?>">Oda zangu <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        </div>
+        <div class="scroll-rail scroll-rail--recent" data-scroll-rail>
+            <button class="scroll-rail__button scroll-rail__button--prev" type="button" aria-label="Rudi nyuma" hidden data-rail-prev>
+                <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
+            <ul class="recent-product-rail" data-home-recent data-rail-track aria-label="Bidhaa ulizonunua hivi karibuni"></ul>
+            <button class="scroll-rail__button scroll-rail__button--next" type="button" aria-label="Endelea mbele" hidden data-rail-next>
+                <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+        </div>
+    </section>
+<?php endif; ?>
+
+<?php if ($home['offers'] !== []) : ?>
+    <section class="container-xl home-section home-offers" aria-labelledby="home-offers-title">
+        <div class="section-heading">
+            <div>
+                <h2 class="section-heading__title" id="home-offers-title"><i class="bi bi-alarm" aria-hidden="true"></i> Ofa za muda</h2>
+                <p class="section-heading__text">Bei maalum kwa muda mfupi tu — wahi kabla hazijaisha.</p>
+            </div>
+            <a class="section-heading__link" href="<?= e(collectionUrl('offers')) ?>">Ona zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        </div>
+        <div class="product-grid product-grid--rail" data-home-offers></div>
+    </section>
+<?php endif; ?>
 
 <?php if ($product_tabs !== []) : ?>
     <section class="container-xl home-section" aria-labelledby="home-products-title">

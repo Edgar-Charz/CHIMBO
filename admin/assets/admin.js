@@ -32,6 +32,44 @@
 (() => {
   'use strict';
 
+  const tabNavigation = document.querySelector('.dashboard-tabs, .page-tabs');
+  if (tabNavigation) {
+    const tabLinks = [...tabNavigation.querySelectorAll('a[href]')];
+    const currentUrl = new URL(window.location.href);
+    const tabStorageKey = `chimbo-admin:${document.body.dataset.adminId}:page-tab:${currentUrl.pathname}`;
+    const currentTabLink = tabLinks.find((link) => link.classList.contains('active'));
+    const currentTab = currentTabLink ? new URL(currentTabLink.href).searchParams.get('tab') : null;
+
+    try {
+      const savedTab = window.sessionStorage.getItem(tabStorageKey);
+      const savedTabLink = tabLinks.find((link) => new URL(link.href).searchParams.get('tab') === savedTab);
+
+      if (!currentUrl.searchParams.has('tab') && savedTabLink && savedTab !== currentTab) {
+        currentUrl.searchParams.set('tab', savedTab);
+        window.location.replace(currentUrl.toString());
+        return;
+      }
+
+      if (currentTab) {
+        window.sessionStorage.setItem(tabStorageKey, currentTab);
+      }
+
+      tabNavigation.addEventListener('click', (event) => {
+        const tabLink = event.target.closest('a[href]');
+        if (!tabLink || !tabNavigation.contains(tabLink)) {
+          return;
+        }
+
+        const selectedTab = new URL(tabLink.href).searchParams.get('tab');
+        if (selectedTab) {
+          window.sessionStorage.setItem(tabStorageKey, selectedTab);
+        }
+      });
+    } catch {
+      // Tab memory is optional when browser storage is disabled.
+    }
+  }
+
   // Price levels: "Add level" copies the <template> row with a new index; the × button removes a row
   document.querySelectorAll('[data-tier-editor]').forEach((editor) => {
     const rowsContainer = editor.querySelector('[data-tier-rows]');
@@ -184,6 +222,144 @@
     }, BADGE_REFRESH_MS);
   }
 
+  // A permission-aware quick search for order, customer and product records.
+  const global_search = document.querySelector('[data-admin-global-search]');
+  if (global_search) {
+    const form = global_search.querySelector('[data-global-search-form]');
+    const input = form.elements.q;
+    const results_panel = global_search.querySelector('.admin-global-search__results');
+    let search_timer;
+    let current_request;
+    let latest_search = '';
+
+    const showMessage = (message) => {
+      results_panel.replaceChildren();
+      const paragraph = document.createElement('p');
+      paragraph.className = 'admin-global-search__message';
+      paragraph.textContent = message;
+      results_panel.append(paragraph);
+      results_panel.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    };
+
+    const renderResults = (groups) => {
+      results_panel.replaceChildren();
+      if (groups.length === 0) {
+        showMessage('No matching orders, customers or products.');
+        return;
+      }
+
+      groups.forEach((group) => {
+        const section = document.createElement('section');
+        section.className = 'admin-global-search__group';
+        section.setAttribute('role', 'group');
+        section.setAttribute('aria-label', group.label);
+
+        const heading = document.createElement('h2');
+        heading.className = 'admin-global-search__heading';
+        const icon = document.createElement('i');
+        icon.className = `bi ${group.icon}`;
+        icon.setAttribute('aria-hidden', 'true');
+        heading.append(icon, ` ${group.label}`);
+        section.append(heading);
+
+        group.items.forEach((item) => {
+          const link = document.createElement('a');
+          link.className = 'admin-global-search__result';
+          link.href = item.url;
+          link.setAttribute('role', 'option');
+
+          const title = document.createElement('strong');
+          title.textContent = item.title;
+          const detail = document.createElement('small');
+          detail.textContent = item.detail;
+          link.append(title, detail);
+          section.append(link);
+        });
+        results_panel.append(section);
+      });
+      results_panel.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+    };
+
+    const search = async (query) => {
+      current_request?.abort();
+      current_request = new AbortController();
+      latest_search = query;
+      showMessage('Searching…');
+
+      try {
+        const response = await fetch(`${global_search.dataset.searchUrl}?q=${encodeURIComponent(query)}`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+          signal: current_request.signal,
+        });
+        if (response.status === 401) {
+          window.location.reload();
+          return;
+        }
+        if (!response.ok) {
+          throw new Error('Could not search right now. Try again.');
+        }
+        const data = await response.json();
+        if (input.value.trim() === latest_search) {
+          renderResults(data.groups ?? []);
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError' && input.value.trim() === latest_search) {
+          showMessage(error.message || 'Could not search right now. Try again.');
+        }
+      }
+    };
+
+    input.addEventListener('input', () => {
+      window.clearTimeout(search_timer);
+      const query = input.value.trim();
+      current_request?.abort();
+      if (query.length < 2) {
+        results_panel.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      search_timer = window.setTimeout(() => search(query), 250);
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        results_panel.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+      } else if (event.key === 'ArrowDown') {
+        const first_result = results_panel.querySelector('a');
+        if (first_result) {
+          event.preventDefault();
+          first_result.focus();
+        }
+      }
+    });
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      results_panel.querySelector('a')?.click();
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!global_search.contains(event.target)) {
+        results_panel.hidden = true;
+        input.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      const target = event.target;
+      const typing = target instanceof HTMLElement
+        && (target.matches('input, textarea, select') || target.isContentEditable);
+      if (event.key === '/' && !typing && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        event.preventDefault();
+        input.focus();
+      }
+    });
+  }
+
   // "Read more" on a long notification (the bell dialog and the Notifications page)
   document.addEventListener('click', (event) => {
     const button = event.target.closest('[data-read-more]');
@@ -232,9 +408,92 @@
   };
 
   /** Options shared by every table, read from the table's data-* attributes. */
+  const tableStateKey = (table) => {
+    const route_parameters = new URLSearchParams(window.location.search);
+    const filter_form = table.dataset.filterForm ? document.querySelector(table.dataset.filterForm) : null;
+    if (filter_form) {
+      [...filter_form.elements].forEach((control) => control.name && route_parameters.delete(control.name));
+    }
+    route_parameters.sort();
+    const route = `${window.location.pathname}?${route_parameters.toString()}`;
+    const table_name = table.id || table.dataset.datatableSource || table.dataset.title || 'table';
+    return `chimbo-admin:${document.body.dataset.adminId}:${route}:${table_name}`;
+  };
+
+  const readSessionState = (key) => {
+    try {
+      const value = window.sessionStorage.getItem(key);
+      return value === null ? null : JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  const writeSessionState = (key, value) => {
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // State retention is optional when browser storage is disabled or full.
+    }
+  };
+
+  const removeSessionState = (key) => {
+    try {
+      window.sessionStorage.removeItem(key);
+    } catch {
+      // State retention is optional when browser storage is disabled or full.
+    }
+  };
+
+  const restoreFilterForm = (table, filterForm) => {
+    if (!filterForm) {
+      return;
+    }
+    if (filterForm.dataset.persistFilters === 'false') {
+      removeSessionState(`${tableStateKey(table)}:filters`);
+      return;
+    }
+    const route_parameters = new URLSearchParams(window.location.search);
+    const controls = [...filterForm.elements];
+    const has_link_filters = controls.some((control) => control.name && route_parameters.has(control.name));
+
+    if (!has_link_filters) {
+      const saved_values = readSessionState(`${tableStateKey(table)}:filters`);
+      if (saved_values) {
+        controls.forEach((control) => {
+          if (!control.name || !Object.hasOwn(saved_values, control.name)) {
+            return;
+          }
+          if (control.type === 'checkbox') {
+            control.checked = saved_values[control.name] === true;
+          } else if (control.type !== 'button' && control.type !== 'submit' && control.type !== 'reset') {
+            control.value = saved_values[control.name];
+          }
+        });
+      }
+    }
+
+    saveFilterForm(table, filterForm);
+  };
+
+  const saveFilterForm = (table, filterForm) => {
+    const values = {};
+    [...filterForm.elements].forEach((control) => {
+      if (!control.name || ['button', 'submit', 'reset'].includes(control.type)) {
+        return;
+      }
+      values[control.name] = control.type === 'checkbox' ? control.checked : control.value;
+    });
+    writeSessionState(`${tableStateKey(table)}:filters`, values);
+  };
+
   const baseOptions = (table) => {
     const settings = table.dataset;
     return {
+      stateSave: true,
+      stateDuration: -1,
+      stateSaveCallback: (_settings, state) => writeSessionState(tableStateKey(table), state),
+      stateLoadCallback: () => readSessionState(tableStateKey(table)),
       pageLength: Number(settings.pageLength ?? 10),
       lengthMenu: settings.lengthMenu ? JSON.parse(settings.lengthMenu) : [10, 25, 50, 100],
       ordering: settings.ordering !== 'false',
@@ -298,20 +557,83 @@
   };
 
   /** Changing a filter dropdown reloads the table; "Clear" empties them first. */
-  const connectFilterForm = (filterForm, dataTable) => {
-    filterForm.addEventListener('change', () => dataTable.ajax.reload());
-    filterForm.addEventListener('submit', (event) => {
-      event.preventDefault();
+  const connectFilterForm = (table, filterForm, dataTable) => {
+    const persist_filters = filterForm.dataset.persistFilters !== 'false';
+    const updateFilterUrl = () => {
+      const route_parameters = new URLSearchParams(window.location.search);
+      const controls = [...filterForm.elements].filter((control) => control.name);
+      controls.forEach((control) => route_parameters.delete(control.name));
+      if (persist_filters) {
+        controls.forEach((control) => {
+          const value = control.type === 'checkbox'
+            ? (control.checked ? control.value : '')
+            : control.value;
+          if (value) {
+            route_parameters.set(control.name, value);
+          }
+        });
+      }
+      route_parameters.sort();
+      const query = route_parameters.toString();
+      window.history.replaceState(null, '', window.location.pathname + (query ? `?${query}` : ''));
+    };
+
+    const rememberOrderReturnLink = () => {
+      const return_parameters = new URLSearchParams(window.location.search);
+      if (!persist_filters) {
+        [...filterForm.elements].filter((control) => control.name)
+          .forEach((control) => return_parameters.delete(control.name));
+      }
+      const return_query = return_parameters.toString();
+      const return_to = `orders.php${return_query ? `?${return_query}` : ''}`;
+      table.querySelectorAll('a[href*="order_details.php"]').forEach((link) => {
+        const order_url = new URL(link.href);
+        order_url.searchParams.set('return_to', return_to);
+        link.href = order_url.toString();
+      });
+    };
+
+    dataTable.on('draw', rememberOrderReturnLink);
+    rememberOrderReturnLink();
+    filterForm.addEventListener('change', (event) => {
+      if (event.target instanceof Element && event.target.closest('.dt-search')) {
+        return;
+      }
+      if (persist_filters) {
+        saveFilterForm(table, filterForm);
+      }
+      updateFilterUrl();
       dataTable.ajax.reload();
     });
-    // "Clear" empties every filter, also ones opened from a link (?order_status=confirmed is the form's starting value,
-    // which a plain reset would bring back), and drops them from the address so a refresh doesn't bring them back
-    filterForm.addEventListener('reset', () => setTimeout(() => {
-      filterForm.querySelectorAll('select').forEach((select) => { select.value = ''; });
-      filterForm.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => { checkbox.checked = false; });
-      window.history.replaceState(null, '', window.location.pathname);
+    filterForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (persist_filters) {
+        saveFilterForm(table, filterForm);
+      }
+      updateFilterUrl();
       dataTable.ajax.reload();
-    }));
+    });
+    // Clear the current table view while keeping page tabs such as ?tab=all in the address.
+    filterForm.addEventListener('reset', (event) => {
+      event.preventDefault();
+      const controls = [...filterForm.elements];
+      controls.forEach((control) => {
+        if (control.tagName === 'SELECT' || ['text', 'search', 'number', 'date'].includes(control.type)) {
+          control.value = '';
+        } else if (control.type === 'checkbox') {
+          control.checked = false;
+        }
+      });
+      if (persist_filters) {
+        saveFilterForm(table, filterForm);
+      }
+      updateFilterUrl();
+      const search_input = table.closest('.dt-container')?.querySelector('.dt-search input[type="search"]');
+      if (search_input) {
+        search_input.value = '';
+      }
+      dataTable.search('').draw();
+    });
   };
 
   /**
@@ -345,6 +667,7 @@
 
   document.querySelectorAll('table[data-datatable], table[data-datatable-source]').forEach((table) => {
     const filterForm = table.dataset.filterForm ? document.querySelector(table.dataset.filterForm) : null;
+    restoreFilterForm(table, filterForm);
     const isServerSide = Boolean(table.dataset.datatableSource);
     const hasSerial = table.dataset.serial !== 'false';
 
@@ -359,15 +682,51 @@
     }
 
     const dataTable = new DataTable(table, options);
+    const search_control = table.closest('.dt-container')?.querySelector('.dt-search');
+    const search_input = search_control?.querySelector('input[type="search"]');
+    if (search_control && search_input) {
+      const table_name = (table.dataset.title ?? 'this table').replace(/^All\s+/i, '');
+      const search_label = table.dataset.searchLabel ?? `Search ${table_name.toLowerCase()}`;
+      search_input.setAttribute('aria-label', search_label);
+    }
     if (hasSerial) {
-      dataTable.on('draw', () => numberRows(dataTable));
+      dataTable.on('draw', () => {
+        numberRows(dataTable);
+        dataTable.state.save();
+      });
       numberRows(dataTable);
+    } else {
+      dataTable.on('draw', () => dataTable.state.save());
     }
     dataTable.on('dt-error', (event, settings, techNote, message) => showTableError(table, settings, message));
     dataTable.on('xhr', () => table.closest('.dt-container').querySelector('.table-error')?.remove());
 
     if (filterForm && isServerSide) {
-      connectFilterForm(filterForm, dataTable);
+      connectFilterForm(table, filterForm, dataTable);
     }
+
+    const saved_scroll = Number(readSessionState(`${tableStateKey(table)}:scroll`) ?? 0);
+    let restored_scroll = false;
+    const restoreScroll = () => {
+      if (!restored_scroll && saved_scroll > 0) {
+        restored_scroll = true;
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo(0, saved_scroll)));
+      }
+    };
+    dataTable.on('draw', restoreScroll);
+    if (!isServerSide) {
+      restoreScroll();
+    }
+    let scroll_timer;
+    window.addEventListener('scroll', () => {
+      window.clearTimeout(scroll_timer);
+      scroll_timer = window.setTimeout(
+        () => writeSessionState(`${tableStateKey(table)}:scroll`, window.scrollY),
+        120,
+      );
+    }, { passive: true });
+    window.addEventListener('pagehide', () => {
+      writeSessionState(`${tableStateKey(table)}:scroll`, window.scrollY);
+    }, { once: true });
   });
 })();

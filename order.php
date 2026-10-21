@@ -77,7 +77,9 @@ require __DIR__ . '/includes/header.php';
 
                     <?php if ($order['order_status'] === 'delivered' && $order['order_delivered_at'] !== null) : ?>
                         <p class="order-panel__note"><i class="bi bi-calendar-check" aria-hidden="true"></i> <?= isPickupOrder($order) ? 'Ilichukuliwa' : 'Imefika' ?> <?= e(localDateTime($order['order_delivered_at'], 'd/m/Y, H:i')) ?></p>
-                    <?php elseif (!in_array($order['order_status'], ORDER_STOPPED_STATUSES, true) && $order['order_estimated_delivery_date'] !== null) : ?>
+                    <?php elseif (!in_array($order['order_status'], ORDER_STOPPED_STATUSES, true)
+                        && !($order['payment']['payment_deadline_passed'] ?? false)
+                        && $order['order_estimated_delivery_date'] !== null) : ?>
                         <p class="order-panel__note"><i class="bi bi-calendar-event" aria-hidden="true"></i> Inatarajiwa kufika: <strong><?= e(swahiliDate($order['order_estimated_delivery_date'])) ?></strong></p>
                     <?php endif; ?>
                     <?php if ($order['order_cancel_reason']) : ?>
@@ -148,7 +150,9 @@ require __DIR__ . '/includes/header.php';
                     </dl>
                     <p class="order-summary__note">
                         <?= e($order['payment']['payment_method']['payment_method_name']) ?> ·
-                        <?php if ($order['order_payment_status'] === 'cod_pending') : ?>
+                        <?php if ($order['payment']['payment_deadline_passed'] ?? false) : ?>
+                            Muda wa kulipa umeisha
+                        <?php elseif ($order['order_payment_status'] === 'cod_pending') : ?>
                             andaa <strong><?= e(formatTzs($order['order_total'])) ?></strong> taslimu mzigo ukifika
                         <?php else : ?>
                             <?= e(PAYMENT_STATUS_LABELS[$order['order_payment_status']] ?? $order['order_payment_status']) ?>

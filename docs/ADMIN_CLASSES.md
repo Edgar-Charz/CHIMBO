@@ -24,6 +24,14 @@ if (isPostRequest()) {
 - Every change is written to `audit_logs` automatically.
 - Messages from `ApiException` are ready to show (validation messages from `Validator` are Kiswahili, the rest English).
 
+## Admin top-bar quick search
+
+`admin/ajax/global_search.php` returns up to five matches per group for orders, customers and products by calling the existing admin search methods. Each group is included only when the signed-in admin has its matching permission (`orders.view`, `customers.view`, or `products.manage`). Search terms must be 2–100 characters; results are private and not cached.
+
+## Remembered admin tabs
+
+The dashboard, offers, payments and settings pages remember the last selected tab in the current browser tab, scoped to the signed-in admin and page. Returning to one of these pages without a `tab` query parameter restores the last tab; an explicit `?tab=` value takes precedence. This uses `sessionStorage` and does not change server-side permissions.
+
 ## Category — `new Category($db)` · permission `categories.manage`
 | Method | Notes |
 |---|---|
@@ -131,12 +139,17 @@ Cancelled and expired orders are left out (only counted in `cancelled_count`). M
 ### `Settings` + `DeliveryMethod` — page `settings.php` · `settings.manage`
 | Method | Use |
 |---|---|
-| `Settings::getEditableSettings()` | `[group title => [[setting_key, label, setting_value], …]]` — build the form from this (`legal_terms` / `legal_privacy` as large textareas, the rest as inputs) |
+| `Settings::getEditableSettings()` | `[group title => [[setting_key, label, setting_value], …]]` — build the form from this (`legal_terms` / `legal_privacy` use the safe rich-text editor, the rest are inputs) |
 | `Settings::updateSettings($_POST, $admin_id)` | send **every** field of the form; only changed values are saved; field errors are keyed by `setting_key` |
 | `DeliveryMethod::listForAdmin()` | delivery options with `region_name` (null = all regions), fee, days, `delivery_method_is_active`, sort order |
 | `DeliveryMethod::getMethodById($id)` / `createMethod($_POST, $admin_id)` / `updateMethod($id, $_POST, $admin_id)` | fields `delivery_method_name, delivery_method_fee, delivery_method_eta_min_days, delivery_method_eta_max_days, region_id` (empty = every region), `delivery_method_is_active` (checkbox), `delivery_method_sort_order`. Fee changes affect new checkouts only |
 
 `payments.php` stays "coming soon" until mobile money (Phase 5).
+
+### Customer broadcasts — page `notification_broadcast.php` · `settings.manage`
+- Four editable message starters cover welcome/opening, new products, special news and return visits. The title and message can be changed before sending.
+- A broadcast creates one in-app notification and one push-queue entry per active customer in a single transaction. The scheduled worker delivers pushes in batches of 50; failed deliveries appear in `push_queue.php` for staff retry.
+- The page confirms the active customer count, previews the message, and records the broadcast in the audit log.
 
 ## One-click switches — added 2026-10-04
 
@@ -177,13 +190,14 @@ The dashboard's "Needs attention" bar shows payments to check and refunds due (`
 ### `PaymentMethod` — a "Payment methods" tab on payments.php (or in Settings) · `payment_methods.manage`
 | Method | Use |
 |---|---|
-| `createMethod($_POST, $admin_id)` | adds a **mobile money or bank** method (`payment_method_type` required; cash can't be added); the code orders store is made from the name ("HaloPesa" → `halopesa`) and never changes; audit `payment_method.created` |
+| `createMethod($_POST, $admin_id, $_FILES['payment_method_icon']?)` | adds a **mobile money or bank** method (`payment_method_type` required; cash can't be added); may include an optional validated icon; the code orders store is made from the name ("HaloPesa" → `halopesa`) and never changes; audit `payment_method.created` |
 | `nameOf($code)` | the customer-facing name for a code (also switched-off ones) — lists, receipts, dashboard |
-| `listForAdmin()` | every method: `payment_method_id, payment_method_code, payment_method_name, payment_method_type, payment_method_account_name, payment_method_account_number, payment_method_bank_name, payment_method_instructions, payment_method_is_active, payment_method_sort_order` |
+| `listForAdmin()` | every method: `payment_method_id, payment_method_code, payment_method_name, payment_method_type, payment_method_account_name, payment_method_account_number, payment_method_bank_name, payment_method_instructions, payment_method_icon_path, payment_method_is_active, payment_method_sort_order` |
 | `getMethodById($id)` / `updateMethod($id, $_POST, $admin_id)` | fields `payment_method_name, payment_method_account_name, payment_method_account_number` (Lipa Namba / phone / bank account), `payment_method_bank_name` (banks), `payment_method_instructions` (Kiswahili, ≤ 500), `payment_method_is_active` (checkbox), `payment_method_sort_order`. Switching on a mobile money / bank method needs the account number and name (and bank name for banks) |
 | `setPaymentMethodActive($id, bool, $admin_id)` | the one-click Offer / Stop offering switch (same rule) |
+| `setIcon($id, $_FILES['payment_method_icon'], $admin_id)` / `removeIcon($id, $admin_id)` | uploads a validated square payment logo or restores the clients' built-in icon |
 
-Built: Payments → Payment methods → **Add payment method** (admin/payment_method_edit.php without an id: type, name, account, bank, instructions). Methods are never deleted — old orders still name them; switch unused ones off. `Lipa ukipokea` (cash) is built in and needs no account. Migration 014 turned the fixed code lists into text.
+Built: Payments → Payment methods → **Add payment method** (admin/payment_method_edit.php without an id: type, name, optional icon, account, bank, instructions). Methods are never deleted — old orders still name them; switch unused ones off. `Lipa ukipokea` (cash) is built in and needs no account. Migration 014 turned the fixed code lists into text; migration 017 added the optional icon path.
 
 ## App pictures (`AppImage`) — added 2026-10-06 · `settings.manage`
 
@@ -235,7 +249,7 @@ Built on customer_details.php: a panel under the header — **Suspend account** 
 | `OrderManager::countOverdueOrders()` | the number for the filter, the button and the dashboard card |
 | `OrderManager::expireOverdueOrders($admin_id)` | marks them all **expired** (stock back, timeline "Muda wa kulipa umeisha", customer notified, audit log `orders.expired_overdue`) → how many. `null` = the scheduled job |
 
-Built: Orders page — "Overdue unpaid (N)" filter and **Expire N overdue order(s)** button; dashboard card "Overdue unpaid".
+Built: Orders page — "Overdue unpaid (N)" filter and **Expire N overdue order(s)** button; dashboard card "Overdue unpaid". The Orders page also has an **Expired orders (N)** shortcut to the existing `order_status=expired` filter, where staff can open an order and use the current reactivation preview if the customer still wants it.
 Scheduled job ready for the server: `cron/expire_unpaid_orders.php` (every 15 minutes; refuses to run from a browser, folder blocked).
 
 ## Upcountry transport — added 2026-10-09 (blueprint R-25, §12.7)
@@ -274,6 +288,8 @@ Every change works the total out again (`saveTotals`) and tells the customer ("O
 | `OrderManager::priceLinesToday()` (private) | today's price per line (levels + running offer) with problems listed — shared by "Add order" and reactivation |
 
 Built: order page (expired orders) — **Reactivate order** panel: old → today's price per product, old and new total, the reasons when it can't be done, an optional note. "Add order" now follows the delivery rules too (Bolt paid to the rider, upcountry estimate to confirm, pickup).
+
+Reactivation preview also shows the delivery order's new estimated date. Reactivation recalculates `order_estimated_delivery_date` from the saved `order_delivery_days_max`, and the customer notification includes the estimate (pickup orders omit it).
 
 ## Logo — `SiteLogo` — added 2026-10-15 (blueprint R-27, §12.9) · `settings.manage`
 
@@ -315,6 +331,8 @@ Built on index.php: a "Sales" row (revenue only for `reports.view`), the existin
 
 Built: admin/order_packing_slip.php (opens in the browser), "Packing slip" button on the order page and in the Orders list.
 QR codes are drawn locally by `chillerlan/php-qrcode` (Composer); nothing is sent to any website. Templates: `classes/views/packing_slip.php`, shared styles `classes/views/partials/pdf_styles.php`.
+
+`OrderLink::createUrl($order_number)` signs the order number with `APP_KEY` and builds an absolute `/o/{code}` URL from `APP_URL`. `findOrderForCode($code)` verifies the signature before querying; `getPublicItems($code)` returns only snapshotted product names, quantities and unit labels. The public page exposes no prices, cash amount, customer name, phone or address; staff access is checked separately under `/admin/` so the admin session cookie remains path-scoped.
 
 ## Staff notifications (the bell) — `AdminNotification` — added 2026-10-09
 

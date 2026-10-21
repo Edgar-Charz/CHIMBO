@@ -36,7 +36,8 @@ require __DIR__ . '/includes/header.php';
 <div class="admin-panel admin-table-panel">
     <table class="table admin-table w-100" data-datatable-source="<?= e(url('admin/ajax/stock.php')) ?>"
            data-filter-form="#stock-filters" data-title="Stock levels" data-icon="bi-boxes" data-order='[[3,"asc"]]'
-           data-search-placeholder="Search name, brand or SKU" data-empty-message="Nothing here — stock looks good.">
+           data-search-placeholder="Name, brand or SKU" data-search-label="Search stock"
+           data-empty-message="Nothing here — stock looks good.">
         <thead>
             <tr>
                 <th data-column="product" data-sort="product_name">Product</th>

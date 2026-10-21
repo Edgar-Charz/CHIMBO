@@ -17,7 +17,53 @@ class Notification
     /** Adds a notification for a customer. $data tells the app what to open (e.g. the order). */
     public function notifyUser(int $user_id, string $type, string $title, string $body, array $data = []): void
     {
-        $this->db->insert(
+        $notification_id = $this->insertNotification($user_id, $type, $title, $body, $data);
+
+        $sender = new FcmPushSender();
+        if ($sender->isConfigured()) {
+            $queue = new NotificationPushQueue($this->db);
+            $queue_id = $queue->enqueue($notification_id, $user_id);
+            $this->db->afterCommit(static function () use ($queue, $queue_id, $sender): void {
+                $queue->processOne($queue_id, $sender);
+            });
+        }
+    }
+
+    /** Saves a broadcast for every recipient together so the request never sends pushes one by one. */
+    public function notifyUsers(array $user_ids, string $type, string $title, string $body, array $data = []): int
+    {
+        $user_ids = array_values(array_unique(array_filter(array_map('intval', $user_ids), static fn (int $user_id): bool => $user_id > 0)));
+        if ($user_ids === []) {
+            return 0;
+        }
+
+        $queue = (new FcmPushSender())->isConfigured() ? new NotificationPushQueue($this->db) : null;
+        return $this->db->transaction(function () use ($user_ids, $type, $title, $body, $data, $queue): int {
+            foreach ($user_ids as $user_id) {
+                $notification_id = $this->insertNotification($user_id, $type, $title, $body, $data);
+                $queue?->enqueue($notification_id, $user_id);
+            }
+            return count($user_ids);
+        });
+    }
+
+    /** Counts customer accounts that can receive an admin broadcast. */
+    public function countActiveUsers(): int
+    {
+        return (int) $this->db->fetchValue("SELECT COUNT(*) FROM users WHERE user_status = 'active'");
+    }
+
+    /** Sends an in-app broadcast to all active customer accounts; push delivery stays in the batch queue. */
+    public function notifyActiveUsers(string $title, string $body): int
+    {
+        $users = $this->db->fetchAll("SELECT user_id FROM users WHERE user_status = 'active' ORDER BY user_id ASC");
+        $user_ids = array_map(static fn (array $user): int => (int) $user['user_id'], $users);
+        return $this->notifyUsers($user_ids, 'system', $title, $body);
+    }
+
+    private function insertNotification(int $user_id, string $type, string $title, string $body, array $data): int
+    {
+        return $this->db->insert(
             'INSERT INTO notifications (user_id, notification_type, notification_title, notification_body, notification_data)
              VALUES (:user_id, :notification_type, :notification_title, :notification_body, :notification_data)',
             [

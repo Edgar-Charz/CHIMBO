@@ -18,7 +18,9 @@ $form_error = adminHandleForm(function (string $form_action) use ($order_manager
 });
 $overdue_count = $order_manager->countOverdueOrders();
 $transport_count = $order_manager->countTransportToConfirm();
-$to_pack_count = (new Dashboard(Database::instance()))->getOrderPipeline()['pipeline']['confirmed'];
+$order_pipeline = (new Dashboard(Database::instance()))->getOrderPipeline();
+$to_pack_count = $order_pipeline['pipeline']['confirmed'];
+$expired_count = $order_pipeline['totals']['expired'];
 
 // Filters can be opened from a link, e.g. the bell's "order(s) to pack" → ?order_status=confirmed, "overdue" → ?overdue=1,
 // "transport price(s) to confirm" → ?transport_to_confirm=1
@@ -38,6 +40,11 @@ require __DIR__ . '/includes/header.php';
         <a class="btn btn-outline-secondary" href="<?= e(url('admin/orders.php?order_status=confirmed')) ?>">
             <i class="bi bi-box-seam"></i> To pack <span class="badge text-bg-<?= $to_pack_count > 0 ? 'warning' : 'secondary' ?>"><?= e($to_pack_count) ?></span>
         </a>
+        <?php if ($expired_count > 0): ?>
+            <a class="btn btn-outline-danger" href="<?= e(url('admin/orders.php?order_status=expired')) ?>">
+                <i class="bi bi-arrow-counterclockwise"></i> Expired orders <span class="badge text-bg-danger"><?= e($expired_count) ?></span>
+            </a>
+        <?php endif; ?>
         <?php if ($can_manage && $overdue_count > 0): ?>
             <form method="post" data-confirm="<?= e("{$overdue_count} unpaid order(s) are past their time to pay. Mark them expired and release their stock? Customers are told.") ?>">
                 <?= Csrf::field() ?>
@@ -54,7 +61,7 @@ require __DIR__ . '/includes/header.php';
 
 <?php require __DIR__ . '/includes/form_alert.php'; ?>
 
-<form class="admin-panel filter-card" id="order-filters">
+<form class="admin-panel filter-card" id="order-filters" data-persist-filters="false">
     <div class="filter-grid">
         <div>
             <label class="form-label" for="filter-order-status">Order status</label>
@@ -95,7 +102,8 @@ require __DIR__ . '/includes/header.php';
 <div class="admin-panel admin-table-panel">
     <table class="table admin-table w-100" data-datatable-source="<?= e(url('admin/ajax/orders.php')) ?>"
            data-filter-form="#order-filters" data-title="All orders" data-icon="bi-receipt" data-order='[[7,"desc"]]'
-           data-search-placeholder="Search order number, customer or phone" data-empty-message="No orders yet.">
+           data-search-placeholder="Order number, customer or phone" data-search-label="Search orders"
+           data-empty-message="No orders yet.">
         <thead>
             <tr>
                 <th data-column="order" data-sort="order_number">Order</th>

@@ -11,12 +11,38 @@ $can_manage_payments = Admin::can($current_admin, 'payments.manage');   // revie
 
 $order_id = (int) ($_GET['id'] ?? 0);
 $order    = adminLoadOrRedirect(fn () => $order_manager->getOrderForAdmin($order_id), 'orders.php');
+$return_to = 'orders.php';
+$requested_return_to = (string) ($_GET['return_to'] ?? '');
+if (parse_url($requested_return_to, PHP_URL_PATH) === 'orders.php'
+    && parse_url($requested_return_to, PHP_URL_SCHEME) === null
+    && parse_url($requested_return_to, PHP_URL_HOST) === null) {
+    parse_str((string) parse_url($requested_return_to, PHP_URL_QUERY), $requested_filters);
+    $return_filters = [];
+    $allowed_filter_values = [
+        'order_status' => ADMIN_ORDER_STATUSES,
+        'order_payment_status' => ADMIN_PAYMENT_STATUSES,
+    ];
+    foreach ($allowed_filter_values as $filter_name => $allowed_values) {
+        $filter_value = $requested_filters[$filter_name] ?? null;
+        if (is_string($filter_value) && in_array($filter_value, $allowed_values, true)) {
+            $return_filters[$filter_name] = $filter_value;
+        }
+    }
+    foreach (['overdue', 'transport_to_confirm'] as $filter_name) {
+        if (($requested_filters[$filter_name] ?? null) === '1') {
+            $return_filters[$filter_name] = '1';
+        }
+    }
+    if ($return_filters) {
+        $return_to .= '?' . http_build_query($return_filters);
+    }
+}
 
 // Each action checks its own permission: Finance may view orders but not move them
 $is_pickup = $order['delivery_method']['delivery_method_is_pickup'];   // collected at the shop (R-26)
 
-$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database, $is_pickup): void {
-    $order_page = url("admin/order_details.php?id={$order_id}");
+$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database, $is_pickup, $return_to): void {
+    $order_page = url('admin/order_details.php?' . http_build_query(['id' => $order_id, 'return_to' => $return_to]));
 
     // Payment actions (the classes notify the customer). Reject and refund come from dialogs, so their errors are flashed.
     if ($can_manage_payments && in_array($form_action, ['confirm_payment', 'reject_payment', 'mark_refunded'], true)) {
@@ -89,7 +115,7 @@ $active_menu = 'orders';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<a class="admin-back-link" href="<?= e(url('admin/orders.php')) ?>"><i class="bi bi-arrow-left"></i> Orders</a>
+<a class="admin-back-link" href="<?= e(url('admin/' . $return_to)) ?>"><i class="bi bi-arrow-left"></i> Orders</a>
 
 <?php require __DIR__ . '/includes/form_alert.php'; ?>
 
@@ -227,6 +253,11 @@ require __DIR__ . '/includes/header.php';
                     </table>
                     <div class="d-flex justify-content-between small"><span>Total was</span><span><?= e(adminMoney($reactivation['old_total'])) ?></span></div>
                     <div class="d-flex justify-content-between fw-semibold mb-3"><span>New total</span><span><?= e(adminMoney($reactivation['new_total'])) ?></span></div>
+                    <?php if ($reactivation['estimated_delivery_date'] !== null): ?>
+                        <div class="small mb-3"><span class="text-muted">New estimated delivery</span>
+                            <strong><?= e(adminCalendarDate($reactivation['estimated_delivery_date'])) ?></strong>
+                        </div>
+                    <?php endif; ?>
 
                     <?php if ($reactivation['problems']): ?>
                         <div class="small text-danger mb-2"><i class="bi bi-exclamation-circle"></i> Can't reactivate yet:</div>

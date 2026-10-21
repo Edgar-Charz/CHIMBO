@@ -62,7 +62,7 @@ class Receipt
 
     /**
      * Staff packing slip: what to pack (no prices), where it goes, the cash to collect for cash on delivery,
-     * and the order number as a QR code. Returns ['pdf' => bytes, 'file_name' => …]. 404 if the order is missing.
+     * and a signed order link as a QR code. Returns ['pdf' => bytes, 'file_name' => …]. 404 if the order is missing.
      */
     public function createPackingSlip(int $order_id): array
     {
@@ -71,7 +71,7 @@ class Receipt
         return [
             'pdf'       => $this->renderPdf($this->renderHtml('packing_slip', [
                 'order'       => $order,
-                'qr_code_uri' => $this->qrCodeDataUri($order['order_number']),
+                'qr_code_uri' => $this->qrCodeDataUri((new OrderLink($this->db))->createUrl($order['order_number'])),
             ])),
             'file_name' => "Kupakia-{$order['order_number']}.pdf",
         ];

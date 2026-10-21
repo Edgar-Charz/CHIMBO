@@ -22,7 +22,7 @@
                         <?php foreach (shopCategories() as $footer_category) : ?>
                             <li><a href="<?= e(categoryUrl($footer_category['category_id'], $footer_category['category_slug'])) ?>"><?= e($footer_category['category_name']) ?></a></li>
                         <?php endforeach; ?>
-                        <li><a href="<?= e(url('search.php?collection=deals')) ?>">Ofa</a></li>
+                        <li><a href="<?= e(collectionUrl('offers')) ?>">Ofa</a></li>
                         <li><a href="<?= e(url('search.php?collection=new')) ?>">Bidhaa Mpya</a></li>
                     </ul>
                 </div>
@@ -49,7 +49,7 @@
                     <h2 class="site-footer__heading">Malipo</h2>
                     <ul class="site-footer__links site-footer__links--plain">
                         <?php foreach (paymentOptions()['methods'] as $payment_method) : // the methods switched on in the admin ?>
-                            <li><i class="bi bi-<?= e(['mobile_money' => 'phone', 'bank' => 'bank', 'cash' => 'cash-coin'][$payment_method['payment_method_type']] ?? 'wallet2') ?>" aria-hidden="true"></i> <?= e($payment_method['payment_method_name']) ?></li>
+                            <li><?php $method = $payment_method; require __DIR__ . '/payment_method_icon.php'; ?> <?= e($payment_method['payment_method_name']) ?></li>
                         <?php endforeach; ?>
                         <li><i class="bi bi-shield-check" aria-hidden="true"></i> Malipo salama</li>
                     </ul>

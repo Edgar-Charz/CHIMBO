@@ -13,6 +13,9 @@
 $payments_waiting = Admin::can($current_admin, 'payments.manage') ? (new Payment(Database::instance()))->countWaitingForReview() : 0;
 $unread_notifications = (new AdminNotification(Database::instance()))->countUnread($current_admin);   // the bell's number
 $has_waiting_work     = adminAttentionItems($current_admin) !== [];   // the bell's orange dot when nothing is unread
+$can_global_search    = Admin::can($current_admin, 'orders.view')
+    || Admin::can($current_admin, 'customers.view')
+    || Admin::can($current_admin, 'products.manage');
 
 // Messages from the previous action, shown as SweetAlert popups (dialogs.js)
 $flash_messages = array_values(array_filter([
@@ -34,7 +37,7 @@ $flash_messages = array_values(array_filter([
     <link rel="stylesheet" href="<?= e(adminAsset('admin.css')) ?>">
 </head>
 
-<body>
+<body data-admin-id="<?= e($current_admin['admin_id']) ?>">
     <div class="admin-layout">
 
         <!-- Sidebar: fixed on large screens, a slide-in menu on phones -->
@@ -68,8 +71,25 @@ $flash_messages = array_values(array_filter([
                 </button>
                 <h1 class="admin-page-title"><?= e($page_title) ?></h1>
 
+                <?php if ($can_global_search): ?>
+                    <div class="admin-global-search" data-admin-global-search data-search-url="<?= e(url('admin/ajax/global_search.php')) ?>">
+                        <form role="search" data-global-search-form autocomplete="off">
+                            <label class="visually-hidden" for="admin-global-search">Search orders, customers and products</label>
+                            <div class="admin-global-search__field">
+                                <i class="bi bi-search" aria-hidden="true"></i>
+                                <input id="admin-global-search" class="form-control" type="search" name="q" maxlength="100"
+                                       placeholder="Search orders, customers, products" aria-controls="admin-global-search-results"
+                                       aria-expanded="false" aria-autocomplete="list">
+                                <kbd>/</kbd>
+                            </div>
+                        </form>
+                        <div class="admin-global-search__results" id="admin-global-search-results" role="listbox"
+                             aria-label="Search results" aria-live="polite" hidden></div>
+                    </div>
+                <?php endif; ?>
+
                 <!-- The bell: "Waiting for you" + the latest notifications in a dialog (admin.js loads it when opened) -->
-                <button class="btn btn-light notification-bell ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
+                <button class="btn btn-light notification-bell" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
                         aria-label="Notifications" title="Notifications" data-notification-bell
                         data-panel-url="<?= e(url('admin/ajax/notifications.php?part=panel')) ?>"
                         data-count-url="<?= e(url('admin/ajax/notifications.php?part=count')) ?>">

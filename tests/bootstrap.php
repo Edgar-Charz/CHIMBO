@@ -34,8 +34,8 @@ $migrator->runSeeds();
 function resetCustomerData(Database $db): void
 {
     $tables = [
-        'admin_notification_reads', 'admin_notifications', 'notifications', 'payments', 'order_staff_notes', 'order_deliveries', 'order_status_history', 'order_items', 'orders',
-        'wishlist_items', 'cart_items', 'addresses', 'auth_tokens', 'business_profiles',
+        'admin_notification_reads', 'admin_notifications', 'notification_push_queue', 'notifications', 'payments', 'order_staff_notes', 'order_deliveries', 'order_status_history', 'order_items', 'orders',
+        'wishlist_items', 'cart_items', 'addresses', 'device_tokens', 'auth_tokens', 'business_profiles',
         'otp_codes', 'rate_limits', 'sms_outbox', 'users',
     ];
     foreach ($tables as $table) {

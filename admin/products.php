@@ -87,7 +87,7 @@ require __DIR__ . '/includes/header.php';
 <div class="admin-panel admin-table-panel">
     <table class="table admin-table w-100" data-datatable-source="<?= e(url('admin/ajax/products.php')) ?>"
         data-filter-form="#product-filters" data-title="All products" data-icon="bi-box-seam" data-order='[[7,"desc"]]'
-        data-search-placeholder="Search name, brand or SKU" data-empty-message="No products yet.">
+        data-search-placeholder="Name, brand or SKU" data-search-label="Search products" data-empty-message="No products yet.">
         <thead>
             <tr>
                 <th data-column="product" data-sort="product_name">Product</th>
