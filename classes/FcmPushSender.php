@@ -20,17 +20,22 @@ class FcmPushSender
     public function send(string $device_token, string $title, string $body, array $data): bool
     {
         $account = $this->serviceAccount();
+        $message = [
+            'token' => $device_token,
+            'notification' => ['title' => $title, 'body' => $body],
+            'data' => array_map('strval', $data),
+            'android' => ['priority' => 'high', 'notification' => ['channel_id' => 'chimbo_orders']],
+            'apns' => ['headers' => ['apns-priority' => '10']],
+        ];
+        if (isset($data['url']) && str_starts_with($data['url'], 'https://')) {
+            $message['webpush'] = [
+                'headers' => ['Urgency' => 'high'],
+                'fcm_options' => ['link' => $data['url']],
+            ];
+        }
         $response = $this->request(
             sprintf(self::MESSAGING_URL, rawurlencode($account['project_id'])),
-            [
-                'message' => [
-                    'token' => $device_token,
-                    'notification' => ['title' => $title, 'body' => $body],
-                    'data' => array_map('strval', $data),
-                    'android' => ['priority' => 'high', 'notification' => ['channel_id' => 'chimbo_orders']],
-                    'apns' => ['headers' => ['apns-priority' => '10']],
-                ],
-            ],
+            ['message' => $message],
             ['Authorization: Bearer ' . $this->accessToken()]
         );
 

@@ -18,22 +18,52 @@ class Order
         'mrembo-muuza-urembo' => 'CHM',
     ];
 
-    // What the customer is told when the order reaches each status: [title, body with {number}]
+    // Both copies are saved so inbox history follows the customer's current language.
     private const STATUS_MESSAGES = [
-        'pending_payment' => ['Oda imepokelewa', 'Oda #{number} inasubiri malipo.'],
-        'confirmed'       => ['Oda imethibitishwa', 'Asante! Oda #{number} imepokelewa na tunaiandaa.'],
-        'packed'          => ['Oda imepakiwa', 'Oda #{number} imepakiwa na itatumwa hivi karibuni.'],
-        'dispatched'      => ['Oda imetumwa', 'Oda #{number} imekabidhiwa kwa msambazaji.'],
-        'in_transit'      => ['Oda iko njiani', 'Oda #{number} inakuja kwako.'],
-        'delivered'       => ['Oda imewasili', 'Oda #{number} imefika. Asante kwa kununua na CHIMBO!'],
-        'cancelled'       => ['Oda imesitishwa', 'Oda #{number} imesitishwa.'],
-        'expired'         => ['Oda imeisha muda', 'Oda #{number} imesitishwa kwa sababu malipo hayakukamilika. Unaweza kuagiza tena kwa "Agiza Tena", au wasiliana nasi.'],
+        'pending_payment' => [
+            'sw' => ['Oda imepokelewa', 'Oda #{number} inasubiri malipo.'],
+            'en' => ['Order received', 'Order #{number} is waiting for payment.'],
+        ],
+        'confirmed' => [
+            'sw' => ['Oda imethibitishwa', 'Asante! Oda #{number} imepokelewa na tunaiandaa.'],
+            'en' => ['Order confirmed', 'Thank you! We have received order #{number} and are preparing it.'],
+        ],
+        'packed' => [
+            'sw' => ['Oda imepakiwa', 'Oda #{number} imepakiwa na itatumwa hivi karibuni.'],
+            'en' => ['Order packed', 'Order #{number} is packed and will be sent soon.'],
+        ],
+        'dispatched' => [
+            'sw' => ['Oda imetumwa', 'Oda #{number} imekabidhiwa kwa msambazaji.'],
+            'en' => ['Order dispatched', 'Order #{number} has been handed to the delivery agent.'],
+        ],
+        'in_transit' => [
+            'sw' => ['Oda iko njiani', 'Oda #{number} inakuja kwako.'],
+            'en' => ['Order on the way', 'Order #{number} is on its way to you.'],
+        ],
+        'delivered' => [
+            'sw' => ['Oda imewasili', 'Oda #{number} imefika. Asante kwa kununua na CHIMBO!'],
+            'en' => ['Order delivered', 'Order #{number} has arrived. Thank you for shopping with CHIMBO!'],
+        ],
+        'cancelled' => [
+            'sw' => ['Oda imesitishwa', 'Oda #{number} imesitishwa.'],
+            'en' => ['Order cancelled', 'Order #{number} has been cancelled.'],
+        ],
+        'expired' => [
+            'sw' => ['Oda imeisha muda', 'Oda #{number} imesitishwa kwa sababu malipo hayakukamilika. Unaweza kuagiza tena kwa "Agiza Tena", au wasiliana nasi.'],
+            'en' => ['Payment time expired', 'Order #{number} was cancelled because payment was not completed. You can reorder at today\'s prices or contact us.'],
+        ],
     ];
 
     // A pickup order ("Nitachukua mwenyewe dukani", R-26) uses the same statuses with its own words
     private const PICKUP_STATUS_MESSAGES = [
-        'packed'    => ['Oda iko tayari kuchukuliwa', 'Oda #{number} iko tayari. Njoo uichukue: {pickup_point}.'],
-        'delivered' => ['Oda imechukuliwa', 'Umechukua oda #{number}. Asante kwa kununua na CHIMBO!'],
+        'packed' => [
+            'sw' => ['Oda iko tayari kuchukuliwa', 'Oda #{number} iko tayari. Njoo uichukue: {pickup_point}.'],
+            'en' => ['Ready for pickup', 'Order #{number} is ready. Collect it from: {pickup_point}.'],
+        ],
+        'delivered' => [
+            'sw' => ['Oda imechukuliwa', 'Umechukua oda #{number}. Asante kwa kununua na CHIMBO!'],
+            'en' => ['Order collected', 'You collected order #{number}. Thank you for shopping with CHIMBO!'],
+        ],
     ];
 
     public function __construct(private Database $db)
@@ -397,7 +427,10 @@ class Order
         if ($fee_needs_confirmation) {
             (new Notification($this->db))->notifyUser($user_id, 'order_status', 'Oda imepokelewa',
                 "Tunapima mzigo wa oda #{$order_number} ili kuthibitisha bei ya usafiri. Tutakujulisha, kisha utalipa.",
-                ['order_id' => $order_id]);
+                ['order_id' => $order_id], [
+                    'sw' => ['title' => 'Oda imepokelewa', 'body' => "Tunapima mzigo wa oda #{$order_number} ili kuthibitisha bei ya usafiri. Tutakujulisha, kisha utalipa."],
+                    'en' => ['title' => 'Order received', 'body' => "We are measuring the load for order #{$order_number} to confirm the transport price. We will let you know, then you can pay."],
+                ]);
         } else {
             $this->notifyCustomer(['order_id' => $order_id, 'user_id' => $user_id, 'order_number' => $order_number], $status);
         }
@@ -516,20 +549,29 @@ class Order
     public function notifyCustomer(array $order, string $status): void
     {
         $is_pickup = !empty($order['order_is_pickup']);
-        [$title, $body] = $is_pickup && isset(self::PICKUP_STATUS_MESSAGES[$status])
+        $messages = $is_pickup && isset(self::PICKUP_STATUS_MESSAGES[$status])
             ? self::PICKUP_STATUS_MESSAGES[$status]
             : self::STATUS_MESSAGES[$status];
         $pickup_point = $is_pickup ? (new Settings($this->db))->getPickupPoint() : null;
+        $replacements = [
+            '{number}'       => $order['order_number'],
+            '{pickup_point}' => $pickup_point === null ? '' : "{$pickup_point['pickup_address']} ({$pickup_point['pickup_hours']})",
+        ];
+        $sw_title = $messages['sw'][0];
+        $sw_body = strtr($messages['sw'][1], $replacements);
+        $en_title = $messages['en'][0];
+        $en_body = strtr($messages['en'][1], $replacements);
 
         (new Notification($this->db))->notifyUser(
             (int) $order['user_id'],
             'order_status',
-            $title,
-            strtr($body, [
-                '{number}'       => $order['order_number'],
-                '{pickup_point}' => $pickup_point === null ? '' : "{$pickup_point['pickup_address']} ({$pickup_point['pickup_hours']})",
-            ]),
-            ['order_id' => (int) $order['order_id']]
+            $sw_title,
+            $sw_body,
+            ['order_id' => (int) $order['order_id']],
+            [
+                'sw' => ['title' => $sw_title, 'body' => $sw_body],
+                'en' => ['title' => $en_title, 'body' => $en_body],
+            ]
         );
     }
 

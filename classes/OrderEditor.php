@@ -498,6 +498,17 @@ class OrderEditor
         (new Notification($this->db))->notifyUser((int) $order['user_id'], 'order_status', 'Oda imebadilishwa',
             "Oda #{$order['order_number']} imebadilishwa na CHIMBO: {$what}."
                 . ($new_total !== null ? ' Jumla mpya: TZS ' . number_format($new_total) . '.' : ''),
-            ['order_id' => (int) $order['order_id']]);
+            ['order_id' => (int) $order['order_id']], [
+                'sw' => [
+                    'title' => 'Oda imebadilishwa',
+                    'body' => "Oda #{$order['order_number']} imebadilishwa na CHIMBO: {$what}."
+                        . ($new_total !== null ? ' Jumla mpya: TZS ' . number_format($new_total) . '.' : ''),
+                ],
+                'en' => [
+                    'title' => 'Order updated',
+                    'body' => "CHIMBO updated order #{$order['order_number']}. Review the order details in the app."
+                        . ($new_total !== null ? ' New total: TZS ' . number_format($new_total) . '.' : ''),
+                ],
+            ]);
     }
 }

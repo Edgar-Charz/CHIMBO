@@ -72,8 +72,19 @@ class AdminSession
         $admin     = self::currentAdmin();
 
         if ($admin === null) {
-            // Logged in a moment ago but idle too long (or switched off): say why on the login page
-            redirect(url($had_login ? 'admin/login.php?expired=1' : 'admin/login.php'));
+            $request_uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+            $request_path = (string) parse_url($request_uri, PHP_URL_PATH);
+            $query_string = (string) parse_url($request_uri, PHP_URL_QUERY);
+            $admin_path = (string) parse_url(url('admin/'), PHP_URL_PATH);
+            $relative_page = str_starts_with($request_path, $admin_path)
+                ? substr($request_path, strlen($admin_path))
+                : '';
+            $next_page = AdminNotification::safeLink($relative_page . ($query_string !== '' ? '?' . $query_string : ''));
+            $login_query = ['next' => $next_page];
+            if ($had_login) {
+                $login_query['expired'] = '1';
+            }
+            redirect(url('admin/login.php?' . http_build_query($login_query)));
         }
 
         if ($permission !== null && !Admin::can($admin, $permission)) {

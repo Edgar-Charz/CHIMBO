@@ -302,16 +302,16 @@ Every "Nimelipa" is listed (also rejected ones, with the reason), payments staff
 ## Notifications (the bell) · 🔒 all
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/notifications?page=1` | paginated `[{notification_id, notification_type, notification_title, notification_body, notification_data: {"order_id": 1}, is_read, created_at}]`, newest first |
+| GET | `/notifications?page=1` | paginated `[{notification_id, notification_type, notification_title, notification_body, notification_data: {"order_id": 1, "translations": {"sw": {"title": "…", "body": "…"}, "en": {"title": "…", "body": "…"}}}, is_read, created_at}]`, newest first. `notification_title` and `notification_body` remain the Kiswahili fallback; the app uses the matching translation when present. Legacy rows without translations continue to show their saved text. |
 | GET | `/notifications/unread-count` | `{"unread_count": 2}` — the number on the bell |
 | POST | `/notifications/{id}/read` | `null` |
 | POST | `/notifications/read-all` | `null` |
-Every order status change creates a notification (Kiswahili title + text). `notification_data.order_id` → open that order.
+Every order status change creates a notification with Kiswahili and English copies. `notification_data.order_id` → open that order. `notification_data.translations` is optional for older notifications and contains language-keyed `title` and `body` strings for `sw` and `en`.
 
 ## Mobile push registrations · 🔒 app login
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/devices` | `{"device_token": "FCM token", "device_platform": "android"}` (`android` or `ios`) | `null`; registers or refreshes this installation for the current login session |
+| POST | `/devices` | `{"device_token": "FCM token", "device_platform": "android", "device_language": "en"}` (`android` or `ios`; language `sw` or `en`, optional for older clients and defaults to `sw`) | `null`; registers or refreshes this installation and language preference for the current login session |
 | DELETE | `/devices` | `{"device_token": "FCM token"}` | `null`; removes this installation on logout |
 
-The device token is saved against the current auth session. Revoked or expired sessions are excluded from push delivery. When `FCM_SERVICE_ACCOUNT_FILE` points to a readable Firebase service-account JSON file, individual in-app notifications are queued and attempted through FCM immediately after their database transaction commits. Bulk notifications are saved and queued in one transaction, then the scheduled CLI worker processes recipients in batches of 50 so a broadcast does not hold the admin request open. Failed pushes are marked failed for staff to retry in Push Queue; unregistered tokens are removed. The worker also recovers pending work interrupted before an immediate attempt. Push data includes string `notification_id`, `notification_type`, and the notification's scalar `notification_data` fields (including `order_id` when present).
+The device token and selected language are saved against the current auth session. Revoked or expired sessions are excluded from push delivery. When `FCM_SERVICE_ACCOUNT_FILE` points to a readable Firebase service-account JSON file, individual in-app notifications are queued and attempted through FCM immediately after their database transaction commits. Each device receives the matching translated system alert when a copy exists; older or untranslated notifications use their stored fallback text. Bulk notifications are saved and queued in one transaction, then the scheduled CLI worker processes recipients in batches of 50 so a broadcast does not hold the admin request open. Failed pushes are marked failed for staff to retry in Push Queue; unregistered tokens are removed. The worker also recovers pending work interrupted before an immediate attempt. Push data includes string `notification_id`, `notification_type`, scalar `notification_data` fields, and flattened `notification_title_en` / `notification_body_en` and `notification_title_sw` / `notification_body_sw` for foreground localization.

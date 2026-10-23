@@ -39,6 +39,12 @@ final class CustomerAdminTest extends TestCase
         $this->assertSame('Test Admin', $customer['verified_by_admin_name']);
         $this->assertSame('verified', (new User($this->db))->getProfile($this->user_id)['business']['business_verification_status']);
         $this->assertSame('Biashara imethibitishwa', $this->latestNotificationTitle());
+        $notification_data = json_decode((string) $this->db->fetchValue(
+            'SELECT notification_data FROM notifications WHERE user_id = :user_id ORDER BY notification_id DESC LIMIT 1',
+            ['user_id' => $this->user_id]
+        ), true);
+        $this->assertSame('Business verified', $notification_data['translations']['en']['title']);
+        $this->assertSame('Biashara imethibitishwa', $notification_data['translations']['sw']['title']);
         $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE audit_log_action = 'customer.business_verification' AND audit_log_entity_id = {$this->user_id}"));
     }
 

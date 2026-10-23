@@ -10,6 +10,7 @@ const SHOP_TAGLINE = 'Bidhaa bora • Bei nafuu • Biashara imara';
 const SHOP_THEME_COLOR = '#0E3B2A'; // browser bar colour on phones; the same green as --chimbo-green in theme.css
 
 const CATALOG_PAGE_SIZE = 20;
+const CATALOG_HEADING_IMAGE_COUNT = 4;
 const CATALOG_SORT_OPTIONS = [
     'popular'    => 'Maarufu',
     'newest'     => 'Mpya zaidi',
@@ -331,6 +332,39 @@ function catalogFilters(string $default_sort = 'popular'): array
         'max_price' => requestInt('max_price', 0),
         'max_moq'   => requestInt('max_moq'),
     ];
+}
+
+/** Selects products with distinct photos for an interactive catalog or category banner. */
+function catalogHeadingProducts(array $products): array
+{
+    $heading_products = [];
+    $used_image_urls = [];
+
+    foreach ($products as $product) {
+        $image_url = $product['product_image_url'] ?? null;
+        if (!is_string($image_url) || $image_url === '' || in_array($image_url, $used_image_urls, true)) {
+            continue;
+        }
+
+        $used_image_urls[] = $image_url;
+        $heading_products[] = [
+            'product_id'         => (int) $product['product_id'],
+            'product_name'       => $product['product_name'],
+            'product_price_from' => (int) $product['product_price_from'],
+            'product_moq'        => (int) $product['product_moq'],
+            'product_in_stock'   => (bool) $product['product_in_stock'],
+            'product_unit_label' => $product['product_unit_label'],
+            'product_image_url'  => $image_url,
+            'seller_name'        => $product['seller_name'],
+            'product_url'        => productUrl((int) $product['product_id'], $product['product_slug']),
+        ];
+
+        if (count($heading_products) >= CATALOG_HEADING_IMAGE_COUNT) {
+            break;
+        }
+    }
+
+    return $heading_products;
 }
 
 /**

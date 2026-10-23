@@ -148,6 +148,7 @@ Cancelled and expired orders are left out (only counted in `cancelled_count`). M
 
 ### Customer broadcasts — page `notification_broadcast.php` · `settings.manage`
 - Four editable message starters cover welcome/opening, new products, special news and return visits. The title and message can be changed before sending.
+- Every broadcast includes separate Kiswahili and English titles and messages. The admin preview shows both copies; each customer's selected app language chooses the in-app and push text.
 - A broadcast creates one in-app notification and one push-queue entry per active customer in a single transaction. The scheduled worker delivers pushes in batches of 50; failed deliveries appear in `push_queue.php` for staff retry.
 - The page confirms the active customer count, previews the message, and records the broadcast in the audit log.
 
@@ -257,7 +258,7 @@ Scheduled job ready for the server: `cron/expire_unpaid_orders.php` (every 15 mi
 | Method | Use |
 |---|---|
 | `DeliveryMethod::createMethod / updateMethod($id, $input, $admin_id)` | now with **Where** `delivery_method_area` (`all` · `only` · `except` + `region_id`) and **Price** `delivery_method_pricing` (`fixed` uses `delivery_method_fee`; `region_estimate` uses the region's estimate) · `settings.manage` |
-| `DeliveryMethod::getRegionEstimates()` / `saveRegionEstimates([region_id => amount or ""], $admin_id)` | each region's usual transport price (empty = "tutakujulisha bei"); only changed regions are saved; audit `transport_estimates.updated` · `settings.manage` |
+| `DeliveryMethod::getRegionEstimates()` / `saveRegionEstimates([region_id => amount or ""], $admin_id)` | each region's usual transport price (empty = "tutakujulisha bei"); grouped input such as `25,000` is accepted and stored as an integer; only changed regions are saved; audit `transport_estimates.updated` · `settings.manage` |
 | `OrderManager::confirmDeliveryFee($order_id, ['order_delivery_fee' => 20000, 'order_delivery_fee_note' => '…'], $admin_id)` | staff measured the load: sets the final transport price (a reason is required when it differs from the estimate), recomputes the total, starts the time to pay, tells the customer; audit `order.delivery_fee_confirmed`. Error `DELIVERY_FEE_NOT_WAITING` · `orders.manage` |
 | `OrderManager::getOrdersForAdmin(['transport_to_confirm' => 1, …])` / `countTransportToConfirm()` | upcountry orders still waiting for their transport price |
 
@@ -337,7 +338,7 @@ QR codes are drawn locally by `chillerlan/php-qrcode` (Composer); nothing is sen
 
 ## Staff notifications (the bell) — `AdminNotification` — added 2026-10-09
 
-The bell in the top bar (header.php) shows unread notifications (badge refreshed every minute without counting as activity, so the 30-minute idle logout still works). Clicking it opens a dialog: **Waiting for you** (`adminAttentionItems()`, the old dashboard "Needs attention") + the **10 latest** notifications (long text → "Read more"), **Mark all as read**, **View all** (admin/notifications.php, paged, "Unread only").
+The bell in the top bar (header.php) shows unread notifications (badge refreshed every 15 seconds without counting as activity, so the 30-minute idle logout still works). Clicking it opens a dialog: **Waiting for you** (`adminAttentionItems()`, the old dashboard "Needs attention") + the **10 latest** notifications (long text → "Read more"), **Mark all as read**, **View all** (admin/notifications.php, paged, "Unread only").
 
 | Method | Use |
 |---|---|

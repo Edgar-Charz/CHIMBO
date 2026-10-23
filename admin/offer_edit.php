@@ -27,9 +27,11 @@ $form_error = adminHandleForm(function () use ($offer_model, $offer_id, $is_new,
             $offer_model->notifyWishlistUsers((int) $_POST['product_id'], (int) $_POST['product_offer_percent']);
         }
         if (!empty($_POST['send_broadcast'])) {
-            $title = trim((string) ($_POST['notification_title'] ?? '')) ?: 'Ofa Mpya! 🔥';
-            $body  = trim((string) ($_POST['notification_body'] ?? '')) ?: "Pata punguzo la {$_POST['product_offer_percent']}% kwenye bidhaa hii! Fungua kuangalia.";
-            $offer_model->broadcastOfferNotification($saved_offer_id, $title, $body);
+            $title_sw = trim((string) ($_POST['notification_title'] ?? '')) ?: 'Ofa Mpya! 🔥';
+            $body_sw = trim((string) ($_POST['notification_body'] ?? '')) ?: "Pata punguzo la {$_POST['product_offer_percent']}% kwenye bidhaa hii! Fungua kuangalia.";
+            $title_en = trim((string) ($_POST['notification_title_en'] ?? '')) ?: 'New offer! 🔥';
+            $body_en = trim((string) ($_POST['notification_body_en'] ?? '')) ?: "Get {$_POST['product_offer_percent']}% off this product! Open CHIMBO to shop.";
+            $offer_model->broadcastOfferNotification($saved_offer_id, $title_sw, $body_sw, $title_en, $body_en);
         }
         Session::flash('success', 'Offer saved and push notifications dispatched.');
     } else {
@@ -147,12 +149,20 @@ require __DIR__ . '/includes/header.php';
                 </div>
                 <div class="row g-3">
                     <div class="col-md-5">
-                        <label class="form-label" for="notification_title">Notification title</label>
-                        <input class="form-control" type="text" name="notification_title" id="notification_title" placeholder="e.g. Special offer! 🔥" maxlength="100">
+                        <label class="form-label" for="notification_title">Kiswahili title</label>
+                        <input class="form-control" type="text" name="notification_title" id="notification_title" placeholder="Ofa Mpya! 🔥" maxlength="100">
                     </div>
                     <div class="col-md-7">
-                        <label class="form-label" for="notification_body">Message</label>
-                        <input class="form-control" type="text" name="notification_body" id="notification_body" placeholder="e.g. A special discount is here. Shop now!" maxlength="255">
+                        <label class="form-label" for="notification_body">Kiswahili message</label>
+                        <input class="form-control" type="text" name="notification_body" id="notification_body" placeholder="Pata punguzo la 20% kwenye bidhaa hii! Fungua kuangalia." maxlength="255">
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label" for="notification_title_en">English title</label>
+                        <input class="form-control" type="text" name="notification_title_en" id="notification_title_en" placeholder="New offer! 🔥" maxlength="100">
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label" for="notification_body_en">English message</label>
+                        <input class="form-control" type="text" name="notification_body_en" id="notification_body_en" placeholder="Get 20% off this product! Open CHIMBO to shop." maxlength="255">
                     </div>
                 </div>
             </section>

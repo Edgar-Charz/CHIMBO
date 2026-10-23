@@ -37,7 +37,7 @@ class AdminNotification
         if (!isset(self::TYPES[$type])) {
             throw new InvalidArgumentException("Unknown staff notification type: {$type}");
         }
-        $this->db->insert(
+        $notification_id = $this->db->insert(
             'INSERT INTO admin_notifications (admin_notification_type, admin_notification_title, admin_notification_body,
                                               admin_notification_link, admin_notification_permission)
              VALUES (:type, :title, :body, :link, :permission)',
@@ -49,6 +49,13 @@ class AdminNotification
                 'permission' => self::TYPES[$type][0],
             ]
         );
+        $sender = new FcmPushSender();
+        if ($sender->isConfigured()) {
+            $push_tokens = new AdminPushToken($this->db);
+            $this->db->afterCommit(static function () use ($push_tokens, $notification_id, $sender): void {
+                $push_tokens->sendNotification($notification_id, $sender);
+            });
+        }
     }
 
     /** The newest notifications this staff member may see, with is_read. */

@@ -705,9 +705,21 @@ class OrderManager
             $estimated_delivery = $updated_order['order_estimated_delivery_date'] === null
                 ? ''
                 : ' Inatarajiwa kufika: ' . (new DateTimeImmutable((string) $updated_order['order_estimated_delivery_date']))->format('d/m/Y') . '.';
+            $estimated_delivery_en = $updated_order['order_estimated_delivery_date'] === null
+                ? ''
+                : ' Estimated delivery: ' . (new DateTimeImmutable((string) $updated_order['order_estimated_delivery_date']))->format('d/m/Y') . '.';
             (new Notification($db))->notifyUser((int) $order['user_id'], 'order_status', 'Oda imerejeshwa',
                 "Oda #{$order['order_number']} iko hai tena kwa bei za leo. Jumla: TZS " . number_format($total) . ". Lipa kabla ya {$pay_by}.{$estimated_delivery}",
-                ['order_id' => $order_id]);
+                ['order_id' => $order_id], [
+                    'sw' => [
+                        'title' => 'Oda imerejeshwa',
+                        'body' => "Oda #{$order['order_number']} iko hai tena kwa bei za leo. Jumla: TZS " . number_format($total) . ". Lipa kabla ya {$pay_by}.{$estimated_delivery}",
+                    ],
+                    'en' => [
+                        'title' => 'Order reactivated',
+                        'body' => "Order #{$order['order_number']} is active again at today's prices. Total: TZS " . number_format($total) . ". Pay by {$pay_by}.{$estimated_delivery_en}",
+                    ],
+                ]);
             (new AuditLog($db))->record('admin', $admin_id, 'order.reactivated', 'order', $order_id,
                 ['order_status' => 'expired', 'order_total' => (int) $order['order_total']],
                 ['order_status' => 'pending_payment', 'order_total' => $total, 'status_note' => $data['status_note'] ?? null]);
@@ -770,7 +782,18 @@ class OrderManager
             (new Notification($db))->notifyUser((int) $order['user_id'], 'order_status', 'Usafiri umethibitishwa',
                 "Usafiri wa oda #{$order['order_number']}: " . number_format($fee) . ' TZS' . ($note !== null ? " ({$note})" : '')
                     . '. Jumla: ' . number_format($total) . ' TZS — lipa sasa.',
-                ['order_id' => $order_id]);
+                ['order_id' => $order_id], [
+                    'sw' => [
+                        'title' => 'Usafiri umethibitishwa',
+                        'body' => "Usafiri wa oda #{$order['order_number']}: " . number_format($fee) . ' TZS' . ($note !== null ? " ({$note})" : '')
+                            . '. Jumla: ' . number_format($total) . ' TZS — lipa sasa.',
+                    ],
+                    'en' => [
+                        'title' => 'Transport price confirmed',
+                        'body' => "Transport for order #{$order['order_number']}: TZS " . number_format($fee)
+                            . '. Total: TZS ' . number_format($total) . '. Pay now.',
+                    ],
+                ]);
             (new AuditLog($db))->record('admin', $admin_id, 'order.delivery_fee_confirmed', 'order', $order_id,
                 ['order_delivery_fee' => (int) $order['order_delivery_fee'], 'order_total' => (int) $order['order_subtotal'] + (int) $order['order_delivery_fee'] - (int) $order['order_discount_total']],
                 ['order_delivery_fee' => $fee, 'order_total' => $total, 'order_delivery_fee_note' => $note]);

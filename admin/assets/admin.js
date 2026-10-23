@@ -12,7 +12,7 @@
  *                                               links, buttons and the ⋮ menu inside the row keep their own action
  *   .row-actions (adminRowActions())            the ⋮ actions menu, placed against the screen so it is never cut off
  *   <div data-bs-toggle="tooltip" data-bs-title="260,498,100 TZS">   a Bootstrap tooltip on hover / focus
- *   [data-notification-bell]                    the bell: its dialog is loaded when opened, the badge is refreshed every minute
+ *   [data-notification-bell]                    the bell: its dialog is loaded when opened, the badge is refreshed every 15 seconds
  *   [data-read-more]                            shows the rest of a long notification
  *
  * Tables (DataTables — search, sorting, pages):
@@ -184,7 +184,7 @@
     const badge = bell.querySelector('[data-notification-count]');
     const dot = bell.querySelector('[data-notification-dot]');
     const panel = document.querySelector('[data-notification-panel]');
-    const BADGE_REFRESH_MS = 60_000;
+    const BADGE_REFRESH_MS = 15_000;
 
     // Red number = unread notifications; orange dot = nothing unread, but work is waiting ("Waiting for you")
     const showCount = (count, hasWaitingWork) => {
@@ -208,7 +208,7 @@
       }
     });
 
-    // The badge, every minute (doesn't count as activity, so the idle logout still happens)
+    // The badge, every 15 seconds (doesn't count as activity, so the idle logout still happens)
     setInterval(async () => {
       try {
         const response = await fetch(bell.dataset.countUrl, { headers: { Accept: 'application/json' } });

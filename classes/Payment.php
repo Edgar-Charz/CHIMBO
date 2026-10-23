@@ -287,7 +287,16 @@ class Payment
 
             (new Notification($db))->notifyUser((int) $order['user_id'], 'payment', 'Malipo hayajathibitishwa',
                 "Hatukuweza kuthibitisha malipo ya oda #{$order['order_number']}: {$data['payment_review_note']} Tafadhali hakiki na utume tena.",
-                ['order_id' => (int) $order['order_id']]);
+                ['order_id' => (int) $order['order_id']], [
+                    'sw' => [
+                        'title' => 'Malipo hayajathibitishwa',
+                        'body' => "Hatukuweza kuthibitisha malipo ya oda #{$order['order_number']}: {$data['payment_review_note']} Tafadhali hakiki na utume tena.",
+                    ],
+                    'en' => [
+                        'title' => 'Payment not confirmed',
+                        'body' => "We couldn't confirm payment for order #{$order['order_number']}. Review the payment details and submit them again.",
+                    ],
+                ]);
             (new AuditLog($db))->record('admin', $admin_id, 'payment.rejected', 'payment', $payment_id, null,
                 ['order_id' => (int) $order['order_id'], 'payment_review_note' => $data['payment_review_note']]);
         });
@@ -359,7 +368,16 @@ class Payment
 
             (new Notification($db))->notifyUser((int) $order['user_id'], 'payment', 'Pesa imerudishwa',
                 "Tumekurudishia TZS " . number_format($amount) . " ya oda #{$order['order_number']}.",
-                ['order_id' => $order_id]);
+                ['order_id' => $order_id], [
+                    'sw' => [
+                        'title' => 'Pesa imerudishwa',
+                        'body' => "Tumekurudishia TZS " . number_format($amount) . " ya oda #{$order['order_number']}.",
+                    ],
+                    'en' => [
+                        'title' => 'Refund sent',
+                        'body' => "We have refunded TZS " . number_format($amount) . " for order #{$order['order_number']}.",
+                    ],
+                ]);
             (new AuditLog($db))->record('admin', $admin_id, 'order.refunded', 'order', $order_id,
                 ['order_payment_status' => $order['order_payment_status'], 'order_refund_due' => $refund_due], $after + ['amount' => $amount]);
         });
@@ -503,7 +521,16 @@ class Payment
 
         (new Notification($this->db))->notifyUser((int) $order['user_id'], 'payment', 'Salio limepokelewa',
             "Tumepokea TZS " . number_format((int) $payment['payment_amount']) . " ya oda #{$order['order_number']}. Tunaendelea kuiandaa.",
-            ['order_id' => (int) $order['order_id']]);
+            ['order_id' => (int) $order['order_id']], [
+                'sw' => [
+                    'title' => 'Salio limepokelewa',
+                    'body' => "Tumepokea TZS " . number_format((int) $payment['payment_amount']) . " ya oda #{$order['order_number']}. Tunaendelea kuiandaa.",
+                ],
+                'en' => [
+                    'title' => 'Balance payment received',
+                    'body' => "We received TZS " . number_format((int) $payment['payment_amount']) . " for order #{$order['order_number']}. We are continuing to prepare it.",
+                ],
+            ]);
         (new AuditLog($this->db))->record('admin', $admin_id, 'payment.confirmed', 'payment', (int) $payment['payment_id'], null,
             ['order_id' => (int) $order['order_id'], 'payment_amount' => (int) $payment['payment_amount'],
              'payment_reference' => $payment['payment_reference'], 'balance' => true]);

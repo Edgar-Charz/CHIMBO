@@ -11,6 +11,15 @@
 
 $page = pageSettings($page ?? []);
 $customer = currentCustomer();
+$current_script = basename((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+$current_collection = requestText('collection');
+$is_all_products = $current_script === 'search.php'
+    && requestText('q') === ''
+    && $current_collection === '';
+$is_gundua_current = $page['nav'] === 'explore'
+    && !$is_all_products
+    && !in_array($current_collection, ['offers', 'new', 'best_sellers'], true);
+$current_category_id = $current_script === 'category.php' ? requestInt('id') : 0;
 
 require __DIR__ . '/head.php';
 ?>
@@ -87,12 +96,21 @@ require __DIR__ . '/head.php';
             </nav>
         </div>
 
-        <nav class="category-nav d-none d-lg-block" aria-label="Aina za bidhaa">
+        <nav class="category-nav d-none d-lg-block" aria-label="Menyu ya duka">
             <div class="container-xl category-nav__inner">
                 <ul class="category-nav__list">
+                    <li>
+                        <a class="category-nav__link" href="<?= e(url('')) ?>" <?= $page['nav'] === 'home' ? 'aria-current="page"' : '' ?>>Nyumbani</a>
+                    </li>
+                    <li>
+                        <a class="category-nav__link" href="<?= e(url('explore.php')) ?>" <?= $is_gundua_current ? 'aria-current="page"' : '' ?>>Gundua</a>
+                    </li>
+                    <li>
+                        <a class="category-nav__link" href="<?= e(url('search.php')) ?>" <?= $is_all_products ? 'aria-current="page"' : '' ?>>Bidhaa zote</a>
+                    </li>
                     <?php foreach (shopCategories() as $menu_category) : ?>
                         <li class="dropdown">
-                            <button class="category-nav__link dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <button class="category-nav__link dropdown-toggle<?= $current_category_id === (int) $menu_category['category_id'] ? ' is-current' : '' ?>" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $current_category_id === (int) $menu_category['category_id'] ? 'aria-current="page"' : '' ?>>
                                 <?= e($menu_category['category_name']) ?>
                             </button>
                             <div class="dropdown-menu category-menu">
@@ -107,9 +125,9 @@ require __DIR__ . '/head.php';
                             </div>
                         </li>
                     <?php endforeach; ?>
-                    <li><a class="category-nav__link category-nav__link--deal" href="<?= e(collectionUrl('offers')) ?>"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
-                    <li><a class="category-nav__link" href="<?= e(url('search.php?collection=new')) ?>">Mpya</a></li>
-                    <li><a class="category-nav__link" href="<?= e(url('search.php?collection=best_sellers')) ?>">Zinazouzwa Zaidi</a></li>
+                    <li><a class="category-nav__link category-nav__link--deal<?= $current_collection === 'offers' ? ' is-current' : '' ?>" href="<?= e(collectionUrl('offers')) ?>" <?= $current_collection === 'offers' ? 'aria-current="page"' : '' ?>><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
+                    <li><a class="category-nav__link<?= $current_collection === 'new' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=new')) ?>" <?= $current_collection === 'new' ? 'aria-current="page"' : '' ?>>Mpya</a></li>
+                    <li><a class="category-nav__link<?= $current_collection === 'best_sellers' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=best_sellers')) ?>" <?= $current_collection === 'best_sellers' ? 'aria-current="page"' : '' ?>>Zinazouzwa Zaidi</a></li>
                 </ul>
                 <p class="category-nav__note"><i class="bi bi-shield-check" aria-hidden="true"></i> Malipo yako ni salama</p>
             </div>

@@ -224,7 +224,13 @@ class ProductOffer
     }
 
     /** Broadcasts an offer notification to all active customers. */
-    public function broadcastOfferNotification(int $product_offer_id, string $title, string $body): int
+    public function broadcastOfferNotification(
+        int $product_offer_id,
+        string $title,
+        string $body,
+        string $title_en,
+        string $body_en
+    ): int
     {
         $offer = $this->getOfferById($product_offer_id);
         $productId = (int) $offer['product_id'];
@@ -236,7 +242,11 @@ class ProductOffer
             'promo',
             $title,
             $body,
-            ['product_id' => $productId, 'offer_id' => $product_offer_id]
+            ['product_id' => $productId, 'offer_id' => $product_offer_id],
+            [
+                'sw' => ['title' => $title, 'body' => $body],
+                'en' => ['title' => $title_en, 'body' => $body_en],
+            ]
         );
     }
 
@@ -257,7 +267,17 @@ class ProductOffer
             'promo',
             'Bidhaa ya Vipendwa Ina Punguzo! 🔥',
             "{$productName} uliyoiweka kwenye Vipendwa sasa ina punguzo la {$percent}%! Wahi kabla ofa haijaisha.",
-            ['product_id' => $productId]
+            ['product_id' => $productId, 'target' => 'wishlist'],
+            [
+                'sw' => [
+                    'title' => 'Bidhaa ya Vipendwa Ina Punguzo! 🔥',
+                    'body' => "{$productName} uliyoiweka kwenye Vipendwa sasa ina punguzo la {$percent}%! Wahi kabla ofa haijaisha.",
+                ],
+                'en' => [
+                    'title' => 'A wishlist item is on sale! 🔥',
+                    'body' => "{$productName}, saved to your wishlist, is now {$percent}% off! Shop before the offer ends.",
+                ],
+            ]
         );
     }
 }

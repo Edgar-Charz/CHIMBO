@@ -29,6 +29,8 @@ $flash_messages = array_values(array_filter([
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0E3B2A">
+    <link rel="manifest" href="<?= e(url('admin/manifest.php')) ?>">
     <title><?= e($page_title) ?> · CHIMBO Admin</title>
     <?php require __DIR__ . '/favicon.php'; ?>
     <link rel="stylesheet" href="<?= e(url('assets/vendor/bootstrap/bootstrap.min.css')) ?>">
@@ -88,6 +90,11 @@ $flash_messages = array_values(array_filter([
                     </div>
                 <?php endif; ?>
 
+                <button class="btn btn-light" type="button" data-admin-push-enable
+                        data-csrf="<?= e(Csrf::token()) ?>"
+                        aria-label="Enable browser notifications" title="Enable browser notifications">
+                    <i class="bi bi-bell-fill"></i>
+                </button>
                 <!-- The bell: "Waiting for you" + the latest notifications in a dialog (admin.js loads it when opened) -->
                 <button class="btn btn-light notification-bell" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
                         aria-label="Notifications" title="Notifications" data-notification-bell

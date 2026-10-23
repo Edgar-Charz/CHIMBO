@@ -126,7 +126,7 @@ $price_text = fn (array $method): string => match (true) {
 
 $page_title  = 'Settings';
 $active_menu = 'settings';
-$page_scripts = ['legal_editor.js'];
+$page_scripts = ['legal_editor.js', 'number_format_input.js'];
 require __DIR__ . '/includes/header.php';
 ?>
 
@@ -283,10 +283,15 @@ require __DIR__ . '/includes/header.php';
                         <label class="form-label small mb-1" for="estimate-<?= e($region['region_id']) ?>"><?= e($region['region_name']) ?></label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text">TZS</span>
-                            <input class="form-control<?= adminInvalidClass($errors, $field) ?>" type="number" min="0" step="500"
+                            <?php
+                            $estimate_value = (string) ($estimate_values[$region['region_id']] ?? '');
+                            $estimate_display = ctype_digit($estimate_value) ? number_format((int) $estimate_value) : $estimate_value;
+                            ?>
+                            <input class="form-control js-number-format<?= adminInvalidClass($errors, $field) ?>" type="text" inputmode="numeric" autocomplete="off"
                                    id="estimate-<?= e($region['region_id']) ?>" name="<?= e($field) ?>"
-                                   value="<?= e($estimate_values[$region['region_id']] ?? '') ?>" placeholder="No estimate">
+                                   value="<?= e($estimate_display) ?>" placeholder="No estimate" aria-describedby="estimate-help-<?= e($region['region_id']) ?>">
                         </div>
+                        <span class="visually-hidden" id="estimate-help-<?= e($region['region_id']) ?>">Enter a whole number of Tanzanian shillings.</span>
                         <?= adminFieldError($errors, $field) ?>
                     </div>
                 <?php endforeach; ?>

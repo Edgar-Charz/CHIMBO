@@ -127,7 +127,13 @@ class DeliveryMethod
         $new_values = [];
         foreach ($estimates as $region_id => $amount) {
             $amount = trim((string) $amount);
-            if ($amount !== '' && (!ctype_digit($amount) || (int) $amount > 10_000_000)) {
+            $is_grouped_integer = preg_match('/^\d{1,3}(?:,\d{3})+$/D', $amount) === 1;
+            if ($amount !== '' && !ctype_digit($amount) && !$is_grouped_integer) {
+                $errors["region_transport_estimate[{$region_id}]"] = 'Enter a whole number of shillings, or leave it empty.';
+                continue;
+            }
+            $amount = str_replace(',', '', $amount);
+            if ($amount !== '' && (int) $amount > 10_000_000) {
                 $errors["region_transport_estimate[{$region_id}]"] = 'Enter a whole number of shillings, or leave it empty.';
                 continue;
             }

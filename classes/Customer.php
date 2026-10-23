@@ -159,10 +159,20 @@ class Customer
             );
 
             if ($status !== 'unverified') {
-                [$title, $body] = $status === 'verified'
-                    ? ['Biashara imethibitishwa', 'Hongera! Biashara yako imethibitishwa na CHIMBO.']
-                    : ['Biashara haijathibitishwa', "Hatukuweza kuthibitisha biashara yako: {$note}"];
-                (new Notification($db))->notifyUser($user_id, 'system', $title, $body);
+                $is_verified = $status === 'verified';
+                $title = $is_verified ? 'Biashara imethibitishwa' : 'Biashara haijathibitishwa';
+                $body = $is_verified
+                    ? 'Hongera! Biashara yako imethibitishwa na CHIMBO.'
+                    : "Hatukuweza kuthibitisha biashara yako: {$note}";
+                (new Notification($db))->notifyUser($user_id, 'system', $title, $body, [], [
+                    'sw' => ['title' => $title, 'body' => $body],
+                    'en' => [
+                        'title' => $is_verified ? 'Business verified' : 'Business not verified',
+                        'body' => $is_verified
+                            ? 'Congratulations! CHIMBO has verified your business.'
+                            : 'We could not verify your business. Please contact support if you need help.',
+                    ],
+                ]);
             }
 
             (new AuditLog($db))->record('admin', $admin_id, 'customer.business_verification', 'user', $user_id,

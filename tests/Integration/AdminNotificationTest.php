@@ -49,7 +49,7 @@ final class AdminNotificationTest extends TestCase
 
         $latest = $this->notifications->getLatest($this->operations);
         $this->assertSame('order.placed', $latest[0]['type']);
-        $this->assertStringStartsWith('New order CHB', $latest[0]['title']);
+        $this->assertMatchesRegularExpression('/^New order CH[SMB]\d{4}-\d{4}$/', $latest[0]['title']);
         $this->assertStringContainsString('40,000 TZS', $latest[0]['body']);   // Bolt is paid to the rider
         $this->assertSame([], $this->notifications->getLatest($this->catalog));   // catalog staff don't handle orders
         $this->assertCount(1, $this->notifications->getLatest($this->super_admin));

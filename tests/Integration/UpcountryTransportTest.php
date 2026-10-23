@@ -74,6 +74,30 @@ final class UpcountryTransportTest extends TestCase
         $this->assertSame(40000 + self::MWANZA_ESTIMATE, $preview['grand_total']);
     }
 
+    public function testAdminCanSaveAGroupedEstimateAsAWholeNumber(): void
+    {
+        $region_id = $this->regionId('Mwanza');
+
+        (new DeliveryMethod($this->db))->saveRegionEstimates([$region_id => '25,000'], self::ADMIN_ID);
+
+        $this->assertSame(25000, (int) $this->db->fetchValue(
+            'SELECT region_transport_estimate FROM regions WHERE region_id = :region_id',
+            ['region_id' => $region_id]
+        ));
+    }
+
+    public function testAdminCannotSaveMalformedThousandsSeparators(): void
+    {
+        $region_id = $this->regionId('Mwanza');
+
+        try {
+            (new DeliveryMethod($this->db))->saveRegionEstimates([$region_id => '25,00'], self::ADMIN_ID);
+            $this->fail('Expected a validation error for malformed grouping.');
+        } catch (ApiException $exception) {
+            $this->assertArrayHasKey("region_transport_estimate[{$region_id}]", $exception->fields());
+        }
+    }
+
     public function testTheOrderWaitsForStaffAndCannotBePaidYet(): void
     {
         $order = $this->placeUpcountryOrder();

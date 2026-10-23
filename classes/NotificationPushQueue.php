@@ -80,10 +80,11 @@ class NotificationPushQueue
 
             $devices = (new DeviceToken($this->db))->forUser((int) $job['user_id']);
             foreach ($devices as $device) {
+                $translations = $this->translations($job['notification_data'], $device['device_language']);
                 if (!$sender->send(
                     $device['device_token'],
-                    $job['notification_title'],
-                    $job['notification_body'],
+                    $translations['title'] ?? $job['notification_title'],
+                    $translations['body'] ?? $job['notification_body'],
                     $this->pushData($job)
                 )) {
                     (new DeviceToken($this->db))->removeById((int) $device['device_token_id']);
@@ -111,10 +112,26 @@ class NotificationPushQueue
     {
         $data = is_string($job['notification_data']) ? json_decode($job['notification_data'], true) : [];
         $data = is_array($data) ? $data : [];
+        $translations = $data['translations'] ?? [];
+        unset($data['translations']);
+        foreach (['en', 'sw'] as $language_code) {
+            $copy = $translations[$language_code] ?? [];
+            if (isset($copy['title'], $copy['body'])) {
+                $data['notification_title_' . $language_code] = $copy['title'];
+                $data['notification_body_' . $language_code] = $copy['body'];
+            }
+        }
         $data['notification_id'] = (int) $job['notification_id'];
         $data['notification_type'] = $job['notification_type'];
         $scalar_data = array_filter($data, 'is_scalar');
         return array_map('strval', $scalar_data);
+    }
+
+    private function translations(?string $notification_data, string $language_code): array
+    {
+        $data = $notification_data === null ? [] : json_decode($notification_data, true);
+        $translations = is_array($data) ? ($data['translations'] ?? []) : [];
+        return is_array($translations) ? ($translations[$language_code] ?? []) : [];
     }
 
     private function markSent(int $queue_id): void

@@ -27,7 +27,10 @@ if ($search_text !== '') {
         'action_href'  => url('explore.php'),
     ];
 } else {
-    $heading = COLLECTION_PAGES[$collection] ?? ['title' => 'Bidhaa zote', 'text' => 'Bidhaa zote za jumla za CHIMBO.'];
+    $heading = COLLECTION_PAGES[$collection] ?? [
+        'title' => 'Bidhaa zote',
+        'text' => 'Vinjari bidhaa za jumla za vipodozi na vito vyote sehemu moja.',
+    ];
     $base_query = $collection === null ? [] : ['collection' => $collection];
     $empty_state = [
         'title'        => 'Hakuna bidhaa hapa kwa sasa',
@@ -38,19 +41,13 @@ if ($search_text !== '') {
 }
 
 $catalog = catalogState($base_query, catalogFilters($collection === 'new' ? 'newest' : 'popular'), $empty_state);
-$collection_images = [];
-if ($collection !== null && $search_text === '') {
-    $collection_images = array_slice(array_values(array_unique(array_filter(array_column(
-        $catalog['products'],
-        'product_image_url'
-    ), static fn ($image_url): bool => is_string($image_url) && $image_url !== ''))), 0, 4);
-}
+$heading_products = $search_text === '' ? catalogHeadingProducts($catalog['products']) : [];
 
 $page = [
     'title'        => $heading['title'],
     'description'  => $heading['text'] ?? 'Tafuta bidhaa za jumla kwa duka lako kwenye CHIMBO.',
     'nav'          => 'explore',
-    'scripts'      => ['product_card.js', 'catalog.js'],
+    'scripts'      => ['product_card.js', 'catalog.js', 'catalog_heading_preview.js'],
     'search_query' => $search_text,
 ];
 
@@ -65,11 +62,13 @@ require __DIR__ . '/includes/header.php';
         </ol>
     </nav>
 
-    <header class="catalog-heading<?= $collection !== null && $search_text === '' ? ' catalog-heading--collection' : '' ?>">
-        <?php if ($collection_images !== []) : ?>
-            <div class="catalog-heading__photos catalog-heading__photos--<?= count($collection_images) ?>" aria-hidden="true">
-                <?php foreach ($collection_images as $image_url) : ?>
-                    <img src="<?= e($image_url) ?>" alt="">
+    <header class="catalog-heading<?= $search_text === '' ? ' catalog-heading--collection' : '' ?>">
+        <?php if ($heading_products !== []) : ?>
+            <div class="catalog-heading__photos catalog-heading__photos--<?= count($heading_products) ?>">
+                <?php foreach ($heading_products as $product_index => $product) : ?>
+                    <button class="catalog-heading__photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
+                        <img src="<?= e($product['product_image_url']) ?>" alt="">
+                    </button>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -78,6 +77,10 @@ require __DIR__ . '/includes/header.php';
             <p class="catalog-heading__text"><?= e($heading['text']) ?></p>
         <?php endif; ?>
     </header>
+
+    <?php if ($heading_products !== []) : ?>
+        <?php require __DIR__ . '/includes/catalog_heading_preview.php'; ?>
+    <?php endif; ?>
 
     <?php if ($search_text === '') : ?>
         <nav class="catalog-chips" aria-label="Makundi ya bidhaa">

@@ -15,8 +15,16 @@ class Notification
     }
 
     /** Adds a notification for a customer. $data tells the app what to open (e.g. the order). */
-    public function notifyUser(int $user_id, string $type, string $title, string $body, array $data = []): void
+    public function notifyUser(
+        int $user_id,
+        string $type,
+        string $title,
+        string $body,
+        array $data = [],
+        array $translations = []
+    ): void
     {
+        $data = $this->withTranslations($data, $translations);
         $notification_id = $this->insertNotification($user_id, $type, $title, $body, $data);
 
         $sender = new FcmPushSender();
@@ -30,13 +38,21 @@ class Notification
     }
 
     /** Saves a broadcast for every recipient together so the request never sends pushes one by one. */
-    public function notifyUsers(array $user_ids, string $type, string $title, string $body, array $data = []): int
+    public function notifyUsers(
+        array $user_ids,
+        string $type,
+        string $title,
+        string $body,
+        array $data = [],
+        array $translations = []
+    ): int
     {
         $user_ids = array_values(array_unique(array_filter(array_map('intval', $user_ids), static fn (int $user_id): bool => $user_id > 0)));
         if ($user_ids === []) {
             return 0;
         }
 
+        $data = $this->withTranslations($data, $translations);
         $queue = (new FcmPushSender())->isConfigured() ? new NotificationPushQueue($this->db) : null;
         return $this->db->transaction(function () use ($user_ids, $type, $title, $body, $data, $queue): int {
             foreach ($user_ids as $user_id) {
@@ -54,11 +70,19 @@ class Notification
     }
 
     /** Sends an in-app broadcast to all active customer accounts; push delivery stays in the batch queue. */
-    public function notifyActiveUsers(string $title, string $body): int
+    public function notifyActiveUsers(string $title, string $body, array $translations = []): int
     {
         $users = $this->db->fetchAll("SELECT user_id FROM users WHERE user_status = 'active' ORDER BY user_id ASC");
         $user_ids = array_map(static fn (array $user): int => (int) $user['user_id'], $users);
-        return $this->notifyUsers($user_ids, 'system', $title, $body);
+        return $this->notifyUsers($user_ids, 'system', $title, $body, [], $translations);
+    }
+
+    private function withTranslations(array $data, array $translations): array
+    {
+        if ($translations !== []) {
+            $data['translations'] = $translations;
+        }
+        return $data;
     }
 
     private function insertNotification(int $user_id, string $type, string $title, string $body, array $data): int

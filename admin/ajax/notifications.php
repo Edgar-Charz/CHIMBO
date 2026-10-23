@@ -3,7 +3,7 @@
 /**
  * The bell (admin/includes/header.php + admin.js):
  *   ?part=panel → the modal's HTML ("Waiting for you" + the 10 latest notifications)
- *   ?part=count → {"unread_count": 3, "has_waiting_work": true} for the badge and the orange dot, checked every minute. This check doesn't count as the staff
+ *   ?part=count → {"unread_count": 3, "has_waiting_work": true} for the badge and the orange dot, checked every 15 seconds. This check doesn't count as the staff
  *                 member doing something, so the 30-minute idle logout still works.
  */
 

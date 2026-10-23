@@ -10,6 +10,8 @@ require __DIR__ . '/includes/init.php';
 $category_id = requestInt('id');
 $category = array_column(shopCategories(), null, 'category_id')[$category_id] ?? null;
 $chip = null;
+$heading_products = [];
+$category_heading_modifier = '';
 
 if ($category === null) {
     http_response_code(404);
@@ -25,6 +27,10 @@ if ($category === null) {
             'action_href'  => collectionUrl('best_sellers'),
         ]
     );
+    $heading_products = catalogHeadingProducts($catalog['products']);
+    $category_heading_modifier = $heading_products !== []
+        ? ' catalog-heading--collection'
+        : ($category['category_image_url'] ? ' catalog-heading--image' : '');
 }
 
 $page = [
@@ -36,7 +42,7 @@ $page = [
     'description' => $category['category_tagline'] ?? 'Bidhaa za jumla kwa duka lako: bei hushuka ukinunua zaidi. ' . paymentOptions()['short'] . '.',
     'image'       => $category['category_image_url'] ?? shareImageUrl(),
     'nav'         => 'explore',
-    'scripts'     => $category === null ? [] : ['product_card.js', 'catalog.js'],
+    'scripts'     => $category === null ? [] : ['product_card.js', 'catalog.js', 'catalog_heading_preview.js'],
 ];
 
 require __DIR__ . '/includes/header.php';
@@ -61,8 +67,16 @@ require __DIR__ . '/includes/header.php';
             </ol>
         </nav>
 
-        <header class="catalog-heading<?= $category['category_image_url'] ? ' catalog-heading--image' : '' ?>">
-            <?php if ($category['category_image_url']) : ?>
+        <header class="catalog-heading<?= $category_heading_modifier ?>">
+            <?php if ($heading_products !== []) : ?>
+                <div class="catalog-heading__photos catalog-heading__photos--<?= count($heading_products) ?>">
+                    <?php foreach ($heading_products as $product_index => $product) : ?>
+                        <button class="catalog-heading__photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
+                            <img src="<?= e($product['product_image_url']) ?>" alt="">
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            <?php elseif ($category['category_image_url']) : ?>
                 <img class="catalog-heading__image" src="<?= e($category['category_image_url']) ?>" alt="" fetchpriority="high">
             <?php endif; ?>
             <h1 class="catalog-heading__title"><?= e($category['category_name']) ?></h1>
@@ -70,6 +84,10 @@ require __DIR__ . '/includes/header.php';
                 <p class="catalog-heading__text"><?= e($category['category_tagline']) ?></p>
             <?php endif; ?>
         </header>
+
+        <?php if ($heading_products !== []) : ?>
+            <?php require __DIR__ . '/includes/catalog_heading_preview.php'; ?>
+        <?php endif; ?>
 
         <?php if ($category['children'] !== []) : ?>
             <nav class="catalog-chips" aria-label="Aina ndogo">

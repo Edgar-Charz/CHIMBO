@@ -1,9 +1,11 @@
 <?php
 require __DIR__ . '/includes/admin_bootstrap.php';
 
+$next_page = AdminNotification::safeLink($_GET['next'] ?? 'index.php');
+
 // Already logged in → go straight to the dashboard
 if (AdminSession::currentAdmin() !== null) {
-    redirect(url('admin/index.php'));
+    redirect(url('admin/' . $next_page));
 }
 
 $admin_email    = '';
@@ -16,6 +18,7 @@ if (($_GET['logged_out'] ?? '') === '1') {
 
 if (isPostRequest()) {
     Csrf::verifyOrFail($_POST['csrf_token'] ?? null);
+    $next_page = AdminNotification::safeLink($_POST['next'] ?? $next_page);
     $admin_email = trim($_POST['admin_email'] ?? '');
 
     try {
@@ -23,7 +26,7 @@ if (isPostRequest()) {
         AdminSession::logIn($admin);
         Session::flash('success_title', 'Welcome back');
         Session::flash('success', 'Karibu, ' . strtok($admin['admin_full_name'], ' ') . '! You are logged in.');
-        redirect(url('admin/index.php'));
+        redirect(url('admin/' . $next_page));
     } catch (ApiException $e) {
         // Validation errors list each field; show the first one, otherwise the general message
         $flash_messages[] = ['type' => 'error', 'text' => $e->fields() ? array_values($e->fields())[0] : $e->getMessage(), 'title' => 'Could not log in'];
@@ -51,6 +54,7 @@ if (isPostRequest()) {
 
         <form method="post" novalidate>
             <?= Csrf::field() ?>
+            <input type="hidden" name="next" value="<?= e($next_page) ?>">
             <div class="mb-3">
                 <label class="form-label" for="admin_email">Email</label>
                 <input class="form-control" type="email" id="admin_email" name="admin_email"

@@ -31,6 +31,58 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-10-23 - Connect Firebase push notifications to the admin PWA
+- Added the Firebase Web App config and public VAPID key, a staff browser-token table and CSRF-protected registration endpoint, plus role-aware FCM delivery after staff-notification transactions commit.
+- Staff opt in with the bell button. Notifications open the relevant admin page; the registration endpoint rejects logout removal requests so cached pages cannot delete opted-in devices, and stale FCM tokens are cleaned up.
+- Added explicit Firebase service-worker background display and click routing. Clicks focus the admin app at the notification target; logged-out staff sign in and then return to that protected page.
+- Corrected a case-sensitive Firebase API key mismatch and disabled config caching so the installed service worker reloads the current key.
+- Applied migration `023_admin_push_tokens.sql` locally. Production use needs this migration, HTTPS, and the existing FCM service-account credentials configured on the server.
+
+### 2026-10-23 - Add the installable admin PWA shell
+- Added an admin web manifest, service-worker registration and notification-click handling, with 192 px and generated 512 px icons so Chrome can offer installation as a desktop-style app.
+- Browser push delivery was connected in the later 2026-10-23 entry after the Firebase Web app configuration and public VAPID key were provided.
+- PHP syntax, manifest JSON and diff checks passed. Flutter analysis and formatting remain blocked by the full C: drive.
+
+### 2026-10-23 - Compact the Home greeting card
+- Kept the greeting and customer name on two lines with smaller text, reduced the profile avatar and slogan size, and tightened the card and surrounding vertical spacing.
+- `git diff --check` passed. Flutter analysis and formatting could not complete because the C: drive is full; no files were removed to make room.
+
+### 2026-10-23 - Add interactive product previews to catalog banners
+- Tapping a banner product photo opens a quick view with its photo, seller, starting price, minimum order and product page link.
+- Modal arrows, keyboard arrows and horizontal swipes browse the other banner products in a randomized order.
+- The modal photo now has the shared wishlist heart control; Escape and backdrop clicks close the modal.
+- The quick view loads the product's existing image gallery, showing swipeable photos and dots only when multiple images exist; a visible close control sits beside the heart.
+- Multi-photo galleries auto-advance every four seconds; holding or hovering over the photo pauses playback until release, dots choose a photo, and reduced-motion settings keep playback paused.
+- Added a quick-add button that adds the product MOQ through the existing cart flow and disables with “Imeisha” when stock is below MOQ.
+- The modal uses 800 px medium photos on phones, keeps 1600 px photos for larger screens, and preloads only the next gallery image.
+- Fixed the banner stacking order so its darkening overlay cannot intercept taps on the product photos.
+
+### 2026-10-23 - Refresh admin notification bell every 15 seconds
+- The open admin site now refreshes unread notifications and waiting-work counts every 15 seconds without treating the background check as staff activity.
+- No admin browser-push setup exists yet; it would need a service worker, subscription handling, push credentials and delivery integration.
+
+### 2026-10-23 - Verify upcountry transport estimates and format amount entry
+- Confirmed per-region estimates flow from the Delivery settings form to checkout previews; new orders retain the estimate while staff measure and confirm the final fee.
+- The admin estimate fields now group thousands as staff type (for example `25,000`), and the backend validates grouping before saving the amount as an integer.
+- PHP lint and diff checks passed. Focused transport and reactivation suites passed (12 tests, 50 assertions). JavaScript syntax tooling is unavailable in this environment (`node` is not installed).
+
+### 2026-10-23 - Use matching product photos in catalog banners
+- All-products and category banners now use distinct photos from their own product results; collection banners continue to use photos from the active collection. Category artwork remains the fallback when the category has no product photos.
+
+### 2026-10-23 - Add a banner to the all-products catalog page
+- The Bidhaa zote page now uses the same prominent catalog banner style as collection pages, with a short description of the full wholesale range.
+
+### 2026-10-23 - Translate customer notifications in English and Kiswahili
+- Customer notification records now carry both language versions, and push notifications select the saved language for each device. App language changes update the device preference; admin broadcasts and product-offer alerts are authored in both languages.
+- Added migration `022_device_language.sql`; applied it to the local database. The app localizes notifications from either stored translation maps or flattened push data, with the original text as a fallback for older records.
+- PHP syntax checks and `flutter analyze` passed. Focused backend suites passed (41 tests, 158 assertions), and the stale order-reference assertion now accepts the current monthly prefixes. The full backend suite still reports 30 environment errors from SMS/media access restrictions. Flutter tests could not finish because the system drive ran out of space during compilation.
+
+### 2026-10-23 - Add desktop catalog navigation links and active states
+- Added desktop links for Gundua and Bidhaa zote, and highlighted the current Home, catalog, category, offer, new-arrival or bestseller section.
+
+### 2026-10-23 - Add a visible Home link to desktop storefront navigation
+- Added a "Nyumbani" link before the shop category menus, marked it as the current page on Home, and styled the active link with the existing brand green.
+
 ### 2026-10-23 - Clarify invalid and revoked QR link message
 - Invalid, unknown and revoked order QR links now show a dedicated “QR code si halali” message with instructions to request a replacement or contact CHIMBO, without revealing whether an order exists.
 
