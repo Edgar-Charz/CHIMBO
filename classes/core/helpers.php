@@ -152,8 +152,90 @@ function slugify(string $text): string
     return $slug !== '' ? $slug : 'item';
 }
 
-/** The visitor's IP address. */
+/** Returns the visitor IP, using forwarded headers only when the direct peer is trusted. */
 function clientIp(): string
 {
-    return $_SERVER['REMOTE_ADDR'] ?? '';
+    $remote_address = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    if (filter_var($remote_address, FILTER_VALIDATE_IP) === false) {
+        return '';
+    }
+
+    $trusted_proxies = configuredTrustedProxies();
+    if (!isTrustedProxy($remote_address, $trusted_proxies)) {
+        return $remote_address;
+    }
+
+    $forwarded_for = (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? '');
+    $forwarded_addresses = array_reverse(array_map('trim', explode(',', $forwarded_for)));
+    $address = $remote_address;
+
+    foreach ($forwarded_addresses as $forwarded_address) {
+        if (filter_var($forwarded_address, FILTER_VALIDATE_IP) === false) {
+            return $remote_address;
+        }
+        if (!isTrustedProxy($address, $trusted_proxies)) {
+            break;
+        }
+
+        $address = $forwarded_address;
+    }
+
+    return $address;
+}
+
+/** Returns configured trusted proxy IPs or CIDR ranges. */
+function configuredTrustedProxies(): array
+{
+    $proxy_list = trim((string) Env::get('APP_TRUSTED_PROXIES', ''));
+    return array_values(array_filter(array_map('trim', explode(',', $proxy_list))));
+}
+
+/** Checks an IP address against an IP or CIDR entry. */
+function isTrustedProxy(string $address, array $trusted_proxies): bool
+{
+    foreach ($trusted_proxies as $trusted_proxy) {
+        if (str_contains($trusted_proxy, '/')) {
+            [$network, $prefix_length] = explode('/', $trusted_proxy, 2);
+            if (!ctype_digit($prefix_length) || !isIpInSubnet($address, $network, (int) $prefix_length)) {
+                continue;
+            }
+            return true;
+        }
+
+        $trusted_bytes = inet_pton($trusted_proxy);
+        $address_bytes = inet_pton($address);
+        if ($trusted_bytes !== false && $address_bytes !== false && hash_equals($trusted_bytes, $address_bytes)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** Checks IPv4 or IPv6 subnet membership without trusting malformed CIDR settings. */
+function isIpInSubnet(string $address, string $network, int $prefix_length): bool
+{
+    $address_bytes = inet_pton($address);
+    $network_bytes = inet_pton($network);
+    if ($address_bytes === false || $network_bytes === false || strlen($address_bytes) !== strlen($network_bytes)) {
+        return false;
+    }
+
+    $maximum_prefix = strlen($address_bytes) * 8;
+    if ($prefix_length < 0 || $prefix_length > $maximum_prefix) {
+        return false;
+    }
+
+    $whole_bytes = intdiv($prefix_length, 8);
+    $remaining_bits = $prefix_length % 8;
+    if (substr($address_bytes, 0, $whole_bytes) !== substr($network_bytes, 0, $whole_bytes)) {
+        return false;
+    }
+
+    if ($remaining_bits === 0) {
+        return true;
+    }
+
+    $mask = (0xFF << (8 - $remaining_bits)) & 0xFF;
+    return (ord($address_bytes[$whole_bytes]) & $mask) === (ord($network_bytes[$whole_bytes]) & $mask);
 }

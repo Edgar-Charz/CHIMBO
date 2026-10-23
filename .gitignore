@@ -12,6 +12,8 @@
 # Logs and runtime files
 /storage/logs/*
 !/storage/logs/.gitkeep
+/storage/keys/
+/storage/.dart-tool/
 *.log
 
 # Tests / tools cache

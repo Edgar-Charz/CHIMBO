@@ -30,6 +30,8 @@ class Admin
 
     private const MAX_FAILED_LOGINS = 5;    // wrong passwords before the account is locked
     private const LOCK_MINUTES      = 15;   // how long the lock lasts
+    private const MAX_IP_LOGIN_ATTEMPTS = 30;
+    private const IP_LOGIN_WINDOW_SECONDS = 900;
 
     // A real bcrypt hash of a random password nobody knows (used for unknown emails, see login())
     private const DUMMY_PASSWORD_HASH = '$2y$10$scCQlI0JkoJMVc0IHOMSMOA8C6P7F2SZvd5ESAxnOMfpNwIzM6mi2';
@@ -51,6 +53,16 @@ class Admin
             'admin_email'    => 'required|email|max:150',
             'admin_password' => 'required|string|max:200',
         ]);
+
+        $ip_address = clientIp();
+        if ($ip_address !== '') {
+            (new RateLimiter($this->db))->hit(
+                'admin-login:ip:' . $ip_address,
+                self::MAX_IP_LOGIN_ATTEMPTS,
+                self::IP_LOGIN_WINDOW_SECONDS,
+                'Too many login attempts from this network. Please wait 15 minutes and try again.'
+            );
+        }
 
         $admin = $this->db->fetchOne(
             'SELECT admin_id, admin_password_hash, admin_status, admin_failed_logins,
@@ -74,7 +86,7 @@ class Admin
         }
 
         if (!password_verify($data['admin_password'], $admin['admin_password_hash'])) {
-            $this->recordFailedLogin((int) $admin['admin_id'], (int) $admin['admin_failed_logins'] + 1);
+            $this->recordFailedLogin((int) $admin['admin_id']);
             throw $this->wrongLoginException();
         }
 
@@ -109,22 +121,35 @@ class Admin
         return ApiException::unauthenticated('Wrong email or password.');
     }
 
-    /** Counts a wrong password; locks the account when the limit is reached. */
-    private function recordFailedLogin(int $admin_id, int $failed_logins): void
+    /** Counts wrong passwords under a row lock so concurrent attempts cannot lose increments. */
+    private function recordFailedLogin(int $admin_id): void
     {
-        $lock_account = $failed_logins >= self::MAX_FAILED_LOGINS;
+        $lock_account = $this->db->transaction(function (Database $db) use ($admin_id): bool {
+            $admin = $db->fetchOne(
+                'SELECT admin_failed_logins, admin_locked_until > UTC_TIMESTAMP() AS is_locked
+                 FROM admins WHERE admin_id = :admin_id FOR UPDATE',
+                ['admin_id' => $admin_id]
+            );
+            if ($admin === null || $admin['is_locked']) {
+                return false;
+            }
 
-        $this->db->execute(
-            'UPDATE admins
-             SET admin_failed_logins = :failed_logins,
-                 admin_locked_until  = IF(:lock_account, UTC_TIMESTAMP() + INTERVAL ' . self::LOCK_MINUTES . ' MINUTE, NULL)
-             WHERE admin_id = :admin_id',
-            [
-                'failed_logins' => $lock_account ? 0 : $failed_logins,
-                'lock_account'  => (int) $lock_account,
-                'admin_id'      => $admin_id,
-            ]
-        );
+            $failed_logins = (int) $admin['admin_failed_logins'] + 1;
+            $lock_account = $failed_logins >= self::MAX_FAILED_LOGINS;
+            $db->execute(
+                'UPDATE admins
+                 SET admin_failed_logins = :failed_logins,
+                     admin_locked_until  = IF(:lock_account, UTC_TIMESTAMP() + INTERVAL ' . self::LOCK_MINUTES . ' MINUTE, NULL)
+                 WHERE admin_id = :admin_id',
+                [
+                    'failed_logins' => $lock_account ? 0 : $failed_logins,
+                    'lock_account'  => (int) $lock_account,
+                    'admin_id'      => $admin_id,
+                ]
+            );
+
+            return $lock_account;
+        });
 
         if ($lock_account) {
             (new AuditLog($this->db))->record('system', null, 'admin.locked', 'admin', $admin_id);
