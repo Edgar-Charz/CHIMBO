@@ -36,7 +36,7 @@ final class ReceiptAndAvatarTest extends TestCase
         $receipt = (new Receipt($this->db))->createReceiptForCustomer($this->user_id, $order_id);
 
         $this->assertStringStartsWith('%PDF', $receipt['pdf']);
-        $this->assertMatchesRegularExpression('/^Risiti-CHB\d{6}\.pdf$/', $receipt['file_name']);
+        $this->assertMatchesRegularExpression('/^Risiti-CHS\d{4}-\d{4}\.pdf$/', $receipt['file_name']);
     }
 
     public function testNobodyElseCanDownloadTheReceipt(): void
@@ -62,7 +62,7 @@ final class ReceiptAndAvatarTest extends TestCase
         $slip = (new Receipt($this->db))->createPackingSlip($order_id);
 
         $this->assertStringStartsWith('%PDF', $slip['pdf']);
-        $this->assertMatchesRegularExpression('/^Kupakia-CHB\d{6}\.pdf$/', $slip['file_name']);
+        $this->assertMatchesRegularExpression('/^Kupakia-CHS\d{4}-\d{4}\.pdf$/', $slip['file_name']);
         $this->assertStringContainsString('/Subtype /Image', $slip['pdf']);   // the QR code
     }
 

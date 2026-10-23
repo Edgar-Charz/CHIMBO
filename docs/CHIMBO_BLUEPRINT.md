@@ -145,7 +145,7 @@ Progress "Hatua X kati ya 3", back arrow on steps 2–3:
 
 ### 2.9 Review & confirmation (p.8)
 - **Hakiki Oda:** address, delivery, payment, item thumbnails, totals, **Thibitisha Oda**, "Malipo yako ni salama."
-- **"Oda Imepokelewa!":** "Asante, Joyce. Tumeanza kuandaa oda yako.", **order number `#CHB123456`**, total, delivery estimate, **Fuatilia Oda**, **Rudi Nyumbani**.
+- **"Oda Imepokelewa!":** "Asante, Joyce. Tumeanza kuandaa oda yako.", **order number `#CHS2610-0001`**, total, delivery estimate, **Fuatilia Oda**, **Rudi Nyumbani**.
 
 ### 2.10 Orders & tracking (p.9)
 - **Oda Zangu:** filter; tabs **Zinazoendelea / Zimefika / Zote**. Active card: status, ETA, **Fuatilia Oda**. Delivered card: date, thumbnails, total, **Agiza Tena**, **Pakua Risiti**.
@@ -558,7 +558,7 @@ delivery_methods   id, code ('standard'|'express'), name_sw, name_en, fee, eta_m
 
 **004_orders.sql**
 ```
-orders             id, order_number UNIQUE ('CHB' + digits), user_id FK, channel ('app'|'web'),
+orders             id, order_number UNIQUE (shop prefix + sequential digits: CHS / CHM / CHB), user_id FK, channel ('app'|'web'),
                    status (11.3), payment_status ('unpaid'|'pending'|'paid'|'cod_pending'|'refunded'|'failed'),
                    payment_method ('mpesa'|'airtel'|'mixx'|'bank'|'cod'),
                    subtotal, delivery_fee, discount_total, grand_total, delivery_method_id FK,
@@ -568,6 +568,8 @@ orders             id, order_number UNIQUE ('CHB' + digits), user_id FK, channel
                    UNIQUE(user_id, idempotency_key), INDEX(user_id, status, created_at)
 order_items        id, order_id FK, product_id FK, seller_id FK, product_name, sku, image_path, unit_label,
                    quantity, unit_price, tier_min_qty, line_total          (snapshot — never changes)
+order_number_sequences (order_number_prefix, order_number_period) PK, order_number_sequence_value (locked monthly counter per order prefix)
+order_public_links       order_id PK/FK, order_link_version, order_link_revoked_at (revocable packing-slip QR links)
 order_status_history id, order_id FK, status, note NULL, actor_type, actor_id NULL, created_at
 delivery_agents    id, full_name, phone, photo_path, is_active
 order_deliveries   id, order_id UNIQUE FK, agent_id NULL FK, dispatched_at, delivered_at,
@@ -840,7 +842,7 @@ Staff with `orders.manage` open **Edit order** on the order page. The customer i
 ### 12.6 Smart QR link on the packing slip (built, R-24)
 The slip's QR contains a short, signed link that opens the right page for whoever scans it.
 
-**The link:** `{APP_URL}/o/CHB123456-{signature}` — the order number + a 128-bit URL-safe signature (HMAC of the order number with `APP_KEY`), so nobody can guess or alter other orders' links. The order number stays printed big next to the QR (and readable inside the link).
+**The link:** `{APP_URL}/order_link.php?code=CHS2610-0001-{signature}` — the order number + a 128-bit URL-safe signature (HMAC with `APP_KEY`). A database version lets staff revoke a QR code or issue a replacement; old signed codes remain valid until revoked. The order number stays printed big next to the QR (and readable inside the link). Legacy order numbers remain valid.
 
 **What it opens**
 | Who scans | Sees |
@@ -856,7 +858,7 @@ The slip's QR contains a short, signed link that opens the right page for whoeve
 4. Printed paper doesn't update: don't put slips on real customers' boxes until `APP_URL` is the real domain.
 5. Later (delivery-agent side, §17 v2): the same QR + a code from the customer confirms delivery — no change to slips printed now.
 
-**Built:** `OrderLink` creates and verifies the signed code; root `.htaccess` maps `o/{code}` to the public landing page; the packing slip QR uses the absolute URL from `APP_URL`. The customer's own website session opens their order. Staff with `orders.view` are redirected to the admin detail page after a same-origin session check. Everyone else sees the order number, status, product names and quantities, and CHIMBO's support contact; no prices, cash amount, customer name, phone or address are included. Invalid links use the same not-found page as unknown orders.
+**Built:** `OrderLink` creates and verifies the signed code; root `.htaccess` maps `o/{code}` to the public landing page; the packing slip QR uses the absolute URL from `APP_URL`. The customer's own website session opens their order. Staff with `orders.view` are redirected to the admin detail page after a same-origin session check. Everyone else sees the order number, status, product names and quantities, and CHIMBO's support contact; no prices, cash amount, customer name, phone or address are included. Invalid, unknown and revoked links share a QR-specific error message, so the page does not reveal which condition occurred.
 
 Testing now: set `APP_URL` to the ngrok address (`https://unusual-handbook-breeding.ngrok-free.dev/chimbo`); ngrok's free plan shows a one-time "Visit site" warning page. Use test orders only until the stable HTTPS domain is configured.
 

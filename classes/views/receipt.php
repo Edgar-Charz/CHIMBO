@@ -2,8 +2,9 @@
 /**
  * Receipt layout (turned into a PDF by Receipt). Simple HTML + CSS that Dompdf supports (tables, no flexbox).
  *
- * @var array $order     from Order::getOrder() / OrderManager::getOrderForAdmin()
- * @var array $customer  user_full_name, user_phone, business_name
+ * @var array $order           from Order::getOrder() / OrderManager::getOrderForAdmin()
+ * @var array $customer        user_full_name, user_phone, business_name
+ * @var array $receipt_details company_address, support_phone, support_whatsapp
  */
 $money = fn (int $amount) => 'TZS ' . number_format($amount);
 $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true);
@@ -13,6 +14,21 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
 <head>
 <meta charset="utf-8">
 <?php require __DIR__ . '/partials/pdf_styles.php'; ?>
+<style>
+    @page { margin: 28px 32px 72px; }
+    .receipt-footer {
+        position: fixed;
+        bottom: -42px;
+        left: 0;
+        right: 0;
+        border-top: 1px solid #ece6db;
+        padding-top: 8px;
+        text-align: center;
+        font-size: 9px;
+        color: #6b7570;
+    }
+    .receipt-footer__details { margin-top: 4px; }
+</style>
 </head>
 <body>
 
@@ -106,7 +122,18 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
     </tr>
 </table>
 
-<div class="footer">
+<div class="receipt-footer">
+    <div class="receipt-footer__details">
+        <?php if (!empty($receipt_details['company_address'])): ?>Anwani: <?= e($receipt_details['company_address']) ?><?php endif; ?>
+        <?php if (!empty($receipt_details['company_address']) && (!empty($receipt_details['support_phone']) || !empty($receipt_details['support_whatsapp']))): ?> · <?php endif; ?>
+        <?php if (!empty($receipt_details['support_phone']) && $receipt_details['support_phone'] === $receipt_details['support_whatsapp']): ?>
+            Simu / WhatsApp: <?= e(Phone::format($receipt_details['support_phone'])) ?>
+        <?php else: ?>
+            <?php if (!empty($receipt_details['support_phone'])): ?>Simu: <?= e(Phone::format($receipt_details['support_phone'])) ?><?php endif; ?>
+            <?php if (!empty($receipt_details['support_phone']) && !empty($receipt_details['support_whatsapp'])): ?> · <?php endif; ?>
+            <?php if (!empty($receipt_details['support_whatsapp'])): ?>WhatsApp: <?= e(Phone::format($receipt_details['support_whatsapp'])) ?><?php endif; ?>
+        <?php endif; ?>
+    </div>
     Asante kwa kununua na CHIMBO — Agiza. Amini. Pokea. Kuza Biashara.<br>
     Risiti hii imetolewa <?= e(localDateTime(gmdate('Y-m-d H:i:s'))) ?>.
 </div>

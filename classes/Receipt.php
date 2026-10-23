@@ -67,11 +67,12 @@ class Receipt
     public function createPackingSlip(int $order_id): array
     {
         $order = (new OrderManager($this->db))->getOrderForAdmin($order_id);
+        $order_link_url = (new OrderLink($this->db))->createUrl($order['order_number']);
 
         return [
             'pdf'       => $this->renderPdf($this->renderHtml('packing_slip', [
                 'order'       => $order,
-                'qr_code_uri' => $this->qrCodeDataUri((new OrderLink($this->db))->createUrl($order['order_number'])),
+                'qr_code_uri' => $order_link_url === null ? null : $this->qrCodeDataUri($order_link_url),
             ])),
             'file_name' => "Kupakia-{$order['order_number']}.pdf",
         ];
@@ -79,8 +80,14 @@ class Receipt
 
     private function createReceipt(array $order, array $customer): array
     {
+        $receipt_details = (new Settings($this->db))->getReceiptBusinessDetails();
+
         return [
-            'pdf'       => $this->renderPdf($this->renderHtml('receipt', ['order' => $order, 'customer' => $customer])),
+            'pdf'       => $this->renderPdf($this->renderHtml('receipt', [
+                'order'           => $order,
+                'customer'        => $customer,
+                'receipt_details' => $receipt_details,
+            ])),
             'file_name' => "Risiti-{$order['order_number']}.pdf",
         ];
     }

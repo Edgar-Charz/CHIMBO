@@ -6,6 +6,9 @@
  */
 
 $default_settings = [
+    // Printed on receipts; leave blank until the official business address is entered in Settings.
+    'company_address'             => '',
+
     // Support contacts shown in "Msaada" and used for "Uliza Muuzaji" (fill in the real numbers)
     'support_phone'               => '+255700000000',
     'support_whatsapp'            => '+255700000000',

@@ -15,6 +15,9 @@ class Settings
     // Everything staff may edit: group title => [setting_key => [label, validation rule]].
     // The form shows them in this order.
     public const EDITABLE = [
+        'Company details' => [
+            'company_address' => ['Company address shown on receipts', 'nullable|string|max:200'],
+        ],
         'Support contacts' => [
             'support_phone'    => ['Support phone', 'required|phone_tz'],
             'support_whatsapp' => ['Support WhatsApp', 'required|phone_tz'],
@@ -149,6 +152,16 @@ class Settings
             'support_whatsapp'     => $whatsapp,
             'support_whatsapp_url' => $whatsapp === '' ? null : 'https://wa.me/' . ltrim($whatsapp, '+'),
             'support_hours'        => $this->get('support_hours'),
+        ];
+    }
+
+    /** Business contact details printed on customer receipts. */
+    public function getReceiptBusinessDetails(): array
+    {
+        return [
+            'company_address'  => $this->get('company_address', ''),
+            'support_phone'    => $this->get('support_phone', ''),
+            'support_whatsapp' => $this->get('support_whatsapp', ''),
         ];
     }
 

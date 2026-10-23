@@ -441,7 +441,8 @@ class OrderManager
             $is_cash = $data['payment_method'] === 'cod';
             $initial_status = $is_cash ? 'confirmed' : 'pending_payment';
             // No order_expires_at on purpose: a phone or walk-in customer may pay in person, so it never expires by itself
-            $order_number = $this->order_model->newOrderNumber();
+            $seller_ids = array_column(array_column($priced_lines, 'product'), 'seller_id');
+            $order_number = $this->order_model->newOrderNumber($seller_ids);
             $order_id = $this->db->insert(
                 'INSERT INTO orders (
                     order_number, user_id, order_channel, order_status, order_payment_method, order_payment_status,

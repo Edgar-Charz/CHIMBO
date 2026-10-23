@@ -12,6 +12,11 @@ class Order
     public const ACTIVE_STATUSES      = ['pending_payment', 'confirmed', 'packed', 'dispatched', 'in_transit'];
     public const CANCELLABLE_STATUSES = ['pending_payment', 'confirmed'];   // customers can cancel until packing starts
     private const PER_PAGE            = 20;
+    private const ORDER_NUMBER_DIGITS = 4;
+    private const SELLER_ORDER_PREFIXES = [
+        'shamba-la-vipodozi' => 'CHS',
+        'mrembo-muuza-urembo' => 'CHM',
+    ];
 
     // What the customer is told when the order reaches each status: [title, body with {number}]
     private const STATUS_MESSAGES = [
@@ -323,6 +328,7 @@ class Order
         $is_cash        = $data['payment_method'] === 'cod';
         $status         = $is_cash ? 'confirmed' : 'pending_payment';
         $expiry_minutes = (new Settings($this->db))->unpaidOrderExpiryMinutes();
+        $seller_ids = $this->sellerIdsForCart($totals['cart']);
 
         // Upcountry transport (R-25): the fee is the region's estimate until staff confirm it; the customer can only
         // pay after that, so there's no time limit yet — and no cash on delivery with a price still to confirm.
@@ -352,7 +358,7 @@ class Order
                 IF(:no_time_limit, NULL, UTC_TIMESTAMP() + INTERVAL :expiry_minutes MINUTE), UTC_TIMESTAMP()
              )',
             [
-                'order_number'         => $this->newOrderNumber(),
+                'order_number'         => $this->newOrderNumber($seller_ids),
                 'user_id'              => $user_id,
                 'order_channel'        => $channel,
                 'order_status'         => $status,
@@ -550,13 +556,112 @@ class Order
         return $order_id === null ? null : (int) $order_id;
     }
 
-    /** A free order number: "CHB" + 6 random digits (not a counter, so it doesn't reveal how many orders exist). */
-    public function newOrderNumber(): string
+    /** Allocates a sequential number for the shop or shops represented by the order. Call inside the order transaction. */
+    public function newOrderNumber(array $seller_ids): string
     {
+        $prefix = $this->orderNumberPrefix($seller_ids);
+        $timezone = new DateTimeZone((string) Env::get('APP_TIMEZONE', 'UTC'));
+        $period = (new DateTimeImmutable('now', $timezone))->format('ym');
+        $this->db->execute(
+            'INSERT INTO order_number_sequences (order_number_prefix, order_number_period, order_number_sequence_value)
+             VALUES (:order_number_prefix, :order_number_period, 0)
+             ON DUPLICATE KEY UPDATE order_number_sequence_value = order_number_sequence_value',
+            ['order_number_prefix' => $prefix, 'order_number_period' => $period]
+        );
+        $sequence = $this->db->fetchValue(
+            'SELECT order_number_sequence_value
+             FROM order_number_sequences
+             WHERE order_number_prefix = :order_number_prefix AND order_number_period = :order_number_period
+             FOR UPDATE',
+            ['order_number_prefix' => $prefix, 'order_number_period' => $period]
+        );
+        if ($sequence === null) {
+            throw new RuntimeException("Missing order-number sequence for {$prefix}.");
+        }
+
         do {
-            $order_number = 'CHB' . str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        } while ($this->db->fetchValue('SELECT 1 FROM orders WHERE order_number = :order_number', ['order_number' => $order_number]));
+            $next_sequence = (int) $sequence + 1;
+            if ($next_sequence > 9999) {
+                throw new RuntimeException("The {$prefix} order-number sequence is full for {$period}.");
+            }
+            $this->db->execute(
+                'UPDATE order_number_sequences
+                 SET order_number_sequence_value = :sequence_value
+                 WHERE order_number_prefix = :order_number_prefix AND order_number_period = :order_number_period',
+                ['sequence_value' => $next_sequence, 'order_number_prefix' => $prefix, 'order_number_period' => $period]
+            );
+            $order_number = $prefix . $period . '-' . str_pad((string) $next_sequence, self::ORDER_NUMBER_DIGITS, '0', STR_PAD_LEFT);
+            $sequence = $next_sequence;
+        } while ($this->db->fetchValue(
+            'SELECT 1 FROM orders WHERE order_number = :order_number',
+            ['order_number' => $order_number]
+        ) !== null);
+
         return $order_number;
+    }
+
+    private function orderNumberPrefix(array $seller_ids): string
+    {
+        $seller_ids = array_values(array_unique(array_filter(array_map('intval', $seller_ids), fn (int $seller_id): bool => $seller_id > 0)));
+        if ($seller_ids === []) {
+            throw new InvalidArgumentException('An order number requires at least one seller.');
+        }
+
+        $seller_slugs = $this->sellerSlugs($seller_ids);
+        if (count($seller_slugs) !== count($seller_ids)) {
+            throw new RuntimeException('Could not identify every seller in the order.');
+        }
+
+        $prefixes = [];
+        foreach ($seller_slugs as $seller) {
+            $prefix = self::SELLER_ORDER_PREFIXES[$seller['seller_slug']] ?? null;
+            if ($prefix === null) {
+                throw new RuntimeException('An order contains a seller without an order-number prefix.');
+            }
+            $prefixes[$prefix] = true;
+        }
+
+        return count($prefixes) === 1 ? (string) array_key_first($prefixes) : 'CHB';
+    }
+
+    private function sellerSlugs(array $seller_ids): array
+    {
+        [$placeholders, $parameters] = $this->namedPlaceholders($seller_ids, 'seller_id_');
+        return $this->db->fetchAll(
+            'SELECT DISTINCT seller_slug
+             FROM sellers
+             WHERE seller_id IN (' . $placeholders . ')',
+            $parameters
+        );
+    }
+
+    private function sellerIdsForCart(array $cart): array
+    {
+        $lines = array_merge([], ...array_column($cart['groups'], 'items'));
+        $product_ids = array_values(array_unique(array_map(
+            fn (array $line): int => (int) $line['product']['product_id'],
+            $lines
+        )));
+        [$placeholders, $parameters] = $this->namedPlaceholders($product_ids, 'product_id_');
+
+        return array_map('intval', array_column($this->db->fetchAll(
+            'SELECT DISTINCT seller_id
+             FROM products
+             WHERE product_id IN (' . $placeholders . ')',
+            $parameters
+        ), 'seller_id'));
+    }
+
+    private function namedPlaceholders(array $values, string $name_prefix): array
+    {
+        $placeholders = [];
+        $parameters = [];
+        foreach (array_values($values) as $index => $value) {
+            $placeholder = $name_prefix . $index;
+            $placeholders[] = ':' . $placeholder;
+            $parameters[$placeholder] = $value;
+        }
+        return [implode(', ', $placeholders), $parameters];
     }
 
     private function orderNumberOf(int $order_id): string

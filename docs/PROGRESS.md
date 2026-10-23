@@ -31,6 +31,26 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-10-23 - Clarify invalid and revoked QR link message
+- Invalid, unknown and revoked order QR links now show a dedicated “QR code si halali” message with instructions to request a replacement or contact CHIMBO, without revealing whether an order exists.
+
+### 2026-10-23 - Add company details to receipt footer
+- Added an optional company address field under Settings → General → Company details. Receipts now place CHIMBO's thank-you message, company address, support phone/WhatsApp and issue time in a reserved footer at the bottom of each PDF page.
+
+### 2026-10-23 - Trust proxy-aware visitor IPs and limit admin login attempts
+- `clientIp()` now uses `X-Forwarded-For` only when the direct peer matches `APP_TRUSTED_PROXIES`; the local `.env` trusts loopback for ngrok, while staging/production require explicit proxy IPs/CIDRs. Forwarded chains are walked from the nearest proxy toward the visitor.
+- Added a shared-IP limit of 30 admin login attempts per 15-minute window, alongside the existing per-account password lockout. Audit log IPs and OTP request IPs now use the resolved visitor address.
+
+### 2026-10-23 - Make admin login lockout concurrency-safe
+- Failed-login counting now locks the admin row and increments inside a transaction. Simultaneous wrong-password attempts can no longer overwrite each other and bypass the five-attempt lockout.
+
+### 2026-10-23 - Add monthly order references and revocable QR links
+- New references use `CHS/CHM/CHB + YYMM + monthly counter` (for example `CHB2610-0001`), allocated under a locked prefix/month row in the order transaction using Tanzania local time. Legacy references remain supported.
+- Added per-order QR-link versions with admin controls to revoke the active code or issue a replacement. Existing signed QR codes remain valid until explicitly revoked; replacement slips use a new signature.
+
+### 2026-10-23 - Add sequential shop-based order numbers
+- New orders use sequential `CHS`, `CHM` or `CHB` numbers based on the sellers in their line items. Per-prefix InnoDB counters are incremented under the order transaction; if a new number overlaps a legacy random `CHB` number, the allocator advances past that occupied number. Signed QR links accept all three prefixes and continue to accept old `CHB` numbers.
+
 ### 2026-10-21 - Schedule local push queue delivery
 - Configured Windows Task Scheduler to run `cron/send_push_notifications.php` every minute while the local Windows account is logged in. Broadcast push jobs now process automatically; failures remain available for admin retry. Production hosting still needs its own cron schedule.
 

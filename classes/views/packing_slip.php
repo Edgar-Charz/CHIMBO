@@ -4,7 +4,7 @@
  * No prices — except the cash the delivery agent must collect for a cash-on-delivery order.
  *
  * @var array  $order        from OrderManager::getOrderForAdmin() (includes 'customer')
- * @var string $qr_code_uri  the signed order URL as a QR code (PNG data URI)
+ * @var string|null $qr_code_uri  the active signed order URL as a QR code (PNG data URI)
  */
 $address        = $order['address'];
 $items          = $order['items'];
@@ -43,8 +43,12 @@ $cash_to_collect = $order['order_payment_method'] === 'cod' && $order['order_pay
             </div>
         </td>
         <td class="right" style="width: 130px;">
-            <img src="<?= e($qr_code_uri) ?>" alt="" style="width: 120px; height: 120px;">
-            <div class="muted">Changanua kufuatilia oda</div>
+            <?php if ($qr_code_uri !== null): ?>
+                <img src="<?= e($qr_code_uri) ?>" alt="" style="width: 120px; height: 120px;">
+                <div class="muted">Changanua kufuatilia oda</div>
+            <?php else: ?>
+                <div class="muted">Kiungo cha QR kimesitishwa</div>
+            <?php endif; ?>
         </td>
     </tr>
 </table>

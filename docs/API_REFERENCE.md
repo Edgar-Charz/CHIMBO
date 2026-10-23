@@ -221,13 +221,14 @@ Address: `{address_id, address_recipient_name, address_phone, region_id, region_
 - `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` → `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, discount_total, grand_total, delivery_days_min, delivery_days_max}` (with `delivery_fee_needs_confirmation` true, label the totals "Usafiri (makadirio)" / "Jumla (makadirio)"). Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
 
 ## Orders — Oda · 🔒 all
+New order numbers are sequential within each shop prefix and Tanzania calendar month: for example, `CHS2610-0001` for Shamba la Vipodozi, `CHM2610-0001` for Mrembo Muuza Urembo, and `CHB2610-0001` for an order containing both shops. The four-digit counter resets each month; existing order numbers remain valid.
 | Method | Path | Body / returns |
 |---|---|---|
 | POST | `/orders` | "Thibitisha Oda": `{"address_id", "delivery_method_id", "payment_method", "expected_total", "order_customer_note"}` + header **`Idempotency-Key: <random 8–64 chars, one per checkout>`** → the order (201). Turns the cart into an order and empties the cart. |
 | GET | `/orders?group=active\|delivered\|all&page=1` | "Oda Zangu" (paginated, newest first). `active` = Zinazoendelea, `delivered` = Zimefika |
 | GET | `/orders/{id}` (also `/orders/{id}/tracking`) | the order with items, `events` (timeline) and `delivery_agent` |
 | POST | `/orders/{id}/cancel` | `{"order_cancel_reason"}` (optional) → the order. Only while `can_cancel` is true (before packing). |
-| GET | `/orders/{id}/receipt` | "Pakua Risiti": the receipt as a **PDF file** (`Content-Type: application/pdf`, file name `Risiti-CHB123456.pdf`) — download and open/share it. Own orders only (404 otherwise). |
+| GET | `/orders/{id}/receipt` | "Pakua Risiti": the receipt as a **PDF file** (`Content-Type: application/pdf`, file name `Risiti-{order_number}.pdf`) — download and open/share it. Own orders only (404 otherwise). |
 | POST | `/orders/{id}/payment` | **"Nimelipa"**: `{"payment_payer_account": "0712345678", "payment_reference": "QJK3X7ABC1"}` → the order. Only while `payment.can_submit_payment` is true. For `bank`, `payment_payer_account` is the account / name paid from. |
 | POST | `/orders/{id}/payment-method` | **"Badilisha njia ya malipo"**: `{"payment_method": "airtel_money"}` → the order. Only while `payment.can_change_payment_method` is true. To `cod`: same cash limit as checkout, and the order becomes `confirmed` / `cod_pending` at once. The time to pay does not restart. |
 | POST | `/orders/{id}/reorder` | "Agiza Tena" → the cart + `skipped_items` (current prices; unavailable items skipped) |

@@ -43,7 +43,7 @@ if ($order_reference !== null) {
 
 header('Cache-Control: private, no-store');
 $page = [
-    'title' => $rate_limited ? 'Subiri kidogo' : ($order_reference === null ? 'Oda haipatikani' : 'Taarifa za oda'),
+    'title' => $rate_limited ? 'Subiri kidogo' : ($order_reference === null ? 'QR code si halali' : 'Taarifa za oda'),
     'nav' => '',
     'scripts' => $order_reference === null || $rate_limited ? [] : ['order-link.js'],
 ];
@@ -58,8 +58,8 @@ require __DIR__ . '/includes/header.php';
         </div>
     <?php elseif ($order_reference === null) : ?>
         <div class="state-block">
-            <h1 class="state-block__title">Oda haipatikani</h1>
-            <p class="state-block__text">Kiungo hiki si sahihi au oda haipatikani tena.</p>
+            <h1 class="state-block__title">QR code si halali</h1>
+            <p class="state-block__text">Msimbo huu wa QR si sahihi au umesitishwa. Tafadhali omba kiungo kipya kutoka CHIMBO au wasiliana nasi kwa msaada.</p>
             <a class="btn btn-outline-primary" href="<?= e(url('help.php')) ?>">Wasiliana na CHIMBO</a>
         </div>
     <?php else : ?>

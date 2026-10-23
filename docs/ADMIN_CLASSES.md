@@ -84,13 +84,13 @@ Fields: `banner_title`*, `banner_subtitle`, `banner_button_label`, `banner_targe
 | `getOrderForAdmin($id)` | the full order (same shape as the API: items, `events` timeline, `delivery_agent`, address copy) + `customer`, `delivery`, **`allowed_next_statuses`**, **`can_confirm_cash`** · 404 |
 | `changeStatus($id, $input, $admin_id)` | `order_status`* (one of `allowed_next_statuses`), `status_note`, `delivery_agent_id` (**required for `dispatched`**). Cancelling returns the stock. The customer is notified. Wrong step → 409 `STATUS_CHANGE_NOT_ALLOWED` |
 | `confirmCashCollected($id, $input, $admin_id)` | cash on delivery, after `delivered`: `delivery_cash_collected`* must equal the order total → payment becomes `paid` |
-`getManualOrderOptions()`, `createManualCustomer($input, $admin_id)`, `createManualOrder($input, $admin_id)` → order id: an order taken by phone or in person (same order number format, timeline, notification, stock reservation and COD limit as app orders — they come from the shared `Order` helpers).
+`getManualOrderOptions()`, `createManualCustomer($input, $admin_id)`, `createManualOrder($input, $admin_id)` → order id: an order taken by phone or in person (same shop-based sequential order number, timeline, notification, stock reservation and COD limit as app orders — they come from the shared `Order` helpers).
 Payment status `cancelled` = a cancelled/expired order that owed nothing more (shown instead of `cod_pending`).
 
 Constant `OrderManager::ALLOWED_TRANSITIONS` = the allowed steps (confirmed → packed → dispatched → in_transit → delivered; cancel before dispatch).
 
 ## Receipts — `new Receipt($db)`
-`createReceiptForAdmin($order_id)` → `['pdf' => bytes, 'file_name' => 'Risiti-CHB123456.pdf']` for a "Print receipt" button, e.g.
+`createReceiptForAdmin($order_id)` → `['pdf' => bytes, 'file_name' => 'Risiti-{order_number}.pdf']` for a "Print receipt" button, e.g.
 `header('Content-Type: application/pdf'); header('Content-Disposition: inline; filename="' . $receipt['file_name'] . '"'); echo $receipt['pdf'];`
 Constants for labels: `Receipt::ORDER_STATUS_NAMES`, `PAYMENT_METHOD_NAMES`, `PAYMENT_STATUS_NAMES` (Kiswahili).
 
@@ -139,7 +139,7 @@ Cancelled and expired orders are left out (only counted in `cancelled_count`). M
 ### `Settings` + `DeliveryMethod` — page `settings.php` · `settings.manage`
 | Method | Use |
 |---|---|
-| `Settings::getEditableSettings()` | `[group title => [[setting_key, label, setting_value], …]]` — build the form from this (`legal_terms` / `legal_privacy` use the safe rich-text editor, the rest are inputs) |
+| `Settings::getEditableSettings()` | `[group title => [[setting_key, label, setting_value], …]]` — build the form from this (`legal_terms` / `legal_privacy` use the safe rich-text editor, the rest are inputs); General includes the company address printed on receipts |
 | `Settings::updateSettings($_POST, $admin_id)` | send **every** field of the form; only changed values are saved; field errors are keyed by `setting_key` |
 | `DeliveryMethod::listForAdmin()` | delivery options with `region_name` (null = all regions), fee, days, `delivery_method_is_active`, sort order |
 | `DeliveryMethod::getMethodById($id)` / `createMethod($_POST, $admin_id)` / `updateMethod($id, $_POST, $admin_id)` | fields `delivery_method_name, delivery_method_fee, delivery_method_eta_min_days, delivery_method_eta_max_days, region_id` (empty = every region), `delivery_method_is_active` (checkbox), `delivery_method_sort_order`. Fee changes affect new checkouts only |
@@ -308,6 +308,7 @@ Built: Settings → **Logo & pictures** (the tab was "App pictures"): Logo card 
 |---|---|
 | `DeliveryMethod` Price `paid_to_rider` · switch `delivery_method_is_pickup` | "Customer pays the rider (not CHIMBO)" — never in the total; "Pickup at the shop" — collected, never sent |
 | `Settings::getPickupPoint()` | `{pickup_address, pickup_hours}` (Settings → General → Pickup point) |
+| `Settings::getReceiptBusinessDetails()` | `{company_address, support_phone, support_whatsapp}` printed in the receipt footer; company address is managed in Settings → General → Company details |
 | `OrderManager::allowedNextStatuses($status, $is_pickup)` | a pickup order goes packed → delivered (or cancelled); never dispatched |
 | `Order::deliveryFeeWords($order)` | "Unamlipa dereva" / "Unachukua dukani" / null — receipts, slips, website |
 | `adminStatusName($status, $is_pickup)` / `adminStatusBadge(…)` / `adminDeliveryFee($order)` | admin words: "Ready for pickup", "Picked up", "Paid to the rider", "Pickup at the shop" |
@@ -332,7 +333,7 @@ Built on index.php: a "Sales" row (revenue only for `reports.view`), the existin
 Built: admin/order_packing_slip.php (opens in the browser), "Packing slip" button on the order page and in the Orders list.
 QR codes are drawn locally by `chillerlan/php-qrcode` (Composer); nothing is sent to any website. Templates: `classes/views/packing_slip.php`, shared styles `classes/views/partials/pdf_styles.php`.
 
-`OrderLink::createUrl($order_number)` signs the order number with `APP_KEY` and builds an absolute `/o/{code}` URL from `APP_URL`. `findOrderForCode($code)` verifies the signature before querying; `getPublicItems($code)` returns only snapshotted product names, quantities and unit labels. The public page exposes no prices, cash amount, customer name, phone or address; staff access is checked separately under `/admin/` so the admin session cookie remains path-scoped.
+`OrderLink::createUrl($order_number)` signs the order reference with `APP_KEY` and builds an absolute URL from `APP_URL`. QR links have a database-backed version and can be revoked or reissued from order details by staff with `orders.manage`; reissuing changes the signature, so previously printed codes stay invalid. `findOrderForCode($code)` checks the active version before returning order data; `getPublicItems($code)` returns only snapshotted product names, quantities and unit labels. The public page exposes no prices, cash amount, customer name, phone or address; staff access is checked separately under `/admin/` so the admin session cookie remains path-scoped.
 
 ## Staff notifications (the bell) — `AdminNotification` — added 2026-10-09
 

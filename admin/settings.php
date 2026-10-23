@@ -11,7 +11,7 @@ $site_logo             = new SiteLogo($database);
 
 // One tab per subject. A tab with settings lists its groups from Settings::EDITABLE; its form saves only those.
 $tabs = [
-    'general'  => ['General',            'bi-sliders',       ['Support contacts', 'Pickup point', 'Legal texts (Kiswahili)']],
+    'general'  => ['General',            'bi-sliders',       ['Company details', 'Support contacts', 'Pickup point', 'Legal texts (Kiswahili)']],
     'orders'   => ['Orders & payments',  'bi-receipt',       ['Orders']],
     'delivery' => ['Delivery',           'bi-truck',         []],
     'login'    => ['Login (SMS)',        'bi-shield-lock',   ['Login codes (SMS)']],

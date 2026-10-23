@@ -5,6 +5,7 @@ $current_admin       = AdminSession::requireLogin('orders.view');
 $admin_id            = (int) $current_admin['admin_id'];
 $database            = Database::instance();
 $order_manager       = new OrderManager($database);
+$order_link_manager  = new OrderLink($database);
 $can_change_status   = Admin::can($current_admin, 'orders.manage');
 $can_confirm_cash    = Admin::can($current_admin, 'payments.confirm_cash');
 $can_manage_payments = Admin::can($current_admin, 'payments.manage');   // review, record, refunds
@@ -41,8 +42,29 @@ if (parse_url($requested_return_to, PHP_URL_PATH) === 'orders.php'
 // Each action checks its own permission: Finance may view orders but not move them
 $is_pickup = $order['delivery_method']['delivery_method_is_pickup'];   // collected at the shop (R-26)
 
-$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database, $is_pickup, $return_to): void {
+$form_error = adminHandleForm(function (string $form_action) use ($order_manager, $order_link_manager, $order_id, $admin_id, $can_change_status, $can_confirm_cash, $can_manage_payments, $database, $is_pickup, $return_to): void {
     $order_page = url('admin/order_details.php?' . http_build_query(['id' => $order_id, 'return_to' => $return_to]));
+
+    if (in_array($form_action, ['revoke_qr_link', 'issue_qr_link'], true)) {
+        if (!$can_change_status) {
+            throw ApiException::forbidden('Your role cannot manage order QR links.');
+        }
+
+        $previous_state = $order_link_manager->getAdminStatus($order_id);
+        if ($form_action === 'revoke_qr_link') {
+            $order_link_manager->revoke($order_id);
+            (new AuditLog($database))->record('admin', $admin_id, 'order.qr_link_revoked', 'order', $order_id,
+                ['is_active' => true, 'version' => $previous_state['version']], ['is_active' => false]);
+            Session::flash('success', 'QR link revoked. All copies of its current code are now invalid.');
+        } else {
+            $order_link_manager->issueReplacement($order_id);
+            (new AuditLog($database))->record('admin', $admin_id, 'order.qr_link_reissued', 'order', $order_id,
+                ['is_active' => $previous_state['is_active'], 'version' => $previous_state['version']],
+                ['is_active' => true, 'version' => $previous_state['version'] + 1]);
+            Session::flash('success', 'A replacement QR link is ready. Print a new packing slip to get its QR code.');
+        }
+        redirect($order_page);
+    }
 
     // Payment actions (the classes notify the customer). Reject and refund come from dialogs, so their errors are flashed.
     if ($can_manage_payments && in_array($form_action, ['confirm_payment', 'reject_payment', 'mark_refunded'], true)) {
@@ -109,6 +131,7 @@ $staff_notes  = $order_editor->getStaffNotes($order_id);
 $refund_amount   = $order['payment']['refund_due'] > 0 ? $order['payment']['refund_due']
     : (in_array($order['order_status'], ['cancelled', 'expired'], true) && $order['order_payment_status'] === 'paid' ? $order['payment']['amount_paid'] : 0);
 $refund_is_due   = $can_manage_payments && $refund_amount > 0;
+$order_qr_status = $order_link_manager->getAdminStatus($order_id);
 
 $page_title  = 'Order ' . $order['order_number'];
 $active_menu = 'orders';
@@ -140,6 +163,36 @@ require __DIR__ . '/includes/header.php';
                 <a class="btn btn-chimbo ms-2" href="<?= e(url('admin/order_edit.php?id=' . $order['order_id'])) ?>"><i class="bi bi-pencil"></i> Edit order</a>
             <?php endif; ?>
         </div>
+    </div>
+</div>
+
+<div class="admin-panel mb-3">
+    <div class="admin-panel-body d-flex flex-wrap align-items-center gap-3">
+        <div class="flex-grow-1">
+            <strong>Order QR link</strong>
+            <span class="badge <?= $order_qr_status['is_active'] ? 'text-bg-success' : 'text-bg-secondary' ?> ms-2">
+                <?= $order_qr_status['is_active'] ? 'Active' : 'Revoked' ?>
+            </span>
+            <div class="small text-muted mt-1">
+                <?= $order_qr_status['is_active']
+                    ? 'Revoking disables every copy of the current QR code.'
+                    : 'The old QR code is invalid. Issue a replacement, then print a new packing slip.' ?>
+            </div>
+        </div>
+        <?php if ($can_change_status): ?>
+            <form method="post" class="m-0">
+                <?= Csrf::field() ?>
+                <?php if ($order_qr_status['is_active']): ?>
+                    <button class="btn btn-outline-danger" type="submit" name="form_action" value="revoke_qr_link">
+                        <i class="bi bi-x-circle"></i> Revoke QR link
+                    </button>
+                <?php else: ?>
+                    <button class="btn btn-chimbo" type="submit" name="form_action" value="issue_qr_link">
+                        <i class="bi bi-arrow-repeat"></i> Issue replacement QR
+                    </button>
+                <?php endif; ?>
+            </form>
+        <?php endif; ?>
     </div>
 </div>
 

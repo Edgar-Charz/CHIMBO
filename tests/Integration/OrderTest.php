@@ -53,7 +53,7 @@ final class OrderTest extends TestCase
     {
         $order = $this->placeOrder([self::VASELINE => 8, self::NECKLACE => 6]);
 
-        $this->assertMatchesRegularExpression('/^CHB\d{6}$/', $order['order_number']);
+        $this->assertMatchesRegularExpression('/^CHB\d{4}-\d{4}$/', $order['order_number']);
         $this->assertSame('confirmed', $order['order_status']);          // cash on delivery starts confirmed
         $this->assertSame('cod_pending', $order['order_payment_status']);
         $this->assertSame(8 * 5000 + 6 * 8500, $order['order_total']);   // Bolt in Dar: transport paid to the rider
@@ -219,7 +219,7 @@ final class OrderTest extends TestCase
         ], self::ADMIN_ID);
 
         $order = $this->order_manager->getOrderForAdmin($order_id);
-        $this->assertMatchesRegularExpression('/^CHB\d{6}$/', $order['order_number']);
+        $this->assertMatchesRegularExpression('/^CHS\d{4}-\d{4}$/', $order['order_number']);
         $this->assertSame('confirmed', $order['order_status']);
         $this->assertSame(8 * 5000, $order['order_total']);
         $this->assertSame(['confirmed'], array_column($order['events'], 'order_status'));
