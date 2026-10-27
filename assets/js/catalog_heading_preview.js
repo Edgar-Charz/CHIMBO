@@ -23,7 +23,7 @@
     const addButton = modalElement.querySelector('[data-preview-add-to-cart]');
     const addLabel = modalElement.querySelector('[data-preview-add-label]');
     const favorite = modalElement.querySelector('[data-preview-favorite]');
-    const media = modalElement.querySelector('.catalog-preview__media');
+    const media = modalElement.querySelector('.catalog-preview-media');
     const galleryControls = modalElement.querySelector('[data-preview-gallery-controls]');
     const dots = modalElement.querySelector('[data-preview-dots]');
     const previousButton = modalElement.querySelector('[data-preview-previous]');
@@ -132,7 +132,7 @@
         galleryControls.hidden = galleryImages.length < 2;
         dots.replaceChildren(...galleryImages.map((imageUrl, index) => {
             const dot = window.CHIMBO.el('button', {
-                className: `catalog-preview__dot${index === currentPhotoIndex ? ' is-active' : ''}`,
+                className: `catalog-preview-dot${index === currentPhotoIndex ? ' is-active' : ''}`,
                 attrs: {
                     type: 'button',
                     'aria-label': `Picha ${index + 1} kati ya ${galleryImages.length}`,
@@ -150,7 +150,7 @@
         if (galleryImages.length < 2) return;
         currentPhotoIndex = (index + galleryImages.length) % galleryImages.length;
         image.src = imageUrlForScreen(galleryImages[currentPhotoIndex]);
-        dots.querySelectorAll('.catalog-preview__dot').forEach((dot, dotIndex) => {
+        dots.querySelectorAll('.catalog-preview-dot').forEach((dot, dotIndex) => {
             const isActive = dotIndex === currentPhotoIndex;
             dot.classList.toggle('is-active', isActive);
             dot.setAttribute('aria-pressed', String(isActive));

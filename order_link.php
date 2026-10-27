@@ -53,13 +53,13 @@ require __DIR__ . '/includes/header.php';
 <section class="container-xl py-5">
     <?php if ($rate_limited) : ?>
         <div class="state-block">
-            <h1 class="state-block__title">Subiri kidogo</h1>
-            <p class="state-block__text">Kumekuwa na maombi mengi. Tafadhali jaribu tena baada ya muda.</p>
+            <h1 class="state-block-title">Subiri kidogo</h1>
+            <p class="state-block-text">Kumekuwa na maombi mengi. Tafadhali jaribu tena baada ya muda.</p>
         </div>
     <?php elseif ($order_reference === null) : ?>
         <div class="state-block">
-            <h1 class="state-block__title">QR code si halali</h1>
-            <p class="state-block__text">Msimbo huu wa QR si sahihi au umesitishwa. Tafadhali omba kiungo kipya kutoka CHIMBO au wasiliana nasi kwa msaada.</p>
+            <h1 class="state-block-title">QR code si halali</h1>
+            <p class="state-block-text">Msimbo huu wa QR si sahihi au umesitishwa. Tafadhali omba kiungo kipya kutoka CHIMBO au wasiliana nasi kwa msaada.</p>
             <a class="btn btn-outline-primary" href="<?= e(url('help.php')) ?>">Wasiliana na CHIMBO</a>
         </div>
     <?php else : ?>

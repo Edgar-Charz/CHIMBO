@@ -126,7 +126,7 @@
   // would otherwise create a plain menu first.
   const MENU_EDGE_GAP = 8; // px kept free between the menu and the screen edge
   const prepareRowMenu = (event) => {
-    const toggle = event.target.closest?.('.row-actions__toggle');
+    const toggle = event.target.closest?.('.row-actions-toggle');
     if (!toggle || typeof bootstrap === 'undefined' || bootstrap.Dropdown.getInstance(toggle)) {
       return;
     }
@@ -148,7 +148,7 @@
 
   // A fixed menu would stay put while the page scrolls under it: close open row menus when scrolling
   window.addEventListener('scroll', () => {
-    document.querySelectorAll('.row-actions__toggle[aria-expanded="true"]').forEach((toggle) => {
+    document.querySelectorAll('.row-actions-toggle[aria-expanded="true"]').forEach((toggle) => {
       bootstrap.Dropdown.getInstance(toggle)?.hide();
     });
   }, { passive: true, capture: true });
@@ -227,7 +227,7 @@
   if (global_search) {
     const form = global_search.querySelector('[data-global-search-form]');
     const input = form.elements.q;
-    const results_panel = global_search.querySelector('.admin-global-search__results');
+    const results_panel = global_search.querySelector('.admin-global-search-results');
     let search_timer;
     let current_request;
     let latest_search = '';
@@ -235,7 +235,7 @@
     const showMessage = (message) => {
       results_panel.replaceChildren();
       const paragraph = document.createElement('p');
-      paragraph.className = 'admin-global-search__message';
+      paragraph.className = 'admin-global-search-message';
       paragraph.textContent = message;
       results_panel.append(paragraph);
       results_panel.hidden = false;
@@ -251,12 +251,12 @@
 
       groups.forEach((group) => {
         const section = document.createElement('section');
-        section.className = 'admin-global-search__group';
+        section.className = 'admin-global-search-group';
         section.setAttribute('role', 'group');
         section.setAttribute('aria-label', group.label);
 
         const heading = document.createElement('h2');
-        heading.className = 'admin-global-search__heading';
+        heading.className = 'admin-global-search-heading';
         const icon = document.createElement('i');
         icon.className = `bi ${group.icon}`;
         icon.setAttribute('aria-hidden', 'true');
@@ -265,7 +265,7 @@
 
         group.items.forEach((item) => {
           const link = document.createElement('a');
-          link.className = 'admin-global-search__result';
+          link.className = 'admin-global-search-result';
           link.href = item.url;
           link.setAttribute('role', 'option');
 
@@ -366,7 +366,7 @@
     if (!button) {
       return;
     }
-    const text = button.closest('.notification-item__body');
+    const text = button.closest('.notification-item-body');
     text.querySelector('[data-short-text]').hidden = true;
     text.querySelector('[data-full-text]').hidden = false;
     button.remove();

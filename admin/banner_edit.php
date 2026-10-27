@@ -40,9 +40,9 @@ $errors = $form_error?->fields() ?? [];
 $form   = adminFormValues($form_error, $saved_values);
 
 $target_types = [
-    'category'   => 'A category — enter its id',
-    'product'    => 'A product — enter its id',
-    'collection' => 'A collection — deals, new, best_sellers or offers',
+    'category'   => 'A category â€” enter its id',
+    'product'    => 'A product â€” enter its id',
+    'collection' => 'A collection â€” deals, new, best_sellers or offers',
     'url'        => 'A web address',
 ];
 
@@ -61,24 +61,46 @@ require __DIR__ . '/includes/header.php';
             <?= Csrf::field() ?>
             <div class="admin-panel-header"><h2 class="admin-panel-title">Banner</h2></div>
             <div class="admin-panel-body">
-                <div class="mb-3">
-                    <label class="form-label" for="banner_title">Title</label>
-                    <input class="form-control<?= adminInvalidClass($errors, 'banner_title') ?>" id="banner_title" name="banner_title"
-                           value="<?= e($form['banner_title'] ?? '') ?>" maxlength="100" placeholder="e.g. BEI ZA JUMLA" required>
-                    <?= adminFieldError($errors, 'banner_title') ?>
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_title">Title (Kiswahili)</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_title') ?>" id="banner_title" name="banner_title"
+                               value="<?= e($form['banner_title'] ?? '') ?>" maxlength="100" placeholder="e.g. BEI ZA JUMLA" required>
+                        <?= adminFieldError($errors, 'banner_title') ?>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_title_en">Title (English)</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_title_en') ?>" id="banner_title_en" name="banner_title_en"
+                               value="<?= e($form['banner_title_en'] ?? '') ?>" maxlength="100" placeholder="e.g. WHOLESALE PRICES" required>
+                        <?= adminFieldError($errors, 'banner_title_en') ?>
+                    </div>
                 </div>
                 <div class="row g-3 mb-3">
-                    <div class="col-sm-8">
-                        <label class="form-label" for="banner_subtitle">Subtitle <span class="text-muted">(optional)</span></label>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_subtitle">Subtitle (Kiswahili) <span class="text-muted">(optional)</span></label>
                         <input class="form-control<?= adminInvalidClass($errors, 'banner_subtitle') ?>" id="banner_subtitle" name="banner_subtitle"
                                value="<?= e($form['banner_subtitle'] ?? '') ?>" maxlength="160">
                         <?= adminFieldError($errors, 'banner_subtitle') ?>
                     </div>
-                    <div class="col-sm-4">
-                        <label class="form-label" for="banner_button_label">Button text</label>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_subtitle_en">Subtitle (English) <span class="text-muted">(optional)</span></label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_subtitle_en') ?>" id="banner_subtitle_en" name="banner_subtitle_en"
+                               value="<?= e($form['banner_subtitle_en'] ?? '') ?>" maxlength="160">
+                        <?= adminFieldError($errors, 'banner_subtitle_en') ?>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_button_label">Button text (Kiswahili) <span class="text-muted">(optional)</span></label>
                         <input class="form-control<?= adminInvalidClass($errors, 'banner_button_label') ?>" id="banner_button_label" name="banner_button_label"
                                value="<?= e($form['banner_button_label'] ?? '') ?>" maxlength="40" placeholder="e.g. Nunua Sasa">
                         <?= adminFieldError($errors, 'banner_button_label') ?>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="form-label" for="banner_button_label_en">Button text (English) <span class="text-muted">(optional)</span></label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_button_label_en') ?>" id="banner_button_label_en" name="banner_button_label_en"
+                               value="<?= e($form['banner_button_label_en'] ?? '') ?>" maxlength="40" placeholder="e.g. Shop Now">
+                        <?= adminFieldError($errors, 'banner_button_label_en') ?>
                     </div>
                 </div>
 
@@ -96,7 +118,7 @@ require __DIR__ . '/includes/header.php';
                     <div class="col-sm-6">
                         <label class="form-label" for="banner_target_value">Target</label>
                         <input class="form-control<?= adminInvalidClass($errors, 'banner_target_value') ?>" id="banner_target_value" name="banner_target_value"
-                               value="<?= e($form['banner_target_value'] ?? '') ?>" maxlength="255" placeholder="e.g. 3, deals or https://…">
+                               value="<?= e($form['banner_target_value'] ?? '') ?>" maxlength="255" placeholder="e.g. 3, deals or https://â€¦">
                         <?= adminFieldError($errors, 'banner_target_value') ?>
                     </div>
                 </div>

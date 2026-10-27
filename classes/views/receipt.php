@@ -27,7 +27,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
         font-size: 9px;
         color: #6b7570;
     }
-    .receipt-footer__details { margin-top: 4px; }
+    .receipt-footer-details { margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -123,7 +123,7 @@ $is_cancelled = in_array($order['order_status'], ['cancelled', 'expired'], true)
 </table>
 
 <div class="receipt-footer">
-    <div class="receipt-footer__details">
+    <div class="receipt-footer-details">
         <?php if (!empty($receipt_details['company_address'])): ?>Anwani: <?= e($receipt_details['company_address']) ?><?php endif; ?>
         <?php if (!empty($receipt_details['company_address']) && (!empty($receipt_details['support_phone']) || !empty($receipt_details['support_whatsapp']))): ?> · <?php endif; ?>
         <?php if (!empty($receipt_details['support_phone']) && $receipt_details['support_phone'] === $receipt_details['support_whatsapp']): ?>

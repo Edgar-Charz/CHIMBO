@@ -30,13 +30,13 @@
 
     function renderAddButton(product) {
         if (!product.product_in_stock) {
-            return el('span', { className: 'product-card__sold-out', text: 'Imeisha' });
+            return el('span', { className: 'product-card-sold-out', text: 'Imeisha' });
         }
 
         const button = el('button', {
-            className: 'product-card__add',
+            className: 'product-card-add',
             attrs: { type: 'button', 'aria-label': `Ongeza ${product.product_name} kikapuni (pcs ${product.product_moq})` },
-        }, [icon('plus-lg'), el('span', { className: 'product-card__add-label', text: 'Ongeza kikapuni' })]);
+        }, [icon('plus-lg'), el('span', { className: 'product-card-add-label', text: 'Ongeza kikapuni' })]);
 
         button.addEventListener('click', async () => {
             setLoading(button, true);
@@ -63,17 +63,17 @@
     /** Button when the product isn't in the cart, stepper when it is. */
     function renderAction(product) {
         const quantity = CHIMBO.cart.quantityOf(product.product_id);
-        return el('div', { className: `product-card__action${quantity > 0 ? ' is-in-cart' : ''}` }, [
+        return el('div', { className: `product-card-action${quantity > 0 ? ' is-in-cart' : ''}` }, [
             quantity > 0 ? renderStepper(product, quantity) : renderAddButton(product),
         ]);
     }
 
     function renderPrice(product) {
         const hasOffer = product.product_compare_at_price > product.product_price;
-        return el('p', { className: 'product-card__price' }, [
+        return el('p', { className: 'product-card-price' }, [
             el('strong', { text: formatTzs(product.product_price) }),
-            el('span', { className: 'product-card__unit', text: `/ ${product.product_unit_label}` }),
-            hasOffer ? el('del', { className: 'product-card__compare', text: formatTzs(product.product_compare_at_price) }) : null,
+            el('span', { className: 'product-card-unit', text: `/ ${product.product_unit_label}` }),
+            hasOffer ? el('del', { className: 'product-card-compare', text: formatTzs(product.product_compare_at_price) }) : null,
         ]);
     }
 
@@ -81,23 +81,23 @@
         const link = productUrl(product);
         const badge = badgeText(product);
         const card = el('article', { className: 'product-card', dataset: { productId: product.product_id } }, [
-            el('div', { className: 'product-card__media' }, [
-                el('a', { className: 'product-card__image-link', attrs: { href: link, tabindex: '-1', 'aria-hidden': 'true' } }, [
-                    productImage(product.product_image_url, product.product_name, 'product-card__image'),
+            el('div', { className: 'product-card-media' }, [
+                el('a', { className: 'product-card-image-link', attrs: { href: link, tabindex: '-1', 'aria-hidden': 'true' } }, [
+                    productImage(product.product_image_url, product.product_name, 'product-card-image'),
                 ]),
-                badge ? el('span', { className: `product-card__badge product-card__badge--${product.product_badge}`, text: badge }) : null,
+                badge ? el('span', { className: `product-card-badge product-card-badge--${product.product_badge}`, text: badge }) : null,
                 CHIMBO.wishlist.heartButton(product),
                 renderAction(product),
             ]),
-            el('div', { className: 'product-card__body' }, [
-                el('p', { className: 'product-card__seller' }, [
+            el('div', { className: 'product-card-body' }, [
+                el('p', { className: 'product-card-seller' }, [
                     product.seller_name,
-                    product.seller_is_verified ? icon('patch-check-fill', 'product-card__verified') : null,
+                    product.seller_is_verified ? icon('patch-check-fill', 'product-card-verified') : null,
                 ]),
-                el('a', { className: 'product-card__name', text: product.product_name, attrs: { href: link } }),
+                el('a', { className: 'product-card-name', text: product.product_name, attrs: { href: link } }),
                 renderPrice(product),
-                product.product_offer ? CHIMBO.offerCountdown(product.product_offer.product_offer_ends_at, product.product_id, 'product-card__countdown') : null,
-                el('p', { className: 'product-card__moq', text: `MOQ ${CHIMBO.formatPieces(product.product_moq)}` }),
+                product.product_offer ? CHIMBO.offerCountdown(product.product_offer.product_offer_ends_at, product.product_id, 'product-card-countdown') : null,
+                el('p', { className: 'product-card-moq', text: `MOQ ${CHIMBO.formatPieces(product.product_moq)}` }),
             ]),
         ]);
         productsByCard.set(card, product);
@@ -105,8 +105,8 @@
     }
 
     const renderSkeletons = (count) => Array.from({ length: count }, () => el('div', { className: 'product-card product-card--skeleton', attrs: { 'aria-hidden': 'true' } }, [
-        skeleton('product-card__media'),
-        el('div', { className: 'product-card__body' }, [skeleton('skeleton--text'), skeleton('skeleton--text'), skeleton('skeleton--text skeleton--short')]),
+        skeleton('product-card-media'),
+        el('div', { className: 'product-card-body' }, [skeleton('skeleton--text'), skeleton('skeleton--text'), skeleton('skeleton--text skeleton--short')]),
     ]));
 
     /** Redraws the add button / stepper of every card whose cart quantity changed. */
@@ -114,12 +114,12 @@
         document.querySelectorAll('.product-card[data-product-id]').forEach((card) => {
             if (!productsByCard.has(card)) return;
             const product = productsByCard.get(card);
-            const shownAsInCart = card.querySelector('.product-card__action').classList.contains('is-in-cart');
-            const stepperInput = card.querySelector('.quantity-stepper__input');
+            const shownAsInCart = card.querySelector('.product-card-action').classList.contains('is-in-cart');
+            const stepperInput = card.querySelector('.quantity-stepper-input');
             const quantity = CHIMBO.cart.quantityOf(product.product_id);
 
             if (shownAsInCart !== quantity > 0 || (stepperInput && Number(stepperInput.value) !== quantity)) {
-                card.querySelector('.product-card__action').replaceWith(renderAction(product));
+                card.querySelector('.product-card-action').replaceWith(renderAction(product));
             }
         });
     }

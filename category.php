@@ -51,9 +51,9 @@ require __DIR__ . '/includes/header.php';
 <?php if ($category === null) : ?>
     <section class="container-xl">
         <div class="state-block">
-            <span class="state-block__icon"><i class="bi bi-grid" aria-hidden="true"></i></span>
-            <h1 class="state-block__title">Aina hii ya bidhaa haipatikani</h1>
-            <p class="state-block__text">Huenda imeondolewa au kiungo si sahihi.</p>
+            <span class="state-block-icon"><i class="bi bi-grid" aria-hidden="true"></i></span>
+            <h1 class="state-block-title">Aina hii ya bidhaa haipatikani</h1>
+            <p class="state-block-text">Huenda imeondolewa au kiungo si sahihi.</p>
             <a class="btn btn-primary" href="<?= e(url('explore.php')) ?>">Angalia aina zote</a>
         </div>
     </section>
@@ -69,19 +69,19 @@ require __DIR__ . '/includes/header.php';
 
         <header class="catalog-heading<?= $category_heading_modifier ?>">
             <?php if ($heading_products !== []) : ?>
-                <div class="catalog-heading__photos catalog-heading__photos--<?= count($heading_products) ?>">
+                <div class="catalog-heading-photos catalog-heading-photos--<?= count($heading_products) ?>">
                     <?php foreach ($heading_products as $product_index => $product) : ?>
-                        <button class="catalog-heading__photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
+                        <button class="catalog-heading-photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
                             <img src="<?= e($product['product_image_url']) ?>" alt="">
                         </button>
                     <?php endforeach; ?>
                 </div>
             <?php elseif ($category['category_image_url']) : ?>
-                <img class="catalog-heading__image" src="<?= e($category['category_image_url']) ?>" alt="" fetchpriority="high">
+                <img class="catalog-heading-image" src="<?= e($category['category_image_url']) ?>" alt="" fetchpriority="high">
             <?php endif; ?>
-            <h1 class="catalog-heading__title"><?= e($category['category_name']) ?></h1>
+            <h1 class="catalog-heading-title"><?= e($category['category_name']) ?></h1>
             <?php if ($category['category_tagline']) : ?>
-                <p class="catalog-heading__text"><?= e($category['category_tagline']) ?></p>
+                <p class="catalog-heading-text"><?= e($category['category_tagline']) ?></p>
             <?php endif; ?>
         </header>
 

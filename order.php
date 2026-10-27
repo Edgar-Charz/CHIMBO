@@ -37,64 +37,64 @@ require __DIR__ . '/includes/header.php';
 <section class="container-xl order-page">
     <?php if ($order === null) : ?>
         <div class="state-block">
-            <span class="state-block__icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
-            <h1 class="state-block__title">Oda hii haipatikani</h1>
-            <p class="state-block__text">Huenda kiungo si sahihi. Angalia oda zako zote hapa.</p>
+            <span class="state-block-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
+            <h1 class="state-block-title">Oda hii haipatikani</h1>
+            <p class="state-block-text">Huenda kiungo si sahihi. Angalia oda zako zote hapa.</p>
             <a class="btn btn-primary" href="<?= e(url('orders.php')) ?>">Oda Zangu</a>
         </div>
     <?php else : ?>
-        <a class="checkout-page__back" href="<?= e(url('orders.php')) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Oda Zangu</a>
+        <a class="checkout-page-back" href="<?= e(url('orders.php')) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Oda Zangu</a>
 
-        <header class="order-page__header">
+        <header class="order-page-header">
             <div>
-                <h1 class="page-title order-page__title"><?= e($order['order_number']) ?></h1>
-                <p class="order-page__placed">Iliagizwa <?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
+                <h1 class="page-title order-page-title"><?= e($order['order_number']) ?></h1>
+                <p class="order-page-placed">Iliagizwa <?= e(localDateTime($order['order_placed_at'], 'd/m/Y, H:i')) ?></p>
             </div>
             <span class="status-pill status-pill--<?= e(orderStatusTone($order)) ?>"><?= e(orderStatusLabel($order)) ?></span>
         </header>
 
         <div class="order-layout">
-            <div class="order-layout__main">
+            <div class="order-layout-main">
                 <?php require __DIR__ . '/includes/payment_box.php'; ?>
 
                 <section class="order-panel" aria-labelledby="tracking-title">
-                    <h2 class="order-panel__title" id="tracking-title">Fuatilia Oda</h2>
-                    <p class="order-panel__lead"><?= e($status_message) ?></p>
+                    <h2 class="order-panel-title" id="tracking-title">Fuatilia Oda</h2>
+                    <p class="order-panel-lead"><?= e($status_message) ?></p>
 
                     <ol class="order-timeline">
                         <?php foreach ($timeline as $step) : ?>
-                            <li class="order-timeline__step is-<?= e($step['state']) ?>" <?= $step['state'] === 'current' ? 'aria-current="step"' : '' ?>>
-                                <span class="order-timeline__dot" aria-hidden="true">
+                            <li class="order-timeline-step is-<?= e($step['state']) ?>" <?= $step['state'] === 'current' ? 'aria-current="step"' : '' ?>>
+                                <span class="order-timeline-dot" aria-hidden="true">
                                     <i class="bi bi-<?= $step['state'] === 'stopped' ? 'x-lg' : 'check-lg' ?>"></i>
                                 </span>
-                                <span class="order-timeline__label"><?= e($step['label']) ?></span>
+                                <span class="order-timeline-label"><?= e($step['label']) ?></span>
                                 <?php if ($step['time'] !== null) : ?>
-                                    <span class="order-timeline__time"><?= e($step['time']) ?></span>
+                                    <span class="order-timeline-time"><?= e($step['time']) ?></span>
                                 <?php endif; ?>
                             </li>
                         <?php endforeach; ?>
                     </ol>
 
                     <?php if ($order['order_status'] === 'delivered' && $order['order_delivered_at'] !== null) : ?>
-                        <p class="order-panel__note"><i class="bi bi-calendar-check" aria-hidden="true"></i> <?= isPickupOrder($order) ? 'Ilichukuliwa' : 'Imefika' ?> <?= e(localDateTime($order['order_delivered_at'], 'd/m/Y, H:i')) ?></p>
+                        <p class="order-panel-note"><i class="bi bi-calendar-check" aria-hidden="true"></i> <?= isPickupOrder($order) ? 'Ilichukuliwa' : 'Imefika' ?> <?= e(localDateTime($order['order_delivered_at'], 'd/m/Y, H:i')) ?></p>
                     <?php elseif (!in_array($order['order_status'], ORDER_STOPPED_STATUSES, true)
                         && !($order['payment']['payment_deadline_passed'] ?? false)
                         && $order['order_estimated_delivery_date'] !== null) : ?>
-                        <p class="order-panel__note"><i class="bi bi-calendar-event" aria-hidden="true"></i> Inatarajiwa kufika: <strong><?= e(swahiliDate($order['order_estimated_delivery_date'])) ?></strong></p>
+                        <p class="order-panel-note"><i class="bi bi-calendar-event" aria-hidden="true"></i> Inatarajiwa kufika: <strong><?= e(swahiliDate($order['order_estimated_delivery_date'])) ?></strong></p>
                     <?php endif; ?>
                     <?php if ($order['order_cancel_reason']) : ?>
-                        <p class="order-panel__note">Sababu ya kughairi: <?= e($order['order_cancel_reason']) ?></p>
+                        <p class="order-panel-note">Sababu ya kughairi: <?= e($order['order_cancel_reason']) ?></p>
                     <?php endif; ?>
 
                     <?php if ($agent !== null) : ?>
                         <div class="agent-card">
                             <?php if ($agent['delivery_agent_photo_url']) : ?>
-                                <img class="agent-card__photo" src="<?= e($agent['delivery_agent_photo_url']) ?>" alt="" loading="lazy">
+                                <img class="agent-card-photo" src="<?= e($agent['delivery_agent_photo_url']) ?>" alt="" loading="lazy">
                             <?php else : ?>
-                                <span class="agent-card__photo agent-card__photo--initial" aria-hidden="true"><?= e(mb_strtoupper(mb_substr($agent['delivery_agent_full_name'], 0, 1))) ?></span>
+                                <span class="agent-card-photo agent-card-photo--initial" aria-hidden="true"><?= e(mb_strtoupper(mb_substr($agent['delivery_agent_full_name'], 0, 1))) ?></span>
                             <?php endif; ?>
-                            <div class="agent-card__body">
-                                <span class="agent-card__role">Wakala wa Uwasilishaji</span>
+                            <div class="agent-card-body">
+                                <span class="agent-card-role">Wakala wa Uwasilishaji</span>
                                 <strong><?= e($agent['delivery_agent_full_name']) ?></strong>
                             </div>
                             <a class="btn btn-primary btn-sm" href="tel:<?= e($agent['delivery_agent_phone']) ?>"><i class="bi bi-telephone" aria-hidden="true"></i> Piga simu</a>
@@ -103,52 +103,52 @@ require __DIR__ . '/includes/header.php';
                 </section>
 
                 <section class="order-panel" aria-labelledby="items-title">
-                    <h2 class="order-panel__title" id="items-title">Bidhaa (<?= e(formatPieces($order['piece_count'])) ?>)</h2>
+                    <h2 class="order-panel-title" id="items-title">Bidhaa (<?= e(formatPieces($order['piece_count'])) ?>)</h2>
                     <ul class="checkout-items order-items">
                         <?php foreach ($order['items'] as $item) : ?>
                             <li class="checkout-item">
                                 <?php if ($item['product_image_url'] !== null) : ?>
-                                    <img class="checkout-item__image" src="<?= e($item['product_image_url']) ?>" alt="" loading="lazy">
+                                    <img class="checkout-item-image" src="<?= e($item['product_image_url']) ?>" alt="" loading="lazy">
                                 <?php else : ?>
-                                    <span class="checkout-item__image image-placeholder" aria-hidden="true"><i class="bi bi-image"></i></span>
+                                    <span class="checkout-item-image image-placeholder" aria-hidden="true"><i class="bi bi-image"></i></span>
                                 <?php endif; ?>
-                                <span class="checkout-item__name">
+                                <span class="checkout-item-name">
                                     <a href="<?= e(productUrl($item['product_id'])) ?>"><?= e($item['product_name']) ?></a>
                                     <small><?= e(formatPieces($item['order_item_quantity'])) ?> × <?= e(formatTzs($item['order_item_unit_price'])) ?> <?= offerTag($item['order_item_offer_percent']) ?></small>
                                 </span>
-                                <span class="checkout-item__total"><?= e(formatTzs($item['order_item_line_total'])) ?></span>
+                                <span class="checkout-item-total"><?= e(formatTzs($item['order_item_line_total'])) ?></span>
                             </li>
                         <?php endforeach; ?>
                     </ul>
                 </section>
             </div>
 
-            <aside class="order-layout__side">
+            <aside class="order-layout-side">
                 <section class="order-summary" aria-labelledby="payment-title">
-                    <h2 class="order-summary__title" id="payment-title">Malipo</h2>
+                    <h2 class="order-summary-title" id="payment-title">Malipo</h2>
                     <dl class="cart-summary checkout-totals">
-                        <div class="cart-summary__row"><dt>Bidhaa</dt><dd><?= e(formatTzs($order['order_subtotal'])) ?></dd></div>
+                        <div class="cart-summary-row"><dt>Bidhaa</dt><dd><?= e(formatTzs($order['order_subtotal'])) ?></dd></div>
                         <?php $fee_status = $order['delivery_method']['delivery_fee_status']; // fixed · awaiting_confirmation · confirmed ?>
                         <?php if ($fee_status === 'awaiting_confirmation') : ?>
-                            <div class="cart-summary__row"><dt>Usafiri (makadirio)</dt><dd><?= $order['order_delivery_fee'] === 0 ? 'Tutakujulisha' : '~' . e(formatTzs($order['order_delivery_fee'])) ?></dd></div>
+                            <div class="cart-summary-row"><dt>Usafiri (makadirio)</dt><dd><?= $order['order_delivery_fee'] === 0 ? 'Tutakujulisha' : '~' . e(formatTzs($order['order_delivery_fee'])) ?></dd></div>
                         <?php else : ?>
-                            <div class="cart-summary__row"><dt>Usafirishaji</dt><dd><?= e(orderDeliveryFeeText($order)) ?></dd></div>
+                            <div class="cart-summary-row"><dt>Usafirishaji</dt><dd><?= e(orderDeliveryFeeText($order)) ?></dd></div>
                             <?php if ($fee_status === 'confirmed' && $order['delivery_method']['delivery_fee_note']) : ?>
-                                <p class="order-summary__note mb-0"><?= e($order['delivery_method']['delivery_fee_note']) ?></p>
+                                <p class="order-summary-note mb-0"><?= e($order['delivery_method']['delivery_fee_note']) ?></p>
                             <?php endif; ?>
                         <?php endif; ?>
                         <?php if ($order['order_discount_total'] > 0) : ?>
-                            <div class="cart-summary__row cart-summary__row--savings"><dt>Punguzo<?= $order['order_discount_note'] ? ' (' . e($order['order_discount_note']) . ')' : '' ?></dt><dd>−<?= e(formatTzs($order['order_discount_total'])) ?></dd></div>
+                            <div class="cart-summary-row cart-summary-row--savings"><dt>Punguzo<?= $order['order_discount_note'] ? ' (' . e($order['order_discount_note']) . ')' : '' ?></dt><dd>−<?= e(formatTzs($order['order_discount_total'])) ?></dd></div>
                         <?php endif; ?>
-                        <div class="cart-summary__row cart-summary__row--total"><dt><?= $fee_status === 'awaiting_confirmation' ? 'Jumla (makadirio)' : 'Jumla kuu' ?></dt><dd><?= e(formatTzs($order['order_total'])) ?></dd></div>
+                        <div class="cart-summary-row cart-summary-row--total"><dt><?= $fee_status === 'awaiting_confirmation' ? 'Jumla (makadirio)' : 'Jumla kuu' ?></dt><dd><?= e(formatTzs($order['order_total'])) ?></dd></div>
                         <?php if ($order['payment']['is_balance_payment']) : ?>
-                            <div class="cart-summary__row"><dt>Umelipa</dt><dd><?= e(formatTzs($order['payment']['amount_paid'])) ?></dd></div>
-                            <div class="cart-summary__row cart-summary__row--total"><dt>Salio la kulipa</dt><dd><?= e(formatTzs($order['payment']['payment_amount'])) ?></dd></div>
+                            <div class="cart-summary-row"><dt>Umelipa</dt><dd><?= e(formatTzs($order['payment']['amount_paid'])) ?></dd></div>
+                            <div class="cart-summary-row cart-summary-row--total"><dt>Salio la kulipa</dt><dd><?= e(formatTzs($order['payment']['payment_amount'])) ?></dd></div>
                         <?php elseif ($order['payment']['refund_due'] > 0) : ?>
-                            <div class="cart-summary__row cart-summary__row--savings"><dt>Tutakurudishia</dt><dd><?= e(formatTzs($order['payment']['refund_due'])) ?></dd></div>
+                            <div class="cart-summary-row cart-summary-row--savings"><dt>Tutakurudishia</dt><dd><?= e(formatTzs($order['payment']['refund_due'])) ?></dd></div>
                         <?php endif; ?>
                     </dl>
-                    <p class="order-summary__note">
+                    <p class="order-summary-note">
                         <?= e($order['payment']['payment_method']['payment_method_name']) ?> ·
                         <?php if ($order['payment']['payment_deadline_passed'] ?? false) : ?>
                             Muda wa kulipa umeisha
@@ -165,13 +165,13 @@ require __DIR__ . '/includes/header.php';
                         <?php endif; ?>
                         <a class="btn btn-outline-primary w-100" href="<?= e(receiptUrl($order['order_id'])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pakua Risiti</a>
                         <?php if ($order['can_cancel']) : ?>
-                            <button class="btn btn-link order-actions__cancel" type="button" data-bs-toggle="modal" data-bs-target="#cancel-order-dialog">Ghairi oda</button>
+                            <button class="btn btn-link order-actions-cancel" type="button" data-bs-toggle="modal" data-bs-target="#cancel-order-dialog">Ghairi oda</button>
                         <?php endif; ?>
                     </div>
                 </section>
 
                 <section class="order-summary" aria-labelledby="delivery-title">
-                    <h2 class="order-summary__title" id="delivery-title"><?= isPickupOrder($order) ? 'Kuchukua dukani' : 'Usafirishaji' ?></h2>
+                    <h2 class="order-summary-title" id="delivery-title"><?= isPickupOrder($order) ? 'Kuchukua dukani' : 'Usafirishaji' ?></h2>
                     <?php if (isPickupOrder($order)) : ?>
                         <?php require __DIR__ . '/includes/pickup_point.php'; ?>
                     <?php else : ?>

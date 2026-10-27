@@ -126,7 +126,7 @@ final class CatalogAdminTest extends TestCase
             ['movement_quantity_change' => -31, 'movement_reason' => 'adjustment'],
             self::ADMIN_ID
         ));
-        $this->assertCount(2, $this->product_editor->getStockMovements($product_id)); // opening stock + the −20
+        $this->assertCount(2, $this->product_editor->getStockMovements($product_id)); // opening stock + the âˆ’20
     }
 
     public function testDeletedProductDisappearsFromTheShop(): void
@@ -176,7 +176,7 @@ final class CatalogAdminTest extends TestCase
     public function testBannerCollectionMustBeKnown(): void
     {
         $this->assertValidationError('banner_target_value', fn () => (new Banner($this->db))->createBanner(
-            ['banner_title' => 'Test Banner', 'banner_target_type' => 'collection', 'banner_target_value' => 'cheap'],
+            ['banner_title' => 'Test Banner', 'banner_title_en' => 'Test Banner', 'banner_target_type' => 'collection', 'banner_target_value' => 'cheap'],
             self::ADMIN_ID
         ));
     }

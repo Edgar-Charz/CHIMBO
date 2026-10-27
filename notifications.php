@@ -25,7 +25,7 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <section class="container-xl notifications-page">
-    <div class="notifications-page__heading">
+    <div class="notifications-page-heading">
         <h1 class="page-title">Arifa</h1>
         <?php if ($has_unread) : ?>
             <button class="btn btn-link" type="button" data-read-all><i class="bi bi-check2-all" aria-hidden="true"></i> Soma zote</button>
@@ -34,9 +34,9 @@ require __DIR__ . '/includes/header.php';
 
     <?php if ($notifications['items'] === []) : ?>
         <div class="state-block">
-            <span class="state-block__icon"><i class="bi bi-bell" aria-hidden="true"></i></span>
-            <h2 class="state-block__title">Hakuna arifa bado</h2>
-            <p class="state-block__text">Tutakujulisha hapa kila oda yako inapopiga hatua.</p>
+            <span class="state-block-icon"><i class="bi bi-bell" aria-hidden="true"></i></span>
+            <h2 class="state-block-title">Hakuna arifa bado</h2>
+            <p class="state-block-text">Tutakujulisha hapa kila oda yako inapopiga hatua.</p>
             <a class="btn btn-primary" href="<?= e(url('')) ?>">Endelea kununua</a>
         </div>
     <?php else : ?>
@@ -47,14 +47,14 @@ require __DIR__ . '/includes/header.php';
                     <a class="notification-item<?= $notification['is_read'] ? '' : ' is-unread' ?>"
                         href="<?= e($order_id === null ? url('orders.php') : url('order.php?id=' . $order_id)) ?>"
                         data-notification-id="<?= e($notification['notification_id']) ?>">
-                        <span class="notification-item__icon" aria-hidden="true"><i class="bi bi-<?= e(NOTIFICATION_ICONS[$notification['notification_type']] ?? 'bell') ?>"></i></span>
-                        <span class="notification-item__body">
-                            <strong class="notification-item__title"><?= e($notification['notification_title']) ?></strong>
-                            <span class="notification-item__text"><?= e($notification['notification_body']) ?></span>
-                            <span class="notification-item__time"><?= e(timeAgo($notification['created_at'])) ?></span>
+                        <span class="notification-item-icon" aria-hidden="true"><i class="bi bi-<?= e(NOTIFICATION_ICONS[$notification['notification_type']] ?? 'bell') ?>"></i></span>
+                        <span class="notification-item-body">
+                            <strong class="notification-item-title"><?= e($notification['notification_title']) ?></strong>
+                            <span class="notification-item-text"><?= e($notification['notification_body']) ?></span>
+                            <span class="notification-item-time"><?= e(timeAgo($notification['created_at'])) ?></span>
                         </span>
                         <?php if (!$notification['is_read']) : ?>
-                            <span class="notification-item__dot"><span class="visually-hidden">Haijasomwa</span></span>
+                            <span class="notification-item-dot"><span class="visually-hidden">Haijasomwa</span></span>
                         <?php endif; ?>
                     </a>
                 </li>

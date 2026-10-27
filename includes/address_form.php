@@ -6,7 +6,7 @@
  */
 ?>
 <form class="address-form" id="address-form" novalidate hidden data-address-form>
-    <h3 class="address-form__title" data-address-form-title>Anwani mpya</h3>
+    <h3 class="address-form-title" data-address-form-title>Anwani mpya</h3>
     <div class="row g-3">
         <div class="col-12 col-sm-6" data-field>
             <label class="form-label" for="address_recipient_name">Jina la mpokeaji</label>
@@ -15,7 +15,7 @@
         <div class="col-12 col-sm-6" data-field>
             <label class="form-label" for="address_phone">Simu ya mpokeaji</label>
             <div class="phone-input">
-                <span class="phone-input__prefix">+255</span>
+                <span class="phone-input-prefix">+255</span>
                 <input class="form-control" id="address_phone" name="address_phone" type="tel" inputmode="numeric" autocomplete="tel-national"
                     placeholder="712 345 678" maxlength="16" required>
             </div>
@@ -43,7 +43,7 @@
             </div>
         </div>
     </div>
-    <div class="address-form__actions">
+    <div class="address-form-actions">
         <button class="btn btn-primary" type="submit">Hifadhi anwani</button>
         <button class="btn btn-link" type="button" data-address-cancel>Ghairi</button>
     </div>

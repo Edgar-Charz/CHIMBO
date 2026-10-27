@@ -236,9 +236,10 @@ class Product
         if (isset($filters['q'])) {
             // Escape % and _ so they are searched as normal characters
             $search_text = '%' . addcslashes($filters['q'], '%_\\') . '%';
-            $conditions[] = '(p.product_name LIKE :search_name OR p.product_brand LIKE :search_brand)';
+            $conditions[] = '(p.product_name LIKE :search_name OR p.product_brand LIKE :search_brand OR p.product_sku LIKE :search_sku)';
             $params['search_name']  = $search_text;
             $params['search_brand'] = $search_text;
+            $params['search_sku']   = $search_text;
         }
 
         $conditions[] = match ($filters['collection'] ?? null) {

@@ -149,12 +149,12 @@ require __DIR__ . '/includes/header.php';
 </div>
 
 <form class="admin-panel push-queue-filters p-3 mb-3 d-flex flex-wrap align-items-end gap-3" method="get">
-    <div class="push-queue-filters__search">
+    <div class="push-queue-filters-search">
         <label class="form-label mb-1" for="push-search">Search queue</label>
         <input class="form-control" type="search" id="push-search" name="search" value="<?= e($search_query) ?>"
                maxlength="100" placeholder="Customer, notification, error or ID">
     </div>
-    <div class="push-queue-filters__status">
+    <div class="push-queue-filters-status">
         <label class="form-label mb-1" for="push-status-filter">Status</label>
         <select class="form-select" id="push-status-filter" name="status">
             <option value="">All statuses</option>

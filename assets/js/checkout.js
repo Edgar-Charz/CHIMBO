@@ -58,7 +58,7 @@
 
     // ------------------------------------------------------------------ Choice cards (radio buttons)
 
-    const waitingNote = (text) => el('p', { className: 'choice-list__waiting', text });
+    const waitingNote = (text) => el('p', { className: 'choice-list-waiting', text });
 
     // ------------------------------------------------------------------ 1. Address
 
@@ -190,12 +190,12 @@
     function renderItems(currentCart) {
         const items = currentCart.groups.flatMap((group) => group.items);
         root.querySelector('[data-checkout-items]').replaceChildren(...items.map((item) => el('li', { className: 'checkout-item' }, [
-            productImage(item.product.product_image_url, item.product.product_name, 'checkout-item__image'),
-            el('span', { className: 'checkout-item__name' }, [
+            productImage(item.product.product_image_url, item.product.product_name, 'checkout-item-image'),
+            el('span', { className: 'checkout-item-name' }, [
                 item.product.product_name,
                 el('small', {}, [`${formatPieces(item.cart_quantity)} × ${formatTzs(item.unit_price)} `, CHIMBO.offerTag(item.offer_percent)]),
             ]),
-            el('span', { className: 'checkout-item__total', text: formatTzs(item.line_total) }),
+            el('span', { className: 'checkout-item-total', text: formatTzs(item.line_total) }),
         ])));
     }
 
@@ -214,13 +214,13 @@
     };
 
     function totalRow(label, value, className = '') {
-        return el('div', { className: `cart-summary__row ${className}`.trim() }, [el('dt', { text: label }), el('dd', { text: value })]);
+        return el('div', { className: `cart-summary-row ${className}`.trim() }, [el('dt', { text: label }), el('dd', { text: value })]);
     }
 
     function showPreviewWaiting() {
         preview = null;
         placeOrderButton.disabled = true;
-        totalsBox.replaceChildren(el('p', { className: 'choice-list__waiting', text: 'Chagua anwani na usafirishaji kuona jumla kuu.' }));
+        totalsBox.replaceChildren(el('p', { className: 'choice-list-waiting', text: 'Chagua anwani na usafirishaji kuona jumla kuu.' }));
         root.querySelector('[data-pay-note]').textContent = '';
     }
 
@@ -236,10 +236,10 @@
         }
         totalsBox.replaceChildren(...[
             totalRow(`Bidhaa (${formatPieces(preview.piece_count)})`, formatTzs(preview.subtotal)),
-            preview.savings > 0 ? totalRow('Unaokoa', `−${formatTzs(preview.savings)}`, 'cart-summary__row--savings') : null,
+            preview.savings > 0 ? totalRow('Unaokoa', `−${formatTzs(preview.savings)}`, 'cart-summary-row--savings') : null,
             totalRow(priceToConfirm ? 'Usafiri (makadirio)' : 'Usafirishaji', deliveryText),
-            preview.discount_total > 0 ? totalRow('Punguzo', `−${formatTzs(preview.discount_total)}`, 'cart-summary__row--savings') : null,
-            totalRow(priceToConfirm ? 'Jumla (makadirio)' : 'Jumla kuu', formatTzs(preview.grand_total), 'cart-summary__row--total'),
+            preview.discount_total > 0 ? totalRow('Punguzo', `−${formatTzs(preview.discount_total)}`, 'cart-summary-row--savings') : null,
+            totalRow(priceToConfirm ? 'Jumla (makadirio)' : 'Jumla kuu', formatTzs(preview.grand_total), 'cart-summary-row--total'),
         ].filter(Boolean));
         const arrival = preview.delivery_method_is_pickup
             ? 'Tutakujulisha ikiwa tayari kuchukuliwa.'

@@ -64,17 +64,17 @@ require __DIR__ . '/includes/header.php';
 
     <header class="catalog-heading<?= $search_text === '' ? ' catalog-heading--collection' : '' ?>">
         <?php if ($heading_products !== []) : ?>
-            <div class="catalog-heading__photos catalog-heading__photos--<?= count($heading_products) ?>">
+            <div class="catalog-heading-photos catalog-heading-photos--<?= count($heading_products) ?>">
                 <?php foreach ($heading_products as $product_index => $product) : ?>
-                    <button class="catalog-heading__photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
+                    <button class="catalog-heading-photo" type="button" data-heading-product-open="<?= e($product_index) ?>" aria-label="Tazama kwa haraka <?= e($product['product_name']) ?>">
                         <img src="<?= e($product['product_image_url']) ?>" alt="">
                     </button>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
-        <h1 class="catalog-heading__title"><?= e($heading['title']) ?></h1>
+        <h1 class="catalog-heading-title"><?= e($heading['title']) ?></h1>
         <?php if ($heading['text'] !== null) : ?>
-            <p class="catalog-heading__text"><?= e($heading['text']) ?></p>
+            <p class="catalog-heading-text"><?= e($heading['text']) ?></p>
         <?php endif; ?>
     </header>
 

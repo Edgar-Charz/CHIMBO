@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Promotional banners on Home (e.g. "BEI ZA JUMLA — Nunua Sasa").
+ * Promotional banners on Home (e.g. "BEI ZA JUMLA â€” Nunua Sasa").
  * A banner can open a category, a product, a collection (deals | new | best_sellers | offers) or a web address.
  *
  * Shop:  getActiveBanners()
@@ -12,8 +12,11 @@ class Banner
 {
     private const RULES = [
         'banner_title'        => 'required|string|min:2|max:100',
+        'banner_title_en'     => 'required|string|min:2|max:100',
         'banner_subtitle'     => 'nullable|string|max:160',
-        'banner_button_label' => 'nullable|string|max:40',
+        'banner_subtitle_en'  => 'nullable|string|max:160',
+        'banner_button_label'    => 'nullable|string|max:40',
+        'banner_button_label_en' => 'nullable|string|max:40',
         'banner_target_type'  => 'nullable|in:category,product,collection,url',
         'banner_target_value' => 'nullable|string|max:255',
         'banner_sort_order'   => 'nullable|int|min:0|max:1000',
@@ -49,10 +52,12 @@ class Banner
 
         $banner_id = $this->db->insert(
             'INSERT INTO banners (
-                banner_title, banner_subtitle, banner_button_label, banner_target_type, banner_target_value,
+                banner_title, banner_title_en, banner_subtitle, banner_subtitle_en,
+                banner_button_label, banner_button_label_en, banner_target_type, banner_target_value,
                 banner_sort_order, banner_is_active, banner_starts_at, banner_ends_at
              ) VALUES (
-                :banner_title, :banner_subtitle, :banner_button_label, :banner_target_type, :banner_target_value,
+                :banner_title, :banner_title_en, :banner_subtitle, :banner_subtitle_en,
+                :banner_button_label, :banner_button_label_en, :banner_target_type, :banner_target_value,
                 :banner_sort_order, :banner_is_active, :banner_starts_at, :banner_ends_at
              )',
             $values
@@ -69,7 +74,9 @@ class Banner
 
         $this->db->execute(
             'UPDATE banners
-             SET banner_title = :banner_title, banner_subtitle = :banner_subtitle, banner_button_label = :banner_button_label,
+             SET banner_title = :banner_title, banner_title_en = :banner_title_en,
+                 banner_subtitle = :banner_subtitle, banner_subtitle_en = :banner_subtitle_en,
+                 banner_button_label = :banner_button_label, banner_button_label_en = :banner_button_label_en,
                  banner_target_type = :banner_target_type, banner_target_value = :banner_target_value,
                  banner_sort_order = :banner_sort_order, banner_is_active = :banner_is_active,
                  banner_starts_at = :banner_starts_at, banner_ends_at = :banner_ends_at
@@ -118,6 +125,12 @@ class Banner
         $data = Validator::validate($input, self::RULES);
 
         $errors = [];
+        if (!empty($data['banner_subtitle']) && empty($data['banner_subtitle_en'])) {
+            $errors['banner_subtitle_en'] = 'Add the English subtitle so the banner is translated in both languages.';
+        }
+        if (!empty($data['banner_button_label']) && empty($data['banner_button_label_en'])) {
+            $errors['banner_button_label_en'] = 'Add the English button text so the banner is translated in both languages.';
+        }
         if (isset($data['banner_target_type']) && empty($data['banner_target_value'])) {
             $errors['banner_target_value'] = 'Say what the banner opens (a category id, product id, collection or web address).';
         }
@@ -133,8 +146,11 @@ class Banner
 
         return [
             'banner_title'        => $data['banner_title'],
+            'banner_title_en'     => $data['banner_title_en'],
             'banner_subtitle'     => $data['banner_subtitle'] ?? null,
-            'banner_button_label' => $data['banner_button_label'] ?? null,
+            'banner_subtitle_en'  => $data['banner_subtitle_en'] ?? null,
+            'banner_button_label'    => $data['banner_button_label'] ?? null,
+            'banner_button_label_en' => $data['banner_button_label_en'] ?? null,
             'banner_target_type'  => $data['banner_target_type'] ?? null,
             'banner_target_value' => isset($data['banner_target_type']) ? $data['banner_target_value'] : null,
             'banner_sort_order'   => $data['banner_sort_order'] ?? 0,
@@ -147,10 +163,11 @@ class Banner
     // ---------------------------------------------------------------- Shop (API)
 
     /** Active banners whose dates (if set) include today. */
-    public function getActiveBanners(): array
+    public function getActiveBanners(string $language = 'sw'): array
     {
         $rows = $this->db->fetchAll(
-            'SELECT banner_id, banner_title, banner_subtitle, banner_image_path, banner_button_label,
+            'SELECT banner_id, banner_title, banner_title_en, banner_subtitle, banner_subtitle_en,
+                    banner_image_path, banner_button_label, banner_button_label_en,
                     banner_target_type, banner_target_value
              FROM banners
              WHERE banner_is_active = 1
@@ -159,12 +176,14 @@ class Banner
              ORDER BY banner_sort_order, banner_id'
         );
 
+        $use_english = strtolower(substr($language, 0, 2)) === 'en';
+
         return array_map(fn (array $row) => [
             'banner_id'           => (int) $row['banner_id'],
-            'banner_title'        => $row['banner_title'],
-            'banner_subtitle'     => $row['banner_subtitle'],
+            'banner_title'        => $use_english && !empty($row['banner_title_en']) ? $row['banner_title_en'] : $row['banner_title'],
+            'banner_subtitle'     => $use_english && !empty($row['banner_subtitle_en']) ? $row['banner_subtitle_en'] : $row['banner_subtitle'],
             'banner_image_url'    => $row['banner_image_path'] ? url($row['banner_image_path']) : null,
-            'banner_button_label' => $row['banner_button_label'],
+            'banner_button_label' => $use_english && !empty($row['banner_button_label_en']) ? $row['banner_button_label_en'] : $row['banner_button_label'],
             'banner_target_type'  => $row['banner_target_type'],
             'banner_target_value' => $row['banner_target_value'],
         ], $rows);

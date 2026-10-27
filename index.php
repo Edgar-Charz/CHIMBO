@@ -63,7 +63,7 @@ require __DIR__ . '/includes/header.php';
         <a class="home-order-attention<?= $needs_payment ? ' home-order-attention--pay' : '' ?>"
            href="<?= e(url('order.php?id=' . $attention_order['order_id']) . ($needs_payment ? '#payment-box' : '')) ?>">
             <i class="bi <?= $needs_payment ? 'bi-wallet2' : 'bi-truck' ?>" aria-hidden="true"></i>
-            <span class="home-order-attention__text">
+            <span class="home-order-attention-text">
                 <strong><?= $needs_payment ? 'Malizia malipo ya oda yako' : 'Oda yako inaendelea' ?></strong>
                 <span>Oda #<?= e($attention_order['order_number']) ?> · <?= e(orderStatusLabel($attention_order)) ?></span>
             </span>
@@ -75,29 +75,29 @@ require __DIR__ . '/includes/header.php';
 <section class="container-xl home-hero" aria-label="Matangazo">
     <?php if ($home['banners'] === []) : ?>
         <a class="hero-banner" href="<?= e(collectionUrl('best_sellers')) ?>">
-            <div class="hero-banner__copy">
-                <p class="hero-banner__eyebrow">Soko la jumla kwa wenye maduka</p>
-                <h2 class="hero-banner__title">Bei za jumla kwa duka lako</h2>
-                <p class="hero-banner__text">Nunua zaidi, lipa kidogo. <?= e(paymentOptions()['short']) ?>.</p>
+            <div class="hero-banner-copy">
+                <p class="hero-banner-eyebrow">Soko la jumla kwa wenye maduka</p>
+                <h2 class="hero-banner-title">Bei za jumla kwa duka lako</h2>
+                <p class="hero-banner-text">Nunua zaidi, lipa kidogo. <?= e(paymentOptions()['short']) ?>.</p>
                 <span class="btn btn-buy btn-lg">Anza kununua</span>
             </div>
         </a>
     <?php else : ?>
-        <div class="carousel slide home-hero__carousel" id="home-hero-carousel" data-bs-ride="carousel" data-bs-interval="6000">
+        <div class="carousel slide home-hero-carousel" id="home-hero-carousel" data-bs-ride="carousel" data-bs-interval="6000">
             <div class="carousel-inner">
                 <?php foreach ($home['banners'] as $index => $banner) : ?>
                     <div class="carousel-item<?= $index === 0 ? ' active' : '' ?>">
                         <a class="hero-banner" href="<?= e(bannerUrl($banner)) ?>" <?= $banner['banner_target_type'] === 'url' ? ' rel="noopener"' : '' ?>>
-                            <div class="hero-banner__copy">
-                                <p class="hero-banner__eyebrow">CHIMBO Jumla</p>
-                                <h2 class="hero-banner__title"><?= e($banner['banner_title']) ?></h2>
+                            <div class="hero-banner-copy">
+                                <p class="hero-banner-eyebrow">CHIMBO Jumla</p>
+                                <h2 class="hero-banner-title"><?= e($banner['banner_title']) ?></h2>
                                 <?php if ($banner['banner_subtitle']) : ?>
-                                    <p class="hero-banner__text"><?= e($banner['banner_subtitle']) ?></p>
+                                    <p class="hero-banner-text"><?= e($banner['banner_subtitle']) ?></p>
                                 <?php endif; ?>
                                 <span class="btn btn-buy btn-lg"><?= e($banner['banner_button_label'] ?: 'Nunua sasa') ?></span>
                             </div>
                             <?php if ($banner['banner_image_url']) : ?>
-                                <img class="hero-banner__image" src="<?= e($banner['banner_image_url']) ?>" alt=""
+                                <img class="hero-banner-image" src="<?= e($banner['banner_image_url']) ?>" alt=""
                                     <?= $index === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?> decoding="async">
                             <?php endif; ?>
                         </a>
@@ -116,53 +116,53 @@ require __DIR__ . '/includes/header.php';
         </div>
     <?php endif; ?>
 
-    <div class="home-hero__tiles">
+    <div class="home-hero-tiles">
         <a class="promo-tile promo-tile--deal" href="<?= e(collectionUrl('offers')) ?>">
-            <span class="promo-tile__icon"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i></span>
-            <span class="promo-tile__title">Ofa</span>
-            <span class="promo-tile__text">Bei maalum kwa muda mfupi</span>
-            <i class="bi bi-arrow-right promo-tile__arrow" aria-hidden="true"></i>
+            <span class="promo-tile-icon"><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i></span>
+            <span class="promo-tile-title">Ofa</span>
+            <span class="promo-tile-text">Bei maalum kwa muda mfupi</span>
+            <i class="bi bi-arrow-right promo-tile-arrow" aria-hidden="true"></i>
         </a>
         <a class="promo-tile promo-tile--new" href="<?= e(collectionUrl('new')) ?>">
-            <span class="promo-tile__icon"><i class="bi bi-stars" aria-hidden="true"></i></span>
-            <span class="promo-tile__title">Bidhaa mpya</span>
-            <span class="promo-tile__text">Zimewasili hivi karibuni</span>
-            <i class="bi bi-arrow-right promo-tile__arrow" aria-hidden="true"></i>
+            <span class="promo-tile-icon"><i class="bi bi-stars" aria-hidden="true"></i></span>
+            <span class="promo-tile-title">Bidhaa mpya</span>
+            <span class="promo-tile-text">Zimewasili hivi karibuni</span>
+            <i class="bi bi-arrow-right promo-tile-arrow" aria-hidden="true"></i>
         </a>
     </div>
 </section>
 
 <section class="container-xl" aria-label="Faida za CHIMBO">
     <ul class="trust-strip">
-        <li class="trust-strip__item"><i class="bi bi-tags" aria-hidden="true"></i><span><strong>Bei za jumla</strong> Nunua zaidi, lipa kidogo</span></li>
+        <li class="trust-strip-item"><i class="bi bi-tags" aria-hidden="true"></i><span><strong>Bei za jumla</strong> Nunua zaidi, lipa kidogo</span></li>
         <?php if (paymentOptions()['cash_only']) : ?>
-            <li class="trust-strip__item"><i class="bi bi-cash-coin" aria-hidden="true"></i><span><strong>Lipa ukipokea</strong> Hakuna malipo ya mapema</span></li>
+            <li class="trust-strip-item"><i class="bi bi-cash-coin" aria-hidden="true"></i><span><strong>Lipa ukipokea</strong> Hakuna malipo ya mapema</span></li>
         <?php else : ?>
-            <li class="trust-strip__item"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong>Malipo salama</strong> Tunathibitisha malipo yako kabla ya kutuma mzigo</span></li>
+            <li class="trust-strip-item"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong>Malipo salama</strong> Tunathibitisha malipo yako kabla ya kutuma mzigo</span></li>
         <?php endif; ?>
-        <li class="trust-strip__item"><i class="bi bi-patch-check" aria-hidden="true"></i><span><strong>Wauzaji waliothibitishwa</strong> Bidhaa halisi</span></li>
-        <li class="trust-strip__item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong>Tunakuletea dukani</strong> Fuatilia oda yako</span></li>
+        <li class="trust-strip-item"><i class="bi bi-patch-check" aria-hidden="true"></i><span><strong>Wauzaji waliothibitishwa</strong> Bidhaa halisi</span></li>
+        <li class="trust-strip-item"><i class="bi bi-truck" aria-hidden="true"></i><span><strong>Tunakuletea dukani</strong> Fuatilia oda yako</span></li>
     </ul>
 </section>
 
 <section class="container-xl home-section" aria-labelledby="home-categories-title">
     <div class="section-heading">
-        <h2 class="section-heading__title" id="home-categories-title">Nunua kwa aina</h2>
-        <a class="section-heading__link" href="<?= e(url('explore.php')) ?>">Aina zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+        <h2 class="section-heading-title" id="home-categories-title">Nunua kwa aina</h2>
+        <a class="section-heading-link" href="<?= e(url('explore.php')) ?>">Aina zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
     </div>
 
     <div class="category-tiles">
         <?php foreach ($home['top_categories'] as $category) : ?>
             <a class="category-tile" href="<?= e(categoryUrl($category['category_id'], $category['category_slug'])) ?>">
                 <?php if ($category['category_image_url'] !== null) : ?>
-                    <img class="category-tile__image" src="<?= e($category['category_image_url']) ?>" alt="" loading="lazy" decoding="async">
+                    <img class="category-tile-image" src="<?= e($category['category_image_url']) ?>" alt="" loading="lazy" decoding="async">
                 <?php endif; ?>
-                <span class="category-tile__copy">
-                    <span class="category-tile__name"><?= e($category['category_name']) ?></span>
+                <span class="category-tile-copy">
+                    <span class="category-tile-name"><?= e($category['category_name']) ?></span>
                     <?php if ($category['category_tagline']) : ?>
-                        <span class="category-tile__tagline"><?= e($category['category_tagline']) ?></span>
+                        <span class="category-tile-tagline"><?= e($category['category_tagline']) ?></span>
                     <?php endif; ?>
-                    <span class="category-tile__cta">Nunua sasa <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
+                    <span class="category-tile-cta">Nunua sasa <i class="bi bi-arrow-right" aria-hidden="true"></i></span>
                 </span>
             </a>
         <?php endforeach; ?>
@@ -170,7 +170,7 @@ require __DIR__ . '/includes/header.php';
 
     <?php if ($has_subcategories) : ?>
         <div class="scroll-rail" data-scroll-rail>
-            <button class="scroll-rail__button scroll-rail__button--prev" type="button" aria-label="Rudi nyuma" hidden data-rail-prev>
+            <button class="scroll-rail-button scroll-rail-button--prev" type="button" aria-label="Rudi nyuma" hidden data-rail-prev>
                 <i class="bi bi-chevron-left" aria-hidden="true"></i>
             </button>
             <ul class="subcategory-row" data-rail-track>
@@ -180,7 +180,7 @@ require __DIR__ . '/includes/header.php';
                     <?php endforeach; ?>
                 <?php endforeach; ?>
             </ul>
-            <button class="scroll-rail__button scroll-rail__button--next" type="button" aria-label="Endelea mbele" hidden data-rail-next>
+            <button class="scroll-rail-button scroll-rail-button--next" type="button" aria-label="Endelea mbele" hidden data-rail-next>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
             </button>
         </div>
@@ -191,17 +191,17 @@ require __DIR__ . '/includes/header.php';
     <section class="container-xl home-section" aria-labelledby="home-reorder-title">
         <div class="section-heading">
             <div>
-                <h2 class="section-heading__title" id="home-reorder-title">Karibu tena, <?= e(customerFirstName() ?? 'mteja') ?></h2>
-                <p class="section-heading__text">Agiza tena bidhaa ulizonunua hivi karibuni.</p>
+                <h2 class="section-heading-title" id="home-reorder-title">Karibu tena, <?= e(customerFirstName() ?? 'mteja') ?></h2>
+                <p class="section-heading-text">Agiza tena bidhaa ulizonunua hivi karibuni.</p>
             </div>
-            <a class="section-heading__link" href="<?= e(url('orders.php')) ?>">Oda zangu <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            <a class="section-heading-link" href="<?= e(url('orders.php')) ?>">Oda zangu <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
         <div class="scroll-rail scroll-rail--recent" data-scroll-rail>
-            <button class="scroll-rail__button scroll-rail__button--prev" type="button" aria-label="Rudi nyuma" hidden data-rail-prev>
+            <button class="scroll-rail-button scroll-rail-button--prev" type="button" aria-label="Rudi nyuma" hidden data-rail-prev>
                 <i class="bi bi-chevron-left" aria-hidden="true"></i>
             </button>
             <ul class="recent-product-rail" data-home-recent data-rail-track aria-label="Bidhaa ulizonunua hivi karibuni"></ul>
-            <button class="scroll-rail__button scroll-rail__button--next" type="button" aria-label="Endelea mbele" hidden data-rail-next>
+            <button class="scroll-rail-button scroll-rail-button--next" type="button" aria-label="Endelea mbele" hidden data-rail-next>
                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
             </button>
         </div>
@@ -212,10 +212,10 @@ require __DIR__ . '/includes/header.php';
     <section class="container-xl home-section home-offers" aria-labelledby="home-offers-title">
         <div class="section-heading">
             <div>
-                <h2 class="section-heading__title" id="home-offers-title"><i class="bi bi-alarm" aria-hidden="true"></i> Ofa za muda</h2>
-                <p class="section-heading__text">Bei maalum kwa muda mfupi tu — wahi kabla hazijaisha.</p>
+                <h2 class="section-heading-title" id="home-offers-title"><i class="bi bi-alarm" aria-hidden="true"></i> Ofa za muda</h2>
+                <p class="section-heading-text">Bei maalum kwa muda mfupi tu — wahi kabla hazijaisha.</p>
             </div>
-            <a class="section-heading__link" href="<?= e(collectionUrl('offers')) ?>">Ona zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            <a class="section-heading-link" href="<?= e(collectionUrl('offers')) ?>">Ona zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
         <div class="product-grid product-grid--rail" data-home-offers></div>
     </section>
@@ -224,7 +224,7 @@ require __DIR__ . '/includes/header.php';
 <?php if ($product_tabs !== []) : ?>
     <section class="container-xl home-section" aria-labelledby="home-products-title">
         <div class="section-heading section-heading--tabs">
-            <h2 class="section-heading__title" id="home-products-title">Bidhaa za duka lako</h2>
+            <h2 class="section-heading-title" id="home-products-title">Bidhaa za duka lako</h2>
             <div class="home-tabs" role="tablist" aria-label="Chagua kundi la bidhaa">
                 <?php foreach ($product_tabs as $index => $tab) : ?>
                     <button class="chip<?= $index === 0 ? ' is-active' : '' ?>" type="button" role="tab"
@@ -235,7 +235,7 @@ require __DIR__ . '/includes/header.php';
                     </button>
                 <?php endforeach; ?>
             </div>
-            <a class="section-heading__link" href="<?= e(collectionUrl($product_tabs[0]['key'])) ?>" data-home-see-all>Tazama zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+            <a class="section-heading-link" href="<?= e(collectionUrl($product_tabs[0]['key'])) ?>" data-home-see-all>Tazama zote <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
         </div>
         <div class="product-grid product-grid--rail" id="home-products-panel" role="tabpanel"
             aria-labelledby="home-tab-<?= e($product_tabs[0]['key']) ?>" data-home-products></div>
@@ -243,12 +243,12 @@ require __DIR__ . '/includes/header.php';
 <?php endif; ?>
 
 <section class="wholesale-band" aria-labelledby="wholesale-title">
-    <div class="container-xl wholesale-band__inner">
-        <div class="wholesale-band__copy">
-            <p class="wholesale-band__eyebrow">Jinsi bei za jumla zinavyofanya kazi</p>
-            <h2 class="wholesale-band__title" id="wholesale-title">Nunua zaidi, lipa kidogo</h2>
-            <p class="wholesale-band__text">Kila bidhaa ina ngazi za bei: kadri unavyoagiza pcs nyingi, ndivyo bei ya kila moja inavyoshuka. Kikapu chako kinabadilisha bei chenyewe.</p>
-            <ul class="wholesale-band__points">
+    <div class="container-xl wholesale-band-inner">
+        <div class="wholesale-band-copy">
+            <p class="wholesale-band-eyebrow">Jinsi bei za jumla zinavyofanya kazi</p>
+            <h2 class="wholesale-band-title" id="wholesale-title">Nunua zaidi, lipa kidogo</h2>
+            <p class="wholesale-band-text">Kila bidhaa ina ngazi za bei: kadri unavyoagiza pcs nyingi, ndivyo bei ya kila moja inavyoshuka. Kikapu chako kinabadilisha bei chenyewe.</p>
+            <ul class="wholesale-band-points">
                 <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Kiwango cha chini cha kuagiza (MOQ) kiko wazi kwenye kila bidhaa</li>
                 <li><i class="bi bi-check2-circle" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                 <li><i class="bi bi-check2-circle" aria-hidden="true"></i> Agiza tena oda yako ya zamani kwa kubofya mara moja</li>
@@ -258,8 +258,8 @@ require __DIR__ . '/includes/header.php';
 
         <?php if ($has_tier_example) : ?>
             <div class="tier-card">
-                <p class="tier-card__label">Mfano halisi</p>
-                <a class="tier-card__product" href="<?= e(productUrl($example_product['product_id'], $example_product['product_slug'])) ?>"><?= e($example_product['product_name']) ?></a>
+                <p class="tier-card-label">Mfano halisi</p>
+                <a class="tier-card-product" href="<?= e(productUrl($example_product['product_id'], $example_product['product_slug'])) ?>"><?= e($example_product['product_name']) ?></a>
                 <table class="tier-table">
                     <caption class="visually-hidden">Bei kwa kila pc kulingana na idadi</caption>
                     <thead>
@@ -272,12 +272,12 @@ require __DIR__ . '/includes/header.php';
                         <?php foreach ($example_tiers as $tier) : ?>
                             <tr class="<?= $tier['is_best'] ? 'is-best' : '' ?>">
                                 <td><?= e($tier['label']) ?></td>
-                                <td><?= e(formatTzs($tier['unit_price'])) ?><?php if ($tier['is_best']) : ?> <span class="tier-table__tag">Bei bora</span><?php endif; ?></td>
+                                <td><?= e(formatTzs($tier['unit_price'])) ?><?php if ($tier['is_best']) : ?> <span class="tier-table-tag">Bei bora</span><?php endif; ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
-                <p class="tier-card__savings"><i class="bi bi-graph-down-arrow" aria-hidden="true"></i> Unaokoa hadi <strong><?= e($example_savings_percent) ?>%</strong> kwa kila pc</p>
+                <p class="tier-card-savings"><i class="bi bi-graph-down-arrow" aria-hidden="true"></i> Unaokoa hadi <strong><?= e($example_savings_percent) ?>%</strong> kwa kila pc</p>
             </div>
         <?php endif; ?>
     </div>

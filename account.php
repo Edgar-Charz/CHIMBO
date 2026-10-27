@@ -35,7 +35,7 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <section class="container-xl account-page">
-    <header class="account-page__heading">
+    <header class="account-page-heading">
         <div>
             <h1 class="h2 mb-1">Wasifu</h1>
             <p class="text-secondary mb-0">Taarifa zako na usalama wa akaunti yako.</p>
@@ -43,17 +43,17 @@ require __DIR__ . '/includes/header.php';
     </header>
 
     <section class="account-profile" aria-labelledby="profile-name">
-        <div class="account-profile__identity">
+        <div class="account-profile-identity">
             <div class="account-avatar" data-avatar>
-                <img class="account-avatar__image" data-avatar-image <?= $avatar_url ? 'src="' . e($avatar_url) . '"' : '' ?>
+                <img class="account-avatar-image" data-avatar-image <?= $avatar_url ? 'src="' . e($avatar_url) . '"' : '' ?>
                      alt="Picha ya <?= e($customer['user_full_name'] ?? 'mteja') ?>" <?= $avatar_url ? '' : 'hidden' ?>>
-                <span class="account-avatar__initials" data-avatar-initials <?= $avatar_url ? 'hidden' : '' ?>><?= e($avatar_initials) ?></span>
+                <span class="account-avatar-initials" data-avatar-initials <?= $avatar_url ? 'hidden' : '' ?>><?= e($avatar_initials) ?></span>
             </div>
-            <div class="account-profile__copy">
-                <p class="account-profile__eyebrow">KARIBU CHIMBO</p>
+            <div class="account-profile-copy">
+                <p class="account-profile-eyebrow">KARIBU CHIMBO</p>
                 <h2 id="profile-name"><?= e($customer['user_full_name'] ?? 'Mteja wa CHIMBO') ?></h2>
-                <p class="account-profile__phone"><i class="bi bi-telephone" aria-hidden="true"></i> <?= e($customer['user_phone']) ?></p>
-                <span class="account-profile__badge <?= $business_is_verified ? 'is-verified' : '' ?>">
+                <p class="account-profile-phone"><i class="bi bi-telephone" aria-hidden="true"></i> <?= e($customer['user_phone']) ?></p>
+                <span class="account-profile-badge <?= $business_is_verified ? 'is-verified' : '' ?>">
                     <i class="bi <?= $business_is_verified ? 'bi-patch-check-fill' : 'bi-shop' ?>" aria-hidden="true"></i>
                     <?= $business_is_verified ? 'Biashara imethibitishwa' : 'Akaunti ya biashara' ?>
                 </span>
@@ -62,58 +62,58 @@ require __DIR__ . '/includes/header.php';
 
         <form class="account-avatar-editor" id="avatar-form" novalidate>
             <div data-field>
-                <label class="account-avatar-editor__label" for="avatar-file">Picha ya wasifu</label>
-                <p class="account-avatar-editor__hint">JPG, PNG au WEBP; angalau pikseli 200 na hadi MB 8.</p>
+                <label class="account-avatar-editor-label" for="avatar-file">Picha ya wasifu</label>
+                <p class="account-avatar-editor-hint">JPG, PNG au WEBP; angalau pikseli 200 na hadi MB 8.</p>
                 <input class="visually-hidden" id="avatar-file" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="avatar-hint">
             </div>
-            <div class="account-avatar-editor__actions">
+            <div class="account-avatar-editor-actions">
                 <label class="btn btn-light" for="avatar-file">
                     <i class="bi bi-camera me-1" aria-hidden="true"></i> Chagua picha
                 </label>
                 <button class="btn btn-primary" id="avatar-save-button" type="submit" disabled>Hifadhi picha</button>
                 <button class="btn btn-outline-light" id="avatar-remove-button" type="button" <?= $avatar_url ? '' : 'hidden' ?>>Ondoa picha</button>
             </div>
-            <div class="account-avatar-editor__hint" id="avatar-hint" aria-live="polite">Picha inaonekana kwenye wasifu wako tu.</div>
+            <div class="account-avatar-editor-hint" id="avatar-hint" aria-live="polite">Picha inaonekana kwenye wasifu wako tu.</div>
         </form>
     </section>
 
     <nav class="account-links" aria-label="Akaunti yako">
         <?php foreach (ACCOUNT_LINKS as $account_link) : ?>
             <a class="account-link" href="<?= e(url($account_link['href'])) ?>">
-                <span class="account-link__icon"><i class="bi bi-<?= e($account_link['icon']) ?>" aria-hidden="true"></i></span>
-                <span class="account-link__label"><?= e($account_link['label']) ?></span>
-                <i class="bi bi-chevron-right account-link__arrow" aria-hidden="true"></i>
+                <span class="account-link-icon"><i class="bi bi-<?= e($account_link['icon']) ?>" aria-hidden="true"></i></span>
+                <span class="account-link-label"><?= e($account_link['label']) ?></span>
+                <i class="bi bi-chevron-right account-link-arrow" aria-hidden="true"></i>
             </a>
         <?php endforeach; ?>
     </nav>
 
-    <div class="account-page__grid">
+    <div class="account-page-grid">
         <section class="account-card" aria-labelledby="account-details-heading">
-            <div class="account-card__heading">
-                <span class="account-card__icon"><i class="bi bi-person-lines-fill" aria-hidden="true"></i></span>
+            <div class="account-card-heading">
+                <span class="account-card-icon"><i class="bi bi-person-lines-fill" aria-hidden="true"></i></span>
                 <div>
                     <h2 id="account-details-heading">Taarifa za akaunti</h2>
                     <p>Maelezo ya msingi ya akaunti yako.</p>
                 </div>
             </div>
             <dl class="account-details">
-                <div class="account-details__row">
+                <div class="account-details-row">
                     <dt>Jina kamili</dt>
                     <dd><?= e($customer['user_full_name'] ?? '—') ?></dd>
                 </div>
-                <div class="account-details__row">
+                <div class="account-details-row">
                     <dt>Namba ya simu</dt>
                     <dd><?= e($customer['user_phone']) ?></dd>
                 </div>
-                <div class="account-details__row">
+                <div class="account-details-row">
                     <dt>Duka</dt>
                     <dd><?= e($business['business_name'] ?? 'Bado halijaongezwa') ?></dd>
                 </div>
-                <div class="account-details__row">
+                <div class="account-details-row">
                     <dt>Mkoa</dt>
                     <dd><?= e(implode(', ', array_filter([$business['district_name'] ?? null, $business['region_name'] ?? null])) ?: 'Bado haujachaguliwa') ?></dd>
                 </div>
-                <div class="account-details__row">
+                <div class="account-details-row">
                     <dt>Barua pepe</dt>
                     <dd><?= e($customer['user_email'] ?? 'Hakuna') ?></dd>
                 </div>
@@ -146,7 +146,7 @@ require __DIR__ . '/includes/header.php';
                         <select class="form-select" id="details_district_id" name="district_id" disabled></select>
                     </div>
                 </div>
-                <div class="address-form__actions">
+                <div class="address-form-actions">
                     <button class="btn btn-primary" type="submit">Hifadhi</button>
                     <button class="btn btn-link" type="button" data-details-cancel>Ghairi</button>
                 </div>
@@ -154,14 +154,14 @@ require __DIR__ . '/includes/header.php';
         </section>
 
         <section class="account-card account-security" aria-labelledby="change-pin-heading">
-            <div class="account-card__heading">
-                <span class="account-card__icon account-card__icon--security"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
+            <div class="account-card-heading">
+                <span class="account-card-icon account-card-icon--security"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
                 <div>
                     <h2 id="change-pin-heading">Usalama wa akaunti</h2>
                     <p>Linda akaunti yako kwa PIN ya kipekee.</p>
                 </div>
             </div>
-            <div class="account-security__status">
+            <div class="account-security-status">
                 <span><i class="bi bi-check-circle-fill" aria-hidden="true"></i> PIN imewashwa</span>
                 <span>Tarakimu 4–6</span>
             </div>
@@ -178,7 +178,7 @@ require __DIR__ . '/includes/header.php';
                     <label class="form-label" for="confirm_pin">Rudia PIN mpya</label>
                     <input class="form-control" id="confirm_pin" name="user_pin_confirmation" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" required data-pin-input>
                 </div>
-                <div class="account-pin-form__actions">
+                <div class="account-pin-form-actions">
                     <button class="btn btn-primary" type="submit">Hifadhi PIN mpya</button>
                     <a href="<?= e(url('login.php')) ?>?forgot_pin=1&amp;return=<?= e(rawurlencode(url('account.php'))) ?>">Umesahau PIN?</a>
                 </div>
@@ -189,7 +189,7 @@ require __DIR__ . '/includes/header.php';
     <section class="account-card account-exit" aria-labelledby="account-exit-heading">
         <h2 class="visually-hidden" id="account-exit-heading">Toka au futa akaunti</h2>
         <button class="btn btn-outline-primary" type="button" data-logout><i class="bi bi-box-arrow-right" aria-hidden="true"></i> Toka</button>
-        <button class="btn btn-link account-exit__delete" type="button" data-bs-toggle="modal" data-bs-target="#delete-account-dialog">Futa akaunti yangu</button>
+        <button class="btn btn-link account-exit-delete" type="button" data-bs-toggle="modal" data-bs-target="#delete-account-dialog">Futa akaunti yangu</button>
     </section>
 </section>
 

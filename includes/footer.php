@@ -15,7 +15,7 @@ $page_scripts = array_map(fn (string $script): string => 'js/' . $script, $page[
 
     <?php if ($page['is_focused']) : ?>
         <footer class="focused-footer">
-            <div class="container-xl focused-footer__inner">
+            <div class="container-xl focused-footer-inner">
                 <span>&copy; <?= e(date('Y')) ?> <?= e(SHOP_NAME) ?></span>
                 <a href="<?= e(url('help.php')) ?>">Msaada</a>
                 <a href="<?= e(url('terms.php')) ?>">Vigezo na Masharti</a>

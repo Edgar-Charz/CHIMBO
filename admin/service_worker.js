@@ -1,4 +1,4 @@
-﻿self.addEventListener('notificationclick', (event) => {
+self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const fcmMessage = event.notification.data?.FCM_MSG;
   const target = fcmMessage?.data?.url || event.notification.data?.url || self.registration.scope;

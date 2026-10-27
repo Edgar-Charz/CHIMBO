@@ -29,8 +29,8 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <section class="container-xl addresses-page">
-    <a class="checkout-page__back" href="<?= e(url('account.php')) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wasifu</a>
-    <div class="notifications-page__heading">
+    <a class="checkout-page-back" href="<?= e(url('account.php')) ?>"><i class="bi bi-arrow-left" aria-hidden="true"></i> Wasifu</a>
+    <div class="notifications-page-heading">
         <h1 class="page-title">Anwani zangu</h1>
         <button class="btn btn-primary" type="button" data-address-add><i class="bi bi-plus-lg" aria-hidden="true"></i> Ongeza anwani</button>
     </div>

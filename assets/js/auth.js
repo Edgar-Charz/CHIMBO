@@ -19,7 +19,7 @@
     const codeForm = document.getElementById('code-form');
     const createPinForm = document.getElementById('create-pin-form');
     const profileForm = document.getElementById('profile-form');
-    const digitInputs = [...codeForm.querySelectorAll('.otp-input__digit')];
+    const digitInputs = [...codeForm.querySelectorAll('.otp-input-digit')];
 
     let verifiedPhone = '';   // the phone in the server's format (+2557…), from step 1
     let pendingPinReset = false;

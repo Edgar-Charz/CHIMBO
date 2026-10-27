@@ -31,6 +31,50 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-10-27 - Convert remaining admin and receipt CSS classes
+- Replaced double underscores in admin stylesheet selectors and their markup/script references, and in the receipt template's inline styles and markup.
+
+### 2026-10-27 - Use hyphenated storefront CSS classes
+- Converted storefront CSS class names from double underscores to hyphens and updated matching PHP/JavaScript references.
+
+### 2026-10-27 - Rename promo tile title class
+- Replaced `promo-tile__title` with `promo-tile-title` in the storefront markup and both responsive CSS rules; visual styling is unchanged.
+
+### 2026-10-27 - Expand the storefront layout on desktop
+- Made shared storefront containers fluid with responsive side gutters and a 2200px maximum width, reducing unused side space on wide displays and as browser zoom changes the viewport.
+- Desktop product grids now scale from five to eight columns at wider viewport sizes, while keeping the existing compact mobile layout.
+- `git diff --check` passed. Browser screenshot verification could not be completed because the computer-use tool could not confidently identify the current Chrome URL.
+
+### 2026-10-23 - Keep image search alive through normal Gemini latency
+- Increased the Gemini request timeout to 16 seconds, within the app's existing 20-second receive limit and PHP's 120-second execution limit.
+- Gemini network and HTTP failures now produce a logged `VISUAL_SEARCH_UNAVAILABLE` response instead of a successful-looking empty match list; logs avoid response bodies and image/key data.
+- A direct `generateContent` request with a Nivea catalog photo did not respond within 20 seconds. After the backend timeout increase, the API still reached its 16-second Gemini deadline; an earlier Gemini response identified temporary `503 UNAVAILABLE` high demand.
+- The API now returns `503 VISUAL_SEARCH_UNAVAILABLE` instead of empty matches and logs only safe cURL/HTTP status details. Visual-search tests passed (8 tests, 19 assertions); the full backend suite ran 279 tests and had one unrelated `CatalogAdminTest::testBannerTimesAreSavedInUtc` validation error.
+
+### 2026-10-23 - Search image labels word by word
+- Updated visual search to ask Gemini to read clearly visible packaging words and return them as `detected.visible_words`.
+- Searches recognized words individually as well as phrases, allowing a single catalog word match to return product cards; stops after collecting 20 results.
+- Updated the API reference for the expanded image-search response and behavior.
+
+
+### 2026-10-23 - Connect mobile visual search to the catalog
+- Added camera actions to the Home and catalog search bars, with a Kiswahili camera/gallery picker and an "Inatambua bidhaa..." loading dialog.
+- The app uploads the selected image to `POST /products/search-by-image`, displays the detected query and matching products, and offers a retry state when there are no matches.
+- Added English and Kiswahili strings and visual-search result parsing coverage.
+- `flutter analyze` and the full `flutter test --concurrency=1` suite passed; the full suite reported 161 passing tests.
+
+### 2026-10-23 - Localize admin-managed banners by app language
+- Added English banner title, subtitle and button fields to the admin editor and saved them alongside Kiswahili copy.
+- `/home` now returns the copy matching `Accept-Language`; migrated the existing wholesale banner and updated the demo seed.
+- Updated the API reference and existing banner fixtures.
+- Removed UTF-8 byte-order marks from edited API files that were corrupting the JSON response consumed by Flutter; the local Home endpoint now starts with valid JSON.
+
+### 2026-10-23 - Add visual camera search backend endpoint and SKU matching
+- Created `VisualSearch` class and `POST /api/v1/products/search-by-image` endpoint supporting multipart file uploads and base64 payloads with Gemini Flash AI recognition and catalog matching.
+- Updated `Product::buildFilters()` to include `product_sku` in `q` searches so barcode and SKU scans match directly.
+- Added integration test suite `VisualSearchTest` covering image validation, mime checks, base64/multipart inputs, SKU matching, and API routing (6 tests, 16 assertions).
+- Documented endpoint in `docs/API_REFERENCE.md` and added optional `GEMINI_API_KEY` setting to `.env.example`.
+
 ### 2026-10-23 - Connect Firebase push notifications to the admin PWA
 - Added the Firebase Web App config and public VAPID key, a staff browser-token table and CSRF-protected registration endpoint, plus role-aware FCM delivery after staff-notification transactions commit.
 - Staff opt in with the bell button. Notifications open the relevant admin page; the registration endpoint rejects logout removal requests so cached pages cannot delete opted-in devices, and stale FCM tokens are cleaned up.

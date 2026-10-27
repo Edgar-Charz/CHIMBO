@@ -123,8 +123,8 @@ return function (Database $db) use ($categories, $sellers, $products): void {
 
         // Home banner from the design ("BEI ZA JUMLA")
         $db->insert(
-            "INSERT INTO banners (banner_title, banner_subtitle, banner_button_label, banner_target_type, banner_target_value)
-             VALUES ('BEI ZA JUMLA', 'Nunua zaidi, okoa zaidi.', 'Nunua Sasa', 'collection', 'deals')"
+            "INSERT INTO banners (banner_title, banner_title_en, banner_subtitle, banner_subtitle_en, banner_button_label, banner_button_label_en, banner_target_type, banner_target_value)
+             VALUES ('BEI ZA JUMLA', 'WHOLESALE PRICES', 'Nunua zaidi, okoa zaidi.', 'The more you buy, the more you save!', 'Nunua Sasa', 'Shop Now', 'collection', 'deals')"
         );
     });
 };

@@ -20,15 +20,15 @@
 
     function renderAddress(address) {
         return el('article', { className: `address-card${address.address_is_default ? ' is-default' : ''}` }, [
-            el('div', { className: 'address-card__top' }, [
+            el('div', { className: 'address-card-top' }, [
                 el('strong', { text: address.address_recipient_name }),
-                address.address_is_default ? el('span', { className: 'choice-card__tag', text: 'Kuu' }) : null,
+                address.address_is_default ? el('span', { className: 'choice-card-tag', text: 'Kuu' }) : null,
             ]),
-            ...addressForm.describe(address).filter(Boolean).map((line) => el('p', { className: 'address-card__line', text: line })),
-            el('div', { className: 'address-card__actions' }, [
+            ...addressForm.describe(address).filter(Boolean).map((line) => el('p', { className: 'address-card-line', text: line })),
+            el('div', { className: 'address-card-actions' }, [
                 address.address_is_default ? null : actionButton('Weka kuu', 'star', (button) => makeDefault(address, button)),
                 actionButton('Badilisha', 'pencil', () => openEditor(address)),
-                actionButton('Futa', 'trash3', (button) => deleteAddress(address, button), 'btn btn-link address-card__delete'),
+                actionButton('Futa', 'trash3', (button) => deleteAddress(address, button), 'btn btn-link address-card-delete'),
             ]),
         ]);
     }

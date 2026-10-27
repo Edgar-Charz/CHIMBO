@@ -42,7 +42,7 @@ require __DIR__ . '/includes/header.php';
         <?php endif; ?>
     </div>
 
-    <h2 class="text-page__subtitle">Maswali ya mara kwa mara</h2>
+    <h2 class="text-page-subtitle">Maswali ya mara kwa mara</h2>
     <div class="accordion help-questions" id="help-questions">
         <?php foreach ($questions as $index => $item) : ?>
             <div class="accordion-item">

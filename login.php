@@ -41,94 +41,94 @@ require __DIR__ . '/includes/header.php';
 
 <section class="container-xl auth-page">
     <div class="auth-card">
-        <aside class="auth-card__brand">
-            <p class="auth-card__eyebrow">CHIMBO kwa wenye maduka</p>
-            <h2 class="auth-card__headline">Bidhaa za duka lako kwa bei za jumla</h2>
-            <ul class="auth-card__benefits">
+        <aside class="auth-card-brand">
+            <p class="auth-card-eyebrow">CHIMBO kwa wenye maduka</p>
+            <h2 class="auth-card-headline">Bidhaa za duka lako kwa bei za jumla</h2>
+            <ul class="auth-card-benefits">
                 <li><i class="bi bi-tags" aria-hidden="true"></i> Bei hushuka kadri unavyonunua zaidi</li>
                 <li><i class="bi bi-cash-coin" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></li>
                 <li><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Agiza tena kwa kubofya mara moja</li>
             </ul>
         </aside>
 
-        <div class="auth-card__body">
+        <div class="auth-card-body">
             <form class="auth-step" id="phone-form" novalidate data-auth-step="phone" <?= $auth_data['start_step'] === 'phone' ? '' : 'hidden' ?>>
-                <p class="auth-step__progress">Ingia au jisajili</p>
-                <h1 class="auth-step__title">Ingia au jisajili</h1>
-                <p class="auth-step__text">Weka namba yako ya simu ili uendelee.</p>
+                <p class="auth-step-progress">Ingia au jisajili</p>
+                <h1 class="auth-step-title">Ingia au jisajili</h1>
+                <p class="auth-step-text">Weka namba yako ya simu ili uendelee.</p>
 
-                <div class="auth-step__field" data-field>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="user_phone">Namba ya simu</label>
                     <div class="phone-input">
-                        <span class="phone-input__prefix">+255</span>
+                        <span class="phone-input-prefix">+255</span>
                         <input class="form-control" id="user_phone" name="user_phone" type="tel" inputmode="numeric" autocomplete="tel-national"
                             placeholder="712 345 678" maxlength="16" required>
                     </div>
                 </div>
 
                 <button class="btn btn-primary btn-lg w-100" type="submit">Endelea</button>
-                <p class="auth-step__legal">
+                <p class="auth-step-legal">
                     Kwa kuendelea unakubali <a href="<?= e(url('terms.php')) ?>">Vigezo na Masharti</a>
                     na <a href="<?= e(url('privacy.php')) ?>">Sera ya Faragha</a>.
                 </p>
             </form>
 
             <form class="auth-step" id="pin-form" novalidate hidden data-auth-step="pin">
-                <p class="auth-step__progress">Ingia kwa PIN</p>
-                <h1 class="auth-step__title">Weka PIN yako</h1>
-                <p class="auth-step__text">PIN ya akaunti ya <strong data-sent-phone></strong>.</p>
-                <div class="auth-step__field" data-field>
+                <p class="auth-step-progress">Ingia kwa PIN</p>
+                <h1 class="auth-step-title">Weka PIN yako</h1>
+                <p class="auth-step-text">PIN ya akaunti ya <strong data-sent-phone></strong>.</p>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="login_pin">PIN</label>
                     <input class="form-control" id="login_pin" name="user_pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" required data-pin-input>
                 </div>
                 <button class="btn btn-primary btn-lg w-100" type="submit">Ingia</button>
                 <button class="btn btn-link w-100 mt-2" type="button" data-forgot-pin>Umesahau PIN?</button>
-                <button class="btn btn-link auth-step__inline-link" type="button" data-change-phone>Badilisha namba</button>
+                <button class="btn btn-link auth-step-inline-link" type="button" data-change-phone>Badilisha namba</button>
             </form>
 
             <div class="auth-step" hidden data-auth-step="pin_locked">
-                <p class="auth-step__progress">PIN imefungwa</p>
-                <h1 class="auth-step__title">PIN imefungwa kwa muda</h1>
-                <p class="auth-step__text" data-pin-locked-message>PIN imefungwa baada ya majaribio mengi.</p>
+                <p class="auth-step-progress">PIN imefungwa</p>
+                <h1 class="auth-step-title">PIN imefungwa kwa muda</h1>
+                <p class="auth-step-text" data-pin-locked-message>PIN imefungwa baada ya majaribio mengi.</p>
                 <button class="btn btn-primary btn-lg w-100" type="button" data-forgot-pin>Umesahau PIN?</button>
                 <button class="btn btn-link w-100 mt-2" type="button" data-change-phone>Badilisha namba</button>
             </div>
 
             <form class="auth-step" id="code-form" novalidate hidden data-auth-step="code">
-                <p class="auth-step__progress">Thibitisha simu</p>
-                <h1 class="auth-step__title">Thibitisha namba yako</h1>
-                <p class="auth-step__text">
+                <p class="auth-step-progress">Thibitisha simu</p>
+                <h1 class="auth-step-title">Thibitisha namba yako</h1>
+                <p class="auth-step-text">
                     Tumetuma msimbo wa uthibitisho kwa <strong data-sent-phone></strong>.
-                    <button class="btn btn-link auth-step__inline-link" type="button" data-change-phone>Badilisha</button>
+                    <button class="btn btn-link auth-step-inline-link" type="button" data-change-phone>Badilisha</button>
                 </p>
 
-                <div class="auth-step__field" data-field>
+                <div class="auth-step-field" data-field>
                     <div class="otp-input" role="group" aria-label="Msimbo wa uthibitisho wenye tarakimu 6" data-otp-digits>
                         <?php for ($digit = 1; $digit <= 6; $digit++) : ?>
-                            <input class="form-control otp-input__digit" type="text" inputmode="numeric" maxlength="1"
+                            <input class="form-control otp-input-digit" type="text" inputmode="numeric" maxlength="1"
                                 aria-label="Tarakimu ya <?= $digit ?>" <?= $digit === 1 ? 'autocomplete="one-time-code"' : 'autocomplete="off"' ?>>
                         <?php endfor; ?>
                     </div>
                     <input type="hidden" name="otp_code">
                 </div>
-                <p class="auth-step__dev-hint" hidden data-dev-hint><i class="bi bi-bug" aria-hidden="true"></i> Hali ya majaribio: namba imejazwa yenyewe.</p>
+                <p class="auth-step-dev-hint" hidden data-dev-hint><i class="bi bi-bug" aria-hidden="true"></i> Hali ya majaribio: namba imejazwa yenyewe.</p>
 
                 <button class="btn btn-primary btn-lg w-100" type="submit">Thibitisha</button>
-                <p class="auth-step__resend">
+                <p class="auth-step-resend">
                     <span data-resend-wait></span>
-                    <button class="btn btn-link auth-step__inline-link" type="button" hidden data-resend>Tuma namba tena</button>
+                    <button class="btn btn-link auth-step-inline-link" type="button" hidden data-resend>Tuma namba tena</button>
                 </p>
             </form>
 
             <form class="auth-step" id="create-pin-form" novalidate hidden data-auth-step="create_pin">
-                <p class="auth-step__progress">Usalama wa akaunti</p>
-                <h1 class="auth-step__title">Tengeneza PIN</h1>
-                <p class="auth-step__text">Chagua PIN yenye tarakimu 4 hadi 6. Usitumie mfululizo rahisi wa namba.</p>
-                <div class="auth-step__field" data-field>
+                <p class="auth-step-progress">Usalama wa akaunti</p>
+                <h1 class="auth-step-title">Tengeneza PIN</h1>
+                <p class="auth-step-text">Chagua PIN yenye tarakimu 4 hadi 6. Usitumie mfululizo rahisi wa namba.</p>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="new_pin">PIN mpya</label>
                     <input class="form-control" id="new_pin" name="user_pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" required data-pin-input>
                 </div>
-                <div class="auth-step__field" data-field>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="confirm_pin">Rudia PIN mpya</label>
                     <input class="form-control" id="confirm_pin" name="user_pin_confirmation" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]{4,6}" required data-pin-input>
                 </div>
@@ -136,16 +136,16 @@ require __DIR__ . '/includes/header.php';
             </form>
 
             <form class="auth-step" id="profile-form" novalidate hidden data-auth-step="profile">
-                <p class="auth-step__progress">Taarifa za biashara</p>
-                <h1 class="auth-step__title">Tuambie kuhusu biashara yako</h1>
-                <p class="auth-step__text">Tunatumia taarifa hizi kwa oda zako na usafirishaji.</p>
+                <p class="auth-step-progress">Taarifa za biashara</p>
+                <h1 class="auth-step-title">Tuambie kuhusu biashara yako</h1>
+                <p class="auth-step-text">Tunatumia taarifa hizi kwa oda zako na usafirishaji.</p>
 
-                <div class="auth-step__field" data-field>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="user_full_name">Jina lako kamili</label>
                     <input class="form-control" id="user_full_name" name="user_full_name" autocomplete="name" required
                         value="<?= e($customer['user_full_name'] ?? '') ?>">
                 </div>
-                <div class="auth-step__field" data-field>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="business_name">Jina la duka <span class="text-secondary">(hiari)</span></label>
                     <input class="form-control" id="business_name" name="business_name" autocomplete="organization">
                 </div>
@@ -155,7 +155,7 @@ require __DIR__ . '/includes/header.php';
                         <select class="form-select" id="region_id" name="region_id" required data-region-select>
                             <option value="">Chagua mkoa</option>
                         </select>
-                    </div>
+                    </div><!--  -->
                     <div class="col-12 col-sm-6" data-field>
                         <label class="form-label" for="district_id">Wilaya <span class="text-secondary">(hiari)</span></label>
                         <select class="form-select" id="district_id" name="district_id" disabled data-district-select>
@@ -170,6 +170,8 @@ require __DIR__ . '/includes/header.php';
     </div>
 </section>
 
-<script type="application/json" id="auth-data"><?= json_encode($auth_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
+<script type="application/json" id="auth-data">
+    <?= json_encode($auth_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
+</script>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

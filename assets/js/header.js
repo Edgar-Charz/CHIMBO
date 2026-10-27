@@ -42,21 +42,21 @@
             className: 'search-suggestion',
             attrs: { href: productUrl(product), role: 'option', id: `search-suggestion-${index}` },
         }, [
-            productImage(product.product_image_url, '', 'search-suggestion__image'),
-            el('span', { className: 'search-suggestion__name', text: product.product_name }),
-            el('span', { className: 'search-suggestion__price', text: `kuanzia ${formatTzs(product.product_price_from)}` }),
+            productImage(product.product_image_url, '', 'search-suggestion-image'),
+            el('span', { className: 'search-suggestion-name', text: product.product_name }),
+            el('span', { className: 'search-suggestion-price', text: `kuanzia ${formatTzs(product.product_price_from)}` }),
         ]);
     }
 
     function showSuggestions(products, query) {
         const allResults = el('a', {
-            className: 'search-suggestions__footer',
+            className: 'search-suggestions-footer',
             text: `Tazama matokeo yote ya "${query}"`,
             attrs: { href: searchPageUrl(query), role: 'option', id: 'search-suggestion-all' },
         });
         const content = products.length > 0
             ? products.map(renderSuggestion)
-            : [el('p', { className: 'search-suggestions__empty', text: `Hakuna bidhaa inayolingana na "${query}".` })];
+            : [el('p', { className: 'search-suggestions-empty', text: `Hakuna bidhaa inayolingana na "${query}".` })];
 
         suggestionBox.replaceChildren(...content, allResults);
         suggestionBox.hidden = false;

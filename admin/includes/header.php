@@ -77,7 +77,7 @@ $flash_messages = array_values(array_filter([
                     <div class="admin-global-search" data-admin-global-search data-search-url="<?= e(url('admin/ajax/global_search.php')) ?>">
                         <form role="search" data-global-search-form autocomplete="off">
                             <label class="visually-hidden" for="admin-global-search">Search orders, customers and products</label>
-                            <div class="admin-global-search__field">
+                            <div class="admin-global-search-field">
                                 <i class="bi bi-search" aria-hidden="true"></i>
                                 <input id="admin-global-search" class="form-control" type="search" name="q" maxlength="100"
                                        placeholder="Search orders, customers, products" aria-controls="admin-global-search-results"
@@ -85,7 +85,7 @@ $flash_messages = array_values(array_filter([
                                 <kbd>/</kbd>
                             </div>
                         </form>
-                        <div class="admin-global-search__results" id="admin-global-search-results" role="listbox"
+                        <div class="admin-global-search-results" id="admin-global-search-results" role="listbox"
                              aria-label="Search results" aria-live="polite" hidden></div>
                     </div>
                 <?php endif; ?>
@@ -101,8 +101,8 @@ $flash_messages = array_values(array_filter([
                         data-panel-url="<?= e(url('admin/ajax/notifications.php?part=panel')) ?>"
                         data-count-url="<?= e(url('admin/ajax/notifications.php?part=count')) ?>">
                     <i class="bi bi-bell"></i>
-                    <span class="notification-bell__badge" data-notification-count <?= $unread_notifications > 0 ? '' : 'hidden' ?>><?= e($unread_notifications > 99 ? '99+' : $unread_notifications) ?></span>
-                    <span class="notification-bell__dot" data-notification-dot title="Work is waiting for you" <?= $unread_notifications === 0 && $has_waiting_work ? '' : 'hidden' ?>></span>
+                    <span class="notification-bell-badge" data-notification-count <?= $unread_notifications > 0 ? '' : 'hidden' ?>><?= e($unread_notifications > 99 ? '99+' : $unread_notifications) ?></span>
+                    <span class="notification-bell-dot" data-notification-dot title="Work is waiting for you" <?= $unread_notifications === 0 && $has_waiting_work ? '' : 'hidden' ?>></span>
                 </button>
 
                 <div class="dropdown">

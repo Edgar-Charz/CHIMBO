@@ -44,29 +44,29 @@ require __DIR__ . '/includes/header.php';
     <?php if ($tab === 'history') : ?>
         <?php if ($payments === []) : ?>
             <div class="state-block">
-                <span class="state-block__icon"><i class="bi bi-wallet2" aria-hidden="true"></i></span>
-                <h2 class="state-block__title">Bado hujafanya malipo</h2>
-                <p class="state-block__text">Malipo ya oda zako yataonekana hapa, pamoja na hali yake.</p>
+                <span class="state-block-icon"><i class="bi bi-wallet2" aria-hidden="true"></i></span>
+                <h2 class="state-block-title">Bado hujafanya malipo</h2>
+                <p class="state-block-text">Malipo ya oda zako yataonekana hapa, pamoja na hali yake.</p>
             </div>
         <?php else : ?>
             <div class="orders-list">
                 <?php foreach ($payments as $payment) : ?>
                     <?php [$status_label, $status_tone] = PAYMENT_STATUS_PILLS[$payment['payment_status']] ?? [$payment['payment_status'], 'info']; ?>
                     <article class="order-card">
-                        <header class="order-card__header">
+                        <header class="order-card-header">
                             <div>
-                                <a class="order-card__number" href="<?= e(url('order.php?id=' . $payment['order_id'])) ?>">
+                                <a class="order-card-number" href="<?= e(url('order.php?id=' . $payment['order_id'])) ?>">
                                     <?= e($payment['payment_method_name']) ?> · <?= e(formatTzs($payment['payment_amount'])) ?>
                                 </a>
-                                <p class="order-card__date">
+                                <p class="order-card-date">
                                     Oda #<?= e($payment['order_number']) ?> · <?= e(localDateTime($payment['created_at'], 'd/m/Y, H:i')) ?>
                                 </p>
                             </div>
                             <span class="status-pill status-pill--<?= e($status_tone) ?>"><?= e($status_label) ?></span>
                         </header>
-                        <p class="payment-card__reference">Namba ya muamala: <strong><?= e($payment['payment_reference']) ?></strong></p>
+                        <p class="payment-card-reference">Namba ya muamala: <strong><?= e($payment['payment_reference']) ?></strong></p>
                         <?php if ($payment['payment_status'] === 'rejected' && $payment['payment_review_note']) : ?>
-                            <p class="payment-card__note"><?= e($payment['payment_review_note']) ?></p>
+                            <p class="payment-card-note"><?= e($payment['payment_review_note']) ?></p>
                         <?php endif; ?>
                     </article>
                 <?php endforeach; ?>
@@ -81,11 +81,11 @@ require __DIR__ . '/includes/header.php';
                     <?php if ($method['payment_method_type'] === 'cash') : ?>
                         <p class="mb-0">Lipa kwa pesa taslimu unapopokea mzigo.</p>
                     <?php else : ?>
-                        <dl class="payment-box__details">
+                        <dl class="payment-box-details">
                             <?php require __DIR__ . '/includes/payment_method_details.php'; ?>
                         </dl>
                         <?php if ($method['payment_method_instructions']) : ?>
-                            <p class="payment-box__instructions mb-0"><?= nl2br(e($method['payment_method_instructions'])) ?></p>
+                            <p class="payment-box-instructions mb-0"><?= nl2br(e($method['payment_method_instructions'])) ?></p>
                         <?php endif; ?>
                     <?php endif; ?>
                 </article>

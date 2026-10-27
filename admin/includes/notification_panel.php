@@ -10,7 +10,7 @@
         <div class="notification-section-title">Waiting for you</div>
         <div class="d-flex flex-wrap gap-2">
             <?php foreach ($attention_items as [$count, $label, $icon, $link]): ?>
-                <a class="attention-bar__item" href="<?= e($link) ?>"><i class="bi <?= e($icon) ?>"></i> <strong><?= e(number_format($count)) ?></strong> <?= e($label) ?></a>
+                <a class="attention-bar-item" href="<?= e($link) ?>"><i class="bi <?= e($icon) ?>"></i> <strong><?= e(number_format($count)) ?></strong> <?= e($label) ?></a>
             <?php endforeach; ?>
         </div>
     </div>

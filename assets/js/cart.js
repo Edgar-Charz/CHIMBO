@@ -204,7 +204,7 @@
         };
         const { text, label, fix } = fixes[problem];
 
-        return el('p', { className: 'cart-line__problem' }, [
+        return el('p', { className: 'cart-line-problem' }, [
             icon('exclamation-triangle-fill'), ` ${text} `,
             el('button', { className: 'btn btn-link', text: label, attrs: { type: 'button' }, on: { click: () => fix().catch(() => {}) } }),
         ]);
@@ -222,20 +222,20 @@
         const hint = item.next_tier_hint;
         line.append(
             el('a', { attrs: { href: productUrl(product), tabindex: '-1', 'aria-hidden': 'true' } }, [
-                productImage(product.product_image_url, product.product_name, 'cart-line__image'),
+                productImage(product.product_image_url, product.product_name, 'cart-line-image'),
             ]),
-            el('div', { className: 'cart-line__body' }, [
-                el('div', { className: 'cart-line__top' }, [
-                    el('a', { className: 'cart-line__name', text: product.product_name, attrs: { href: productUrl(product) } }),
-                    el('span', { className: 'cart-line__total', text: formatTzs(item.line_total) }),
+            el('div', { className: 'cart-line-body' }, [
+                el('div', { className: 'cart-line-top' }, [
+                    el('a', { className: 'cart-line-name', text: product.product_name, attrs: { href: productUrl(product) } }),
+                    el('span', { className: 'cart-line-total', text: formatTzs(item.line_total) }),
                 ]),
-                el('p', { className: 'cart-line__price' }, [
+                el('p', { className: 'cart-line-price' }, [
                     `${formatTzs(item.unit_price)} kila moja · bei ya ${item.tier_min_quantity}+ pcs `,
                     CHIMBO.offerTag(item.offer_percent),
                 ]),
-                hint ? el('span', { className: 'cart-line__hint', text: `Ongeza ${formatPieces(hint.extra_quantity)} upate ${formatTzs(hint.unit_price)} kila moja` }) : null,
+                hint ? el('span', { className: 'cart-line-hint', text: `Ongeza ${formatPieces(hint.extra_quantity)} upate ${formatTzs(hint.unit_price)} kila moja` }) : null,
                 item.line_problem ? renderLineProblem(item) : null,
-                el('div', { className: 'cart-line__actions' }, [
+                el('div', { className: 'cart-line-actions' }, [
                     quantityStepper({
                         value: item.cart_quantity,
                         min: product.product_moq,
@@ -244,7 +244,7 @@
                         onChange: updateLine,
                     }),
                     el('button', {
-                        className: 'icon-button cart-line__remove',
+                        className: 'icon-button cart-line-remove',
                         attrs: { type: 'button', 'aria-label': `Ondoa ${product.product_name}` },
                         on: { click: () => updateLine(0) },
                     }, [icon('trash3')]),
@@ -261,12 +261,12 @@
 
     /** Every line under its category title (drawer and cart page). */
     const renderGroups = (cart) => cart.groups.flatMap((group) => [
-        el('h3', { className: 'cart-group__title', text: group.category_name }),
+        el('h3', { className: 'cart-group-title', text: group.category_name }),
         ...group.items.map(renderLine),
     ]);
 
     const renderLineSkeletons = (count) => Array.from({ length: count }, () => el('div', { className: 'cart-line', attrs: { 'aria-hidden': 'true' } }, [
-        skeleton('cart-line__image'),
+        skeleton('cart-line-image'),
         el('div', {}, [skeleton('skeleton--text'), skeleton('skeleton--text skeleton--short')]),
     ]));
 

@@ -20,7 +20,7 @@
 
         if (cartQuantity > 0) {
             const quantityBadge = CHIMBO.el('button', {
-                className: 'product-card__add recent-product-rail__add recent-product-rail__cart-count',
+                className: 'product-card-add recent-product-rail-add recent-product-rail-cart-count',
                 attrs: {
                     type: 'button',
                     'aria-label': `Kikapu: ${product.product_name}, idadi ${CHIMBO.formatPieces(cartQuantity)}. Fungua kikapu kubadilisha idadi.`,
@@ -32,12 +32,12 @@
         }
 
         if (!product.product_in_stock) {
-            actionContainer.replaceChildren(CHIMBO.el('span', { className: 'recent-product-rail__sold-out', text: 'Imeisha' }));
+            actionContainer.replaceChildren(CHIMBO.el('span', { className: 'recent-product-rail-sold-out', text: 'Imeisha' }));
             return;
         }
 
         const addButton = CHIMBO.el('button', {
-            className: 'product-card__add recent-product-rail__add',
+            className: 'product-card-add recent-product-rail-add',
             attrs: {
                 type: 'button',
                 'aria-label': `Ongeza ${product.product_name} kikapuni (pcs ${product.product_moq})`,
@@ -66,20 +66,20 @@
     const recentGrid = document.querySelector('[data-home-recent]');
     if (recentGrid) {
         recentGrid.replaceChildren(...homeProducts.recently_ordered.map((product) => {
-            const image = CHIMBO.productImage(product.product_image_url, product.product_name, 'recent-product-rail__image');
+            const image = CHIMBO.productImage(product.product_image_url, product.product_name, 'recent-product-rail-image');
             const link = CHIMBO.el('a', {
-                className: 'recent-product-rail__link',
+                className: 'recent-product-rail-link',
                 attrs: {
                     href: CHIMBO.productUrl(product),
                     'aria-label': `Agiza tena ${product.product_name}`,
                 },
             }, [image]);
-            const actionContainer = CHIMBO.el('div', { className: 'recent-product-rail__action' });
-            const tile = CHIMBO.el('div', { className: 'recent-product-rail__tile' }, [link, actionContainer]);
+            const actionContainer = CHIMBO.el('div', { className: 'recent-product-rail-action' });
+            const tile = CHIMBO.el('div', { className: 'recent-product-rail-tile' }, [link, actionContainer]);
             recentActions.set(product.product_id, { product, container: actionContainer });
             renderRecentAction(product, actionContainer);
 
-            return CHIMBO.el('li', { className: 'recent-product-rail__item' }, [tile]);
+            return CHIMBO.el('li', { className: 'recent-product-rail-item' }, [tile]);
         }));
 
         document.addEventListener(CHIMBO.cart.changedEvent, updateRecentActions);

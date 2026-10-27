@@ -16,14 +16,14 @@ $bottom_nav_items = [
 <nav class="bottom-nav d-lg-none" aria-label="Menyu kuu">
     <?php foreach ($bottom_nav_items as $item) : ?>
         <?php $is_active = $item['key'] === $page['nav']; ?>
-        <a class="bottom-nav__item<?= $is_active ? ' is-active' : '' ?>" href="<?= e($item['href']) ?>" <?= $is_active ? 'aria-current="page"' : '' ?>>
-            <span class="bottom-nav__icon">
+        <a class="bottom-nav-item<?= $is_active ? ' is-active' : '' ?>" href="<?= e($item['href']) ?>" <?= $is_active ? 'aria-current="page"' : '' ?>>
+            <span class="bottom-nav-icon">
                 <i class="bi bi-<?= e($item['icon']) ?><?= $is_active ? '-fill' : '' ?>" aria-hidden="true"></i>
                 <?php if ($item['key'] === 'cart') : ?>
                     <span class="count-badge" hidden data-cart-badge></span>
                 <?php endif; ?>
             </span>
-            <span class="bottom-nav__label"><?= e($item['label']) ?></span>
+            <span class="bottom-nav-label"><?= e($item['label']) ?></span>
         </a>
     <?php endforeach; ?>
 </nav>

@@ -39,9 +39,9 @@ require __DIR__ . '/includes/header.php';
 
     <?php if ($orders['items'] === []) : ?>
         <div class="state-block">
-            <span class="state-block__icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
-            <h2 class="state-block__title"><?= $group === 'all' ? 'Bado hujaagiza' : 'Hakuna oda hapa' ?></h2>
-            <p class="state-block__text">Oda zako zote — za tovuti na za programu ya simu — zitaonekana hapa.</p>
+            <span class="state-block-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
+            <h2 class="state-block-title"><?= $group === 'all' ? 'Bado hujaagiza' : 'Hakuna oda hapa' ?></h2>
+            <p class="state-block-text">Oda zako zote — za tovuti na za programu ya simu — zitaonekana hapa.</p>
             <a class="btn btn-primary" href="<?= e(url('')) ?>">Anza kununua</a>
         </div>
     <?php else : ?>

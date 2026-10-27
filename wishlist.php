@@ -20,7 +20,7 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <section class="container-xl wishlist-page">
-    <h1 class="page-title">Vipendwa <span class="page-title__count" data-wishlist-count><?= $saved_products === [] ? '' : e('(' . count($saved_products) . ')') ?></span></h1>
+    <h1 class="page-title">Vipendwa <span class="page-title-count" data-wishlist-count><?= $saved_products === [] ? '' : e('(' . count($saved_products) . ')') ?></span></h1>
     <div class="product-grid" data-wishlist-grid></div>
 </section>
 

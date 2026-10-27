@@ -12,12 +12,12 @@ class Home
     }
 
     /** $user_id: the logged-in customer (adds their recently ordered products), or null for a guest. */
-    public function getHome(?int $user_id = null): array
+    public function getHome(?int $user_id = null, string $language = 'sw'): array
     {
         $product_model = new Product($this->db);
 
         return [
-            'banners'          => (new Banner($this->db))->getActiveBanners(),
+            'banners'          => (new Banner($this->db))->getActiveBanners($language),
             'top_categories'   => (new Category($this->db))->getCategoryTree(),
             'best_sellers'     => $product_model->getCollection('best_sellers', self::RAIL_SIZE),
             'deals'            => $product_model->getCollection('deals', self::RAIL_SIZE),

@@ -33,7 +33,7 @@ require __DIR__ . '/head.php';
     } ?>
 
     <div class="announcement-bar">
-        <div class="container-xl announcement-bar__inner">
+        <div class="container-xl announcement-bar-inner">
             <span><i class="bi bi-tags" aria-hidden="true"></i> Nunua zaidi, lipa kidogo</span>
             <span class="d-none d-md-inline"><i class="bi bi-<?= paymentOptions()['cash_only'] ? 'cash-coin' : 'phone' ?>" aria-hidden="true"></i> <?= e(paymentOptions()['short']) ?></span>
             <span class="d-none d-lg-inline"><i class="bi bi-patch-check" aria-hidden="true"></i> Wauzaji waliothibitishwa</span>
@@ -41,19 +41,19 @@ require __DIR__ . '/head.php';
     </div>
 
     <header class="site-header" data-site-header>
-        <div class="container-xl site-header__inner">
+        <div class="container-xl site-header-inner">
             <a class="site-logo" href="<?= e(url('')) ?>" aria-label="<?= e(SHOP_NAME) ?> — Nyumbani">
-                <img class="site-logo__mark" src="<?= e(logoUrl()) ?>" width="40" height="40" alt="">
-                <span class="site-logo__word"><?= e(SHOP_NAME) ?></span>
+                <img class="site-logo-mark" src="<?= e(logoUrl()) ?>" width="40" height="40" alt="">
+                <span class="site-logo-word"><?= e(SHOP_NAME) ?></span>
             </a>
 
             <form class="site-search" role="search" action="<?= e(url('search.php')) ?>" method="get" data-search-form>
-                <i class="bi bi-search site-search__icon" aria-hidden="true"></i>
-                <input class="site-search__input" type="search" name="q" value="<?= e($page['search_query']) ?>"
+                <i class="bi bi-search site-search-icon" aria-hidden="true"></i>
+                <input class="site-search-input" type="search" name="q" value="<?= e($page['search_query']) ?>"
                     placeholder="Tafuta bidhaa au chapa…" aria-label="Tafuta bidhaa" autocomplete="off"
                     role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggestions"
                     data-search-input>
-                <button class="site-search__submit" type="submit">Tafuta</button>
+                <button class="site-search-submit" type="submit">Tafuta</button>
                 <div class="search-suggestions" id="search-suggestions" role="listbox" aria-label="Mapendekezo" hidden data-search-suggestions></div>
             </form>
 
@@ -97,27 +97,27 @@ require __DIR__ . '/head.php';
         </div>
 
         <nav class="category-nav d-none d-lg-block" aria-label="Menyu ya duka">
-            <div class="container-xl category-nav__inner">
-                <ul class="category-nav__list">
+            <div class="container-xl category-nav-inner">
+                <ul class="category-nav-list">
                     <li>
-                        <a class="category-nav__link" href="<?= e(url('')) ?>" <?= $page['nav'] === 'home' ? 'aria-current="page"' : '' ?>>Nyumbani</a>
+                        <a class="category-nav-link" href="<?= e(url('')) ?>" <?= $page['nav'] === 'home' ? 'aria-current="page"' : '' ?>>Nyumbani</a>
                     </li>
                     <li>
-                        <a class="category-nav__link" href="<?= e(url('explore.php')) ?>" <?= $is_gundua_current ? 'aria-current="page"' : '' ?>>Gundua</a>
+                        <a class="category-nav-link" href="<?= e(url('explore.php')) ?>" <?= $is_gundua_current ? 'aria-current="page"' : '' ?>>Gundua</a>
                     </li>
                     <li>
-                        <a class="category-nav__link" href="<?= e(url('search.php')) ?>" <?= $is_all_products ? 'aria-current="page"' : '' ?>>Bidhaa zote</a>
+                        <a class="category-nav-link" href="<?= e(url('search.php')) ?>" <?= $is_all_products ? 'aria-current="page"' : '' ?>>Bidhaa zote</a>
                     </li>
                     <?php foreach (shopCategories() as $menu_category) : ?>
                         <li class="dropdown">
-                            <button class="category-nav__link dropdown-toggle<?= $current_category_id === (int) $menu_category['category_id'] ? ' is-current' : '' ?>" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $current_category_id === (int) $menu_category['category_id'] ? 'aria-current="page"' : '' ?>>
+                            <button class="category-nav-link dropdown-toggle<?= $current_category_id === (int) $menu_category['category_id'] ? ' is-current' : '' ?>" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $current_category_id === (int) $menu_category['category_id'] ? 'aria-current="page"' : '' ?>>
                                 <?= e($menu_category['category_name']) ?>
                             </button>
                             <div class="dropdown-menu category-menu">
-                                <a class="category-menu__all" href="<?= e(categoryUrl($menu_category['category_id'], $menu_category['category_slug'])) ?>">
+                                <a class="category-menu-all" href="<?= e(categoryUrl($menu_category['category_id'], $menu_category['category_slug'])) ?>">
                                     Tazama <?= e($menu_category['category_name']) ?> zote <i class="bi bi-arrow-right" aria-hidden="true"></i>
                                 </a>
-                                <div class="category-menu__chips">
+                                <div class="category-menu-chips">
                                     <?php foreach ($menu_category['children'] as $menu_chip) : ?>
                                         <a class="chip" href="<?= e(categoryUrl($menu_category['category_id'], $menu_category['category_slug'], $menu_chip['category_id'])) ?>"><?= e($menu_chip['category_name']) ?></a>
                                     <?php endforeach; ?>
@@ -125,11 +125,11 @@ require __DIR__ . '/head.php';
                             </div>
                         </li>
                     <?php endforeach; ?>
-                    <li><a class="category-nav__link category-nav__link--deal<?= $current_collection === 'offers' ? ' is-current' : '' ?>" href="<?= e(collectionUrl('offers')) ?>" <?= $current_collection === 'offers' ? 'aria-current="page"' : '' ?>><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
-                    <li><a class="category-nav__link<?= $current_collection === 'new' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=new')) ?>" <?= $current_collection === 'new' ? 'aria-current="page"' : '' ?>>Mpya</a></li>
-                    <li><a class="category-nav__link<?= $current_collection === 'best_sellers' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=best_sellers')) ?>" <?= $current_collection === 'best_sellers' ? 'aria-current="page"' : '' ?>>Zinazouzwa Zaidi</a></li>
+                    <li><a class="category-nav-link category-nav-link--deal<?= $current_collection === 'offers' ? ' is-current' : '' ?>" href="<?= e(collectionUrl('offers')) ?>" <?= $current_collection === 'offers' ? 'aria-current="page"' : '' ?>><i class="bi bi-lightning-charge-fill" aria-hidden="true"></i> Ofa</a></li>
+                    <li><a class="category-nav-link<?= $current_collection === 'new' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=new')) ?>" <?= $current_collection === 'new' ? 'aria-current="page"' : '' ?>>Mpya</a></li>
+                    <li><a class="category-nav-link<?= $current_collection === 'best_sellers' ? ' is-current' : '' ?>" href="<?= e(url('search.php?collection=best_sellers')) ?>" <?= $current_collection === 'best_sellers' ? 'aria-current="page"' : '' ?>>Zinazouzwa Zaidi</a></li>
                 </ul>
-                <p class="category-nav__note"><i class="bi bi-shield-check" aria-hidden="true"></i> Malipo yako ni salama</p>
+                <p class="category-nav-note"><i class="bi bi-shield-check" aria-hidden="true"></i> Malipo yako ni salama</p>
             </div>
         </nav>
     </header>

@@ -17,12 +17,12 @@ require __DIR__ . '/header.php';
 <section class="container-xl text-page">
     <h1 class="page-title"><?= e($legal_page['page_title']) ?></h1>
     <?php if ($legal_page['updated_at'] !== null) : ?>
-        <p class="text-page__updated">Imesasishwa: <?= e(swahiliDate($legal_page['updated_at'])) ?></p>
+        <p class="text-page-updated">Imesasishwa: <?= e(swahiliDate($legal_page['updated_at'])) ?></p>
     <?php endif; ?>
 
-    <div class="text-page__body"><?= $legal_page['page_body_html'] ?></div>
+    <div class="text-page-body"><?= $legal_page['page_body_html'] ?></div>
 
-    <p class="text-page__contact">Una swali? <a href="<?= e(url('help.php')) ?>">Wasiliana nasi</a>.</p>
+    <p class="text-page-contact">Una swali? <a href="<?= e(url('help.php')) ?>">Wasiliana nasi</a>.</p>
 </section>
 
 <?php require __DIR__ . '/footer.php'; ?>

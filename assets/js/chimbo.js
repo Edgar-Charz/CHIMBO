@@ -91,9 +91,9 @@
         }
 
         return el('div', { className: `state-block${isError ? ' state-block--error' : ''}`, attrs: { role: isError ? 'alert' : null } }, [
-            el('span', { className: 'state-block__icon' }, [icon(iconName)]),
-            el('h3', { className: 'state-block__title', text: title }),
-            text ? el('p', { className: 'state-block__text', text }) : null,
+            el('span', { className: 'state-block-icon' }, [icon(iconName)]),
+            el('h3', { className: 'state-block-title', text: title }),
+            text ? el('p', { className: 'state-block-text', text }) : null,
             action,
         ]);
     }
@@ -181,15 +181,15 @@
 
     /** One selectable card (address, delivery, payment). `lines` are the texts under the title; `tag` a small label. */
     function choiceCard({ name, value, title, lines, tag = null, iconName = null, iconElement = null, isChecked, onSelect }) {
-        const input = el('input', { className: 'choice-card__input', attrs: { type: 'radio', name, value, checked: isChecked } });
+        const input = el('input', { className: 'choice-card-input', attrs: { type: 'radio', name, value, checked: isChecked } });
         input.addEventListener('change', () => onSelect(value));
 
         return el('label', { className: 'choice-card' }, [
             input,
-            iconElement ?? (iconName ? el('span', { className: 'choice-card__icon' }, [icon(iconName)]) : null),
-            el('span', { className: 'choice-card__body' }, [
-                el('span', { className: 'choice-card__title' }, [title, tag ? el('span', { className: 'choice-card__tag', text: tag }) : null]),
-                ...lines.filter(Boolean).map((line) => el('span', { className: 'choice-card__line', text: line })),
+            iconElement ?? (iconName ? el('span', { className: 'choice-card-icon' }, [icon(iconName)]) : null),
+            el('span', { className: 'choice-card-body' }, [
+                el('span', { className: 'choice-card-title' }, [title, tag ? el('span', { className: 'choice-card-tag', text: tag }) : null]),
+                ...lines.filter(Boolean).map((line) => el('span', { className: 'choice-card-line', text: line })),
             ]),
         ]);
     }
@@ -207,7 +207,7 @@
         const fallback_icon = icon(kind.icon);
         const method_icon = method.payment_method_icon_url
             ? el('img', {
-                className: 'choice-card__payment-icon',
+                className: 'choice-card-payment-icon',
                 attrs: { src: method.payment_method_icon_url, alt: '', loading: 'lazy', decoding: 'async' },
                 on: { error: (event) => event.currentTarget.replaceWith(fallback_icon) },
             })
@@ -217,7 +217,7 @@
             value: method.payment_method_code,
             title: method.payment_method_name,
             lines: [kind.text],
-            iconElement: el('span', { className: 'choice-card__icon' }, [method_icon]),
+            iconElement: el('span', { className: 'choice-card-icon' }, [method_icon]),
             tag,
             isChecked,
             onSelect,
@@ -293,8 +293,8 @@
         }
         const region = document.querySelector('[data-toast-region]');
         const toastElement = el('div', { className: `chimbo-toast chimbo-toast--${type}`, attrs: { role: type === 'error' ? 'alert' : 'status' } }, [
-            icon(TOAST_ICONS[type], 'chimbo-toast__icon'),
-            el('p', { className: 'chimbo-toast__message', text: message }),
+            icon(TOAST_ICONS[type], 'chimbo-toast-icon'),
+            el('p', { className: 'chimbo-toast-message', text: message }),
         ]);
         region.append(toastElement);
 
@@ -529,10 +529,10 @@
         let quantity = value;
         const commitChange = delayMs === 0 ? () => onChange(quantity) : debounce(() => onChange(quantity), delayMs);
 
-        const decreaseButton = el('button', { className: 'quantity-stepper__button', attrs: { type: 'button' } });
-        const increaseButton = el('button', { className: 'quantity-stepper__button', attrs: { type: 'button', 'aria-label': 'Ongeza moja' } }, [icon('plus-lg')]);
+        const decreaseButton = el('button', { className: 'quantity-stepper-button', attrs: { type: 'button' } });
+        const increaseButton = el('button', { className: 'quantity-stepper-button', attrs: { type: 'button', 'aria-label': 'Ongeza moja' } }, [icon('plus-lg')]);
         const input = el('input', {
-            className: 'quantity-stepper__input',
+            className: 'quantity-stepper-input',
             attrs: { type: 'number', inputmode: 'numeric', min, max, value, 'aria-label': label },
         });
 

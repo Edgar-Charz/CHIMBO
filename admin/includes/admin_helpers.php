@@ -305,9 +305,9 @@ function adminRowActions(string ...$items): string
         return '';
     }
     return '<div class="dropdown row-actions">'
-        . '<button class="btn btn-light row-actions__toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"'
+        . '<button class="btn btn-light row-actions-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"'
         . ' title="Open actions menu" aria-label="Open actions menu"><i class="bi bi-three-dots-vertical"></i></button>'
-        . '<ul class="dropdown-menu dropdown-menu-end row-actions__menu">' . implode('', $items) . '</ul>'
+        . '<ul class="dropdown-menu dropdown-menu-end row-actions-menu">' . implode('', $items) . '</ul>'
         . '</div>';
 }
 

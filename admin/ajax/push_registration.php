@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 require dirname(__DIR__) . '/includes/admin_bootstrap.php';
 

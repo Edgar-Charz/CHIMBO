@@ -48,9 +48,9 @@ require __DIR__ . '/includes/header.php';
 <?php if ($product === null) : ?>
     <section class="container-xl">
         <div class="state-block">
-            <span class="state-block__icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
-            <h1 class="state-block__title">Bidhaa haipatikani</h1>
-            <p class="state-block__text">Huenda imeondolewa dukani au kiungo si sahihi.</p>
+            <span class="state-block-icon"><i class="bi bi-box-seam" aria-hidden="true"></i></span>
+            <h1 class="state-block-title">Bidhaa haipatikani</h1>
+            <p class="state-block-text">Huenda imeondolewa dukani au kiungo si sahihi.</p>
             <a class="btn btn-primary" href="<?= e(url('search.php')) ?>">Tazama bidhaa zote</a>
         </div>
     </section>
@@ -69,21 +69,21 @@ require __DIR__ . '/includes/header.php';
 
         <div class="product-layout">
             <div class="product-gallery<?= count($product['gallery']) > 1 ? ' product-gallery--thumbs' : '' ?>" data-gallery>
-                <div class="product-gallery__main" data-gallery-main>
+                <div class="product-gallery-main" data-gallery-main>
                     <?php if ($product['gallery'] !== []) : ?>
-                        <img class="product-gallery__image" src="<?= e($product['gallery'][0]['product_image_large_url']) ?>" alt="<?= e($product['product_name']) ?>" fetchpriority="high" decoding="async">
+                        <img class="product-gallery-image" src="<?= e($product['gallery'][0]['product_image_large_url']) ?>" alt="<?= e($product['product_name']) ?>" fetchpriority="high" decoding="async">
                     <?php else : ?>
-                        <div class="product-gallery__image image-placeholder" role="img" aria-label="Picha ya bidhaa bado haijawekwa"><i class="bi bi-image" aria-hidden="true"></i></div>
+                        <div class="product-gallery-image image-placeholder" role="img" aria-label="Picha ya bidhaa bado haijawekwa"><i class="bi bi-image" aria-hidden="true"></i></div>
                     <?php endif; ?>
                     <?php if ($badge_text !== null) : ?>
-                        <span class="product-card__badge product-card__badge--<?= e($product['product_badge']) ?>"><?= e($badge_text) ?></span>
+                        <span class="product-card-badge product-card-badge--<?= e($product['product_badge']) ?>"><?= e($badge_text) ?></span>
                     <?php endif; ?>
                 </div>
 
                 <?php if (count($product['gallery']) > 1) : ?>
-                    <div class="product-gallery__thumbs" role="group" aria-label="Picha za bidhaa">
+                    <div class="product-gallery-thumbs" role="group" aria-label="Picha za bidhaa">
                         <?php foreach ($product['gallery'] as $index => $image) : ?>
-                            <button class="product-gallery__thumb<?= $index === 0 ? ' is-active' : '' ?>" type="button"
+                            <button class="product-gallery-thumb<?= $index === 0 ? ' is-active' : '' ?>" type="button"
                                 aria-label="Picha ya <?= $index + 1 ?>" aria-pressed="<?= $index === 0 ? 'true' : 'false' ?>"
                                 data-gallery-thumb data-large-url="<?= e($image['product_image_large_url']) ?>">
                                 <img src="<?= e($image['product_image_thumb_url']) ?>" alt="" loading="lazy" decoding="async">
@@ -94,31 +94,31 @@ require __DIR__ . '/includes/header.php';
             </div>
 
             <div class="product-info">
-                <div class="product-info__top">
-                    <p class="product-info__seller">
+                <div class="product-info-top">
+                    <p class="product-info-seller">
                         <?= e($product['seller_name']) ?>
                         <?php if ($product['seller_is_verified']) : ?>
                             <i class="bi bi-patch-check-fill" aria-hidden="true"></i><span class="visually-hidden">(muuzaji amethibitishwa)</span>
                         <?php endif; ?>
                     </p>
-                    <div class="product-info__tools">
+                    <div class="product-info-tools">
                         <button class="icon-button" type="button" aria-label="Hifadhi kwenye vipendwa" aria-pressed="false" data-product-wishlist><i class="bi bi-heart" aria-hidden="true"></i></button>
                         <button class="icon-button" type="button" aria-label="Shiriki bidhaa hii" data-product-share><i class="bi bi-share" aria-hidden="true"></i></button>
                     </div>
                 </div>
 
-                <h1 class="product-info__name"><?= e($product['product_name']) ?></h1>
+                <h1 class="product-info-name"><?= e($product['product_name']) ?></h1>
                 <?php if ($product['product_brand']) : ?>
-                    <p class="product-info__brand">Chapa: <?= e($product['product_brand']) ?></p>
+                    <p class="product-info-brand">Chapa: <?= e($product['product_brand']) ?></p>
                 <?php endif; ?>
 
                 <div class="product-price">
-                    <p class="product-price__now"><span data-unit-price><?= e(formatTzs($moq_tier['tier_unit_price'])) ?></span> <small>kwa pc</small></p>
+                    <p class="product-price-now"><span data-unit-price><?= e(formatTzs($moq_tier['tier_unit_price'])) ?></span> <small>kwa pc</small></p>
                     <?php if ($product['product_compare_at_price'] > $product['product_price']) : ?>
-                        <p class="product-price__was"><?= $product['product_offer'] === null ? 'Bei ya awali' : 'Bei ya kawaida' ?> <del><?= e(formatTzs($product['product_compare_at_price'])) ?></del></p>
+                        <p class="product-price-was"><?= $product['product_offer'] === null ? 'Bei ya awali' : 'Bei ya kawaida' ?> <del><?= e(formatTzs($product['product_compare_at_price'])) ?></del></p>
                     <?php endif; ?>
                     <?php if ($product['product_offer'] !== null) : ?>
-                        <p class="product-price__offer">
+                        <p class="product-price-offer">
                             <i class="bi bi-alarm" aria-hidden="true"></i>
                             <span data-offer-ends="<?= e($product['product_offer']['product_offer_ends_at']) ?>" data-offer-product="<?= e($product['product_id']) ?>">Ofa ya muda</span>
                         </p>
@@ -126,7 +126,7 @@ require __DIR__ . '/includes/header.php';
                 </div>
 
                 <section class="tier-panel" aria-labelledby="tier-heading">
-                    <h2 class="tier-panel__title" id="tier-heading"><i class="bi bi-tags" aria-hidden="true"></i> Nunua zaidi, lipa kidogo</h2>
+                    <h2 class="tier-panel-title" id="tier-heading"><i class="bi bi-tags" aria-hidden="true"></i> Nunua zaidi, lipa kidogo</h2>
                     <table class="tier-table">
                         <thead>
                             <tr><th scope="col">Idadi</th><th scope="col">Bei kwa pc</th><th scope="col">Faida</th></tr>
@@ -138,10 +138,10 @@ require __DIR__ . '/includes/header.php';
                                     <td>
                                         <?= e(formatTzs($tier['unit_price'])) ?>
                                         <?php if ($tier['price_before_offer'] !== null) : ?>
-                                            <del class="tier-table__before"><?= e(formatTzs($tier['price_before_offer'])) ?></del>
+                                            <del class="tier-table-before"><?= e(formatTzs($tier['price_before_offer'])) ?></del>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="tier-table__saving"><?= $tier['savings_percent'] === 0 ? 'Bei ya kawaida' : e("Unaokoa {$tier['savings_percent']}%") ?></td>
+                                    <td class="tier-table-saving"><?= $tier['savings_percent'] === 0 ? 'Bei ya kawaida' : e("Unaokoa {$tier['savings_percent']}%") ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -149,7 +149,7 @@ require __DIR__ . '/includes/header.php';
                 </section>
 
                 <div class="product-buy" data-buy-box>
-                    <p class="product-buy__stock<?= $product['product_in_stock'] ? '' : ' is-sold-out' ?>">
+                    <p class="product-buy-stock<?= $product['product_in_stock'] ? '' : ' is-sold-out' ?>">
                         <i class="bi bi-<?= $product['product_in_stock'] ? 'check-circle-fill' : 'x-circle-fill' ?>" aria-hidden="true"></i>
                         <?php if ($product['product_in_stock']) : ?>
                             Inapatikana
@@ -159,25 +159,25 @@ require __DIR__ . '/includes/header.php';
                             Imeisha kwa sasa
                         <?php endif; ?>
                         <?php if ($product['product_stock_quantity'] > 0) : ?>
-                            <span class="product-buy__stock-quantity">· Zilizopo <?= e(formatPieces($product['product_stock_quantity'])) ?></span>
+                            <span class="product-buy-stock-quantity">· Zilizopo <?= e(formatPieces($product['product_stock_quantity'])) ?></span>
                         <?php endif; ?>
-                        <span class="product-buy__moq">· MOQ <?= e(formatPieces($product['product_moq'])) ?></span>
+                        <span class="product-buy-moq">· MOQ <?= e(formatPieces($product['product_moq'])) ?></span>
                     </p>
 
-                    <div class="product-buy__row">
+                    <div class="product-buy-row">
                         <div data-product-quantity></div>
-                        <div class="product-buy__total">
+                        <div class="product-buy-total">
                             <span>Jumla</span>
                             <strong data-line-total><?= e(formatTzs($moq_total)) ?></strong>
                         </div>
                     </div>
-                    <p class="product-buy__hint" hidden data-next-tier-hint></p>
-                    <p class="product-buy__savings" hidden data-savings></p>
+                    <p class="product-buy-hint" hidden data-next-tier-hint></p>
+                    <p class="product-buy-savings" hidden data-savings></p>
 
                     <button class="btn btn-buy btn-lg w-100" type="button" data-add-to-cart <?= $product['product_in_stock'] ? '' : 'disabled' ?>>
                         <i class="bi bi-bag-plus" aria-hidden="true"></i> Ongeza kikapuni
                     </button>
-                    <p class="product-buy__in-cart" hidden data-in-cart-note></p>
+                    <p class="product-buy-in-cart" hidden data-in-cart-note></p>
 
                     <ul class="product-promises">
                         <li><i class="bi bi-truck" aria-hidden="true"></i>
@@ -191,7 +191,7 @@ require __DIR__ . '/includes/header.php';
 
                 <?php if ($product['product_description']) : ?>
                     <section class="product-description" aria-labelledby="description-heading">
-                        <h2 class="product-description__title" id="description-heading">Kuhusu bidhaa hii</h2>
+                        <h2 class="product-description-title" id="description-heading">Kuhusu bidhaa hii</h2>
                         <p><?= nl2br(e($product['product_description'])) ?></p>
                     </section>
                 <?php endif; ?>
@@ -202,14 +202,14 @@ require __DIR__ . '/includes/header.php';
     <?php if ($suggested_products !== []) : ?>
         <section class="container-xl home-section" aria-labelledby="suggestions-heading">
             <div class="section-heading">
-                <h2 class="section-heading__title" id="suggestions-heading">Unaweza pia kupenda</h2>
+                <h2 class="section-heading-title" id="suggestions-heading">Unaweza pia kupenda</h2>
             </div>
             <div class="product-grid product-grid--rail" data-suggested-products></div>
         </section>
     <?php endif; ?>
 
     <div class="buy-bar" aria-hidden="true" data-buy-bar>
-        <div class="buy-bar__summary">
+        <div class="buy-bar-summary">
             <span data-buy-bar-quantity><?= e(formatPieces($product['product_moq'])) ?></span>
             <strong data-buy-bar-total><?= e(formatTzs($moq_total)) ?></strong>
         </div>

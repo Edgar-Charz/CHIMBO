@@ -9,7 +9,7 @@
 
     function showAsRead(item) {
         item.classList.remove('is-unread');
-        item.querySelector('.notification-item__dot')?.remove();
+        item.querySelector('.notification-item-dot')?.remove();
     }
 
     function updateBell(change) {
