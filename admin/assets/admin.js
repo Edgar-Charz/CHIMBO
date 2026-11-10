@@ -96,7 +96,8 @@
     const [, fieldName, notEqual, value] = part.dataset.showWhen.match(/^([^!=]+)(!?)=(.*)$/);
     const field = part.closest('form').elements[fieldName];
     const update = () => {
-      part.hidden = (field.value === value) === (notEqual === '!');
+      const matches = value.split(',').includes(field.value);
+      part.hidden = notEqual === '!' ? matches : !matches;
     };
     field.addEventListener('change', update);
     update();

@@ -29,8 +29,8 @@ require __DIR__ . '/includes/header.php';
             <h2 class="order-summary-title" id="cart-summary-title">Muhtasari</h2>
             <dl class="cart-summary">
                 <div class="cart-summary-row">
-                    <dt>Idadi ya vipande</dt>
-                    <dd data-cart-pieces></dd>
+                    <dt>Bidhaa</dt>
+                    <dd data-cart-line-count></dd>
                 </div>
                 <div class="cart-summary-row cart-summary-row--savings" hidden data-cart-savings-row>
                     <dt><i class="bi bi-tags" aria-hidden="true"></i> Unaokoa</dt>

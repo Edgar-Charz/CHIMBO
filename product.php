@@ -21,7 +21,7 @@ try {
 if ($product === null) {
     http_response_code(404);
 } else {
-    $tier_rows = tierRows($product['tiers']);
+    $tier_rows = tierRows($product['tiers'], $product['product_unit_label']);
     $moq_tier = Pricing::tierForQuantity($product['tiers'], $product['product_moq']);
     $moq_total = $moq_tier['tier_unit_price'] * $product['product_moq'];
     $badge_text = productBadgeText($product);
@@ -71,12 +71,24 @@ require __DIR__ . '/includes/header.php';
             <div class="product-gallery<?= count($product['gallery']) > 1 ? ' product-gallery--thumbs' : '' ?>" data-gallery>
                 <div class="product-gallery-main" data-gallery-main>
                     <?php if ($product['gallery'] !== []) : ?>
-                        <img class="product-gallery-image" src="<?= e($product['gallery'][0]['product_image_large_url']) ?>" alt="<?= e($product['product_name']) ?>" fetchpriority="high" decoding="async">
+                        <img class="product-gallery-image" src="<?= e($product['gallery'][0]['product_image_large_url']) ?>" alt="<?= e($product['product_name']) ?>" fetchpriority="high" decoding="async" data-gallery-image>
+                        <button class="product-gallery-zoom" type="button" aria-label="Panua picha ya bidhaa" data-gallery-open>
+                            <i class="bi bi-zoom-in" aria-hidden="true"></i>
+                        </button>
                     <?php else : ?>
                         <div class="product-gallery-image image-placeholder" role="img" aria-label="Picha ya bidhaa bado haijawekwa"><i class="bi bi-image" aria-hidden="true"></i></div>
                     <?php endif; ?>
                     <?php if ($badge_text !== null) : ?>
                         <span class="product-card-badge product-card-badge--<?= e($product['product_badge']) ?>"><?= e($badge_text) ?></span>
+                    <?php endif; ?>
+                    <?php if (count($product['gallery']) > 1) : ?>
+                        <button class="product-gallery-control product-gallery-control--previous" type="button" aria-label="Picha iliyotangulia" data-gallery-previous>
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </button>
+                        <button class="product-gallery-control product-gallery-control--next" type="button" aria-label="Picha inayofuata" data-gallery-next>
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </button>
+                        <span class="product-gallery-count" aria-live="polite"><span data-gallery-count>1</span> / <?= count($product['gallery']) ?></span>
                     <?php endif; ?>
                 </div>
 
@@ -113,7 +125,7 @@ require __DIR__ . '/includes/header.php';
                 <?php endif; ?>
 
                 <div class="product-price">
-                    <p class="product-price-now"><span data-unit-price><?= e(formatTzs($moq_tier['tier_unit_price'])) ?></span> <small>kwa pc</small></p>
+                    <p class="product-price-now"><span data-unit-price><?= e(formatTzs($moq_tier['tier_unit_price'])) ?></span> <small>kwa <?= e($product['product_unit_label']) ?></small></p>
                     <?php if ($product['product_compare_at_price'] > $product['product_price']) : ?>
                         <p class="product-price-was"><?= $product['product_offer'] === null ? 'Bei ya awali' : 'Bei ya kawaida' ?> <del><?= e(formatTzs($product['product_compare_at_price'])) ?></del></p>
                     <?php endif; ?>
@@ -129,7 +141,7 @@ require __DIR__ . '/includes/header.php';
                     <h2 class="tier-panel-title" id="tier-heading"><i class="bi bi-tags" aria-hidden="true"></i> Nunua zaidi, lipa kidogo</h2>
                     <table class="tier-table">
                         <thead>
-                            <tr><th scope="col">Idadi</th><th scope="col">Bei kwa pc</th><th scope="col">Faida</th></tr>
+                            <tr><th scope="col">Idadi</th><th scope="col">Bei kwa <?= e($product['product_unit_label']) ?></th><th scope="col">Faida</th></tr>
                         </thead>
                         <tbody>
                             <?php foreach ($tier_rows as $tier) : ?>
@@ -159,9 +171,9 @@ require __DIR__ . '/includes/header.php';
                             Imeisha kwa sasa
                         <?php endif; ?>
                         <?php if ($product['product_stock_quantity'] > 0) : ?>
-                            <span class="product-buy-stock-quantity">· Zilizopo <?= e(formatPieces($product['product_stock_quantity'])) ?></span>
+                            <span class="product-buy-stock-quantity">· Zilizopo <?= e(formatProductQuantity($product['product_stock_quantity'], $product['product_unit_label'])) ?></span>
                         <?php endif; ?>
-                        <span class="product-buy-moq">· MOQ <?= e(formatPieces($product['product_moq'])) ?></span>
+                        <span class="product-buy-moq">· MOQ <?= e(formatProductQuantity($product['product_moq'], $product['product_unit_label'])) ?></span>
                     </p>
 
                     <div class="product-buy-row">
@@ -199,6 +211,26 @@ require __DIR__ . '/includes/header.php';
         </div>
     </section>
 
+    <?php if ($product['gallery'] !== []) : ?>
+        <dialog class="product-gallery-dialog" aria-label="Picha ya bidhaa" data-gallery-dialog>
+            <div class="product-gallery-dialog-content">
+                <button class="product-gallery-dialog-close" type="button" aria-label="Funga picha" data-gallery-close>
+                    <i class="bi bi-x-lg" aria-hidden="true"></i>
+                </button>
+                <img src="<?= e($product['gallery'][0]['product_image_large_url']) ?>" alt="<?= e($product['product_name']) ?>" data-gallery-dialog-image>
+                <?php if (count($product['gallery']) > 1) : ?>
+                    <button class="product-gallery-dialog-control product-gallery-dialog-control--previous" type="button" aria-label="Picha iliyotangulia" data-gallery-dialog-previous>
+                        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <button class="product-gallery-dialog-control product-gallery-dialog-control--next" type="button" aria-label="Picha inayofuata" data-gallery-dialog-next>
+                        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                    </button>
+                <?php endif; ?>
+                <span class="product-gallery-dialog-count"><span data-gallery-dialog-count>1</span> / <?= count($product['gallery']) ?></span>
+            </div>
+        </dialog>
+    <?php endif; ?>
+
     <?php if ($suggested_products !== []) : ?>
         <section class="container-xl home-section" aria-labelledby="suggestions-heading">
             <div class="section-heading">
@@ -210,7 +242,7 @@ require __DIR__ . '/includes/header.php';
 
     <div class="buy-bar" aria-hidden="true" data-buy-bar>
         <div class="buy-bar-summary">
-            <span data-buy-bar-quantity><?= e(formatPieces($product['product_moq'])) ?></span>
+            <span data-buy-bar-quantity><?= e(formatProductQuantity($product['product_moq'], $product['product_unit_label'])) ?></span>
             <strong data-buy-bar-total><?= e(formatTzs($moq_total)) ?></strong>
         </div>
         <button class="btn btn-buy" type="button" tabindex="-1" data-add-to-cart <?= $product['product_in_stock'] ? '' : 'disabled' ?>>Ongeza kikapuni</button>

@@ -30,6 +30,18 @@
 
     /** 1 → "1 pc", 8 → "8 pcs" (the same words the app uses) */
     const formatPieces = (count) => `${numberFormatter.format(count)} ${count === 1 ? 'pc' : 'pcs'}`;
+    const PRODUCT_UNIT_LABELS = {
+        pc: ['pc', 'pcs'],
+        pack: ['pack', 'packs'],
+        set: ['set', 'sets'],
+        box: ['box', 'boxes'],
+        dozen: ['dozen', 'dozens'],
+        carton: ['carton', 'cartons'],
+    };
+    const formatProductQuantity = (count, unitLabel = 'pc') => {
+        const labels = PRODUCT_UNIT_LABELS[unitLabel] ?? [unitLabel, unitLabel];
+        return `${numberFormatter.format(count)} ${labels[count === 1 ? 0 : 1]}`;
+    };
 
     const url = (path = '') => config.base_url + path.replace(/^\//, '');
 
@@ -573,6 +585,8 @@
         productUrl,
         formatTzs,
         formatPieces,
+        formatProductQuantity,
+        formatNumber: (count) => numberFormatter.format(count),
         debounce,
         el,
         icon,

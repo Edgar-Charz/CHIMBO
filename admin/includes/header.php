@@ -12,7 +12,8 @@
 // Payments customers sent that staff still have to check (the badge on the Payments menu item)
 $payments_waiting = Admin::can($current_admin, 'payments.manage') ? (new Payment(Database::instance()))->countWaitingForReview() : 0;
 $unread_notifications = (new AdminNotification(Database::instance()))->countUnread($current_admin);   // the bell's number
-$has_waiting_work     = adminAttentionItems($current_admin) !== [];   // the bell's orange dot when nothing is unread
+$attention_items      = $attention_items ?? adminAttentionItems($current_admin);
+$has_waiting_work     = $attention_items !== [];   // the bell's orange dot when nothing is unread
 $can_global_search    = Admin::can($current_admin, 'orders.view')
     || Admin::can($current_admin, 'customers.view')
     || Admin::can($current_admin, 'products.manage');

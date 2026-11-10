@@ -249,12 +249,18 @@
         event.preventDefault();
         const { elements } = profileForm;
         try {
-            await submitForm(profileForm, submitButtonOf(profileForm), () => api.post('/auth/profile', {
-                user_full_name: elements.user_full_name.value.trim(),
-                business_name: elements.business_name.value.trim() || null,
-                region_id: locationSelect.selectedNumber(elements.region_id),
-                district_id: locationSelect.selectedNumber(elements.district_id),
-            }, { silent: true }));
+            await submitForm(profileForm, submitButtonOf(profileForm), async () => {
+                const user_email = elements.user_email.value.trim();
+                if (user_email) {
+                    await api.patch('/me', { user_email }, { silent: true });
+                }
+                return api.post('/auth/profile', {
+                    user_full_name: elements.user_full_name.value.trim(),
+                    business_name: elements.business_name.value.trim() || null,
+                    region_id: locationSelect.selectedNumber(elements.region_id),
+                    district_id: locationSelect.selectedNumber(elements.district_id),
+                }, { silent: true });
+            });
             await finishLogin();
         } catch {
             // the messages are shown under the fields

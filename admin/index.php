@@ -33,6 +33,7 @@ $tab = match (true) {
     isset($visible_tabs[$role_tab])           => $role_tab,
     default                                   => array_key_first($visible_tabs),
 };
+$attention_items = adminAttentionItems($current_admin);
 $chart_days = in_array((int) ($_GET['days'] ?? 0), Dashboard::CHART_DAY_OPTIONS, true)
     ? (int) $_GET['days']
     : (DASHBOARD_DEFAULT_DAYS[$tab] ?? 30);
@@ -44,6 +45,29 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <p class="text-muted mb-3">Karibu, <?= e($current_admin['admin_full_name']) ?>.</p>
+
+<?php if ($attention_items !== []): ?>
+    <section class="admin-panel mb-3" aria-labelledby="dashboard-attention-title">
+        <div class="admin-panel-header">
+            <div>
+                <h2 class="admin-panel-title" id="dashboard-attention-title">Needs attention</h2>
+                <p class="small text-muted mb-0">Open an item to follow up.</p>
+            </div>
+        </div>
+        <div class="admin-panel-body">
+            <div class="d-flex flex-wrap gap-2">
+                <?php foreach ($attention_items as [$count, $label, $icon, $link]): ?>
+                    <a class="attention-bar-item" href="<?= e($link) ?>">
+                        <i class="bi <?= e($icon) ?>" aria-hidden="true"></i>
+                        <strong><?= e(number_format($count)) ?></strong>
+                        <?= e($label) ?>
+                        <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+<?php endif; ?>
 
 <h2 class="dashboard-section-title">Today and this week</h2>
 <div class="mb-3"><?= adminStatCards($sales_cards, 4) ?></div>

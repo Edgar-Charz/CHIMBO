@@ -94,6 +94,9 @@ $form_error = adminHandleForm(function (string $form_action) use ($order_manager
     } elseif ($form_action === 'change_status' && $can_change_status) {
         $order_manager->changeStatus($order_id, $_POST, $admin_id);
         Session::flash('success', 'The order is now "' . adminStatusName((string) $_POST['order_status'], $is_pickup) . '". The customer has been notified.');
+    } elseif ($form_action === 'update_delivery_estimate' && $can_change_status) {
+        $order_manager->updateDeliveryEstimate($order_id, $_POST, $admin_id);
+        Session::flash('success', 'Delivery estimate updated. The customer has been notified.');
     } elseif ($form_action === 'reactivate_order' && $can_change_status) {
         $order_manager->reactivateOrder($order_id, $_POST, $admin_id);
         Session::flash('success', 'Order reactivated at today\'s prices — the customer has been told and can pay now.');
@@ -378,6 +381,16 @@ require __DIR__ . '/includes/header.php';
                         </select>
                         <?= adminFieldError($errors, 'order_status') ?>
                     </div>
+                    <?php if (!$is_pickup): ?>
+                        <div class="mb-3" data-show-when="order_status=dispatched,in_transit">
+                            <label class="form-label" for="transition_estimated_delivery_date">Estimated delivery date</label>
+                            <input class="form-control<?= adminInvalidClass($errors, 'order_estimated_delivery_date') ?>"
+                                   id="transition_estimated_delivery_date" name="order_estimated_delivery_date" type="date"
+                                   value="<?= e($posted['order_estimated_delivery_date'] ?? $order['order_estimated_delivery_date'] ?? '') ?>">
+                            <div class="form-text">Confirm the date for the customer. If it changes, explain why in the note.</div>
+                            <?= adminFieldError($errors, 'order_estimated_delivery_date') ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3" data-show-when="order_status=dispatched">
                         <label class="form-label" for="delivery_agent_id">
                             Delivery agent<?= $order['needs_delivery_agent'] ? '' : ' <span class="text-muted">(optional)</span>' ?>
@@ -400,7 +413,7 @@ require __DIR__ . '/includes/header.php';
                         <?= adminFieldError($errors, 'delivery_agent_id') ?>
                     </div>
                     <div>
-                        <label class="form-label" for="status_note">Note <span class="text-muted">(optional, the customer sees it)</span></label>
+                        <label class="form-label" for="status_note">Note <span class="text-muted">(the customer sees it; required when changing the estimate)</span></label>
                         <textarea class="form-control<?= adminInvalidClass($errors, 'status_note') ?>" id="status_note" name="status_note"
                                   rows="2" maxlength="255"><?= e($posted['status_note'] ?? '') ?></textarea>
                         <?= adminFieldError($errors, 'status_note') ?>
@@ -409,6 +422,33 @@ require __DIR__ . '/includes/header.php';
                 <div class="admin-panel-footer">
                     <button class="btn btn-chimbo" type="submit" name="form_action" value="change_status"
                             data-confirm="Move this order? The customer will be notified.">Save status</button>
+                </div>
+            </form>
+        <?php endif; ?>
+
+        <?php if ($can_change_status && !$is_pickup && in_array($order['order_status'], ['dispatched', 'in_transit'], true)): ?>
+            <form class="admin-panel mb-3" method="post" novalidate>
+                <?= Csrf::field() ?>
+                <div class="admin-panel-header"><h2 class="admin-panel-title">Update delivery estimate</h2></div>
+                <div class="admin-panel-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="delivery_estimate_new_date">Estimated delivery date</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'order_estimated_delivery_date') ?>"
+                               id="delivery_estimate_new_date" name="order_estimated_delivery_date" type="date"
+                               value="<?= e($posted['order_estimated_delivery_date'] ?? $order['order_estimated_delivery_date'] ?? '') ?>">
+                        <?= adminFieldError($errors, 'order_estimated_delivery_date') ?>
+                    </div>
+                    <div>
+                        <label class="form-label" for="delivery_estimate_reason">Reason for the change</label>
+                        <textarea class="form-control<?= adminInvalidClass($errors, 'status_note') ?>" id="delivery_estimate_reason"
+                                  name="status_note" rows="2" maxlength="255"><?= e($posted['status_note'] ?? '') ?></textarea>
+                        <div class="form-text">This reason is included in the customer's notification.</div>
+                        <?= adminFieldError($errors, 'status_note') ?>
+                    </div>
+                </div>
+                <div class="admin-panel-footer">
+                    <button class="btn btn-chimbo" type="submit" name="form_action" value="update_delivery_estimate"
+                            data-confirm="Update the delivery date and notify the customer?">Save new estimate</button>
                 </div>
             </form>
         <?php endif; ?>

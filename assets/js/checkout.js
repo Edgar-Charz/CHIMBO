@@ -9,7 +9,7 @@
 (() => {
     'use strict';
 
-    const { api, el, formatTzs, formatPieces, productImage, stateBlock, setLoading, toast, cart, choiceCard, paymentChoiceCard } = CHIMBO;
+    const { api, el, formatTzs, formatProductQuantity, productImage, stateBlock, setLoading, toast, cart, choiceCard, paymentChoiceCard } = CHIMBO;
 
     const IDEMPOTENCY_STORAGE_KEY = 'chimbo_checkout_key';
     const CART_ERROR_CODES = ['CART_EMPTY', 'CART_HAS_PROBLEMS'];
@@ -193,7 +193,7 @@
             productImage(item.product.product_image_url, item.product.product_name, 'checkout-item-image'),
             el('span', { className: 'checkout-item-name' }, [
                 item.product.product_name,
-                el('small', {}, [`${formatPieces(item.cart_quantity)} × ${formatTzs(item.unit_price)} `, CHIMBO.offerTag(item.offer_percent)]),
+                el('small', {}, [`${formatProductQuantity(item.cart_quantity, item.product.product_unit_label)} × ${formatTzs(item.unit_price)} `, CHIMBO.offerTag(item.offer_percent)]),
             ]),
             el('span', { className: 'checkout-item-total', text: formatTzs(item.line_total) }),
         ])));
@@ -235,7 +235,7 @@
             deliveryText = 'Bure (dukani)';
         }
         totalsBox.replaceChildren(...[
-            totalRow(`Bidhaa (${formatPieces(preview.piece_count)})`, formatTzs(preview.subtotal)),
+            totalRow(`Bidhaa (${CHIMBO.formatNumber(preview.line_count)})`, formatTzs(preview.subtotal)),
             preview.savings > 0 ? totalRow('Unaokoa', `−${formatTzs(preview.savings)}`, 'cart-summary-row--savings') : null,
             totalRow(priceToConfirm ? 'Usafiri (makadirio)' : 'Usafirishaji', deliveryText),
             preview.discount_total > 0 ? totalRow('Punguzo', `−${formatTzs(preview.discount_total)}`, 'cart-summary-row--savings') : null,

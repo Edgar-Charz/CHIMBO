@@ -10,7 +10,7 @@
 (() => {
     'use strict';
 
-    const { el, icon, formatTzs, productUrl, productImage, quantityStepper, setLoading, skeleton } = CHIMBO;
+    const { el, icon, formatTzs, formatProductQuantity, productUrl, productImage, quantityStepper, setLoading, skeleton } = CHIMBO;
 
     const CARD_MAX_QUANTITY = 9999; // the server checks the real stock and answers with a clear message
     const BADGE_LABELS = { deal: 'Punguzo', bestseller: 'Inauzwa sana', new: 'Mpya' };
@@ -35,7 +35,7 @@
 
         const button = el('button', {
             className: 'product-card-add',
-            attrs: { type: 'button', 'aria-label': `Ongeza ${product.product_name} kikapuni (pcs ${product.product_moq})` },
+            attrs: { type: 'button', 'aria-label': `Ongeza ${product.product_name} kikapuni (${formatProductQuantity(product.product_moq, product.product_unit_label)})` },
         }, [icon('plus-lg'), el('span', { className: 'product-card-add-label', text: 'Ongeza kikapuni' })]);
 
         button.addEventListener('click', async () => {
@@ -97,7 +97,7 @@
                 el('a', { className: 'product-card-name', text: product.product_name, attrs: { href: link } }),
                 renderPrice(product),
                 product.product_offer ? CHIMBO.offerCountdown(product.product_offer.product_offer_ends_at, product.product_id, 'product-card-countdown') : null,
-                el('p', { className: 'product-card-moq', text: `MOQ ${CHIMBO.formatPieces(product.product_moq)}` }),
+                el('p', { className: 'product-card-moq', text: `MOQ ${formatProductQuantity(product.product_moq, product.product_unit_label)}` }),
             ]),
         ]);
         productsByCard.set(card, product);

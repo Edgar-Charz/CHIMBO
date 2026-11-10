@@ -10,6 +10,8 @@
  */
 class Banner
 {
+    private const COLLECTIONS = ['deals', 'new', 'best_sellers', 'offers'];
+
     private const RULES = [
         'banner_title'        => 'required|string|min:2|max:100',
         'banner_title_en'     => 'required|string|min:2|max:100',
@@ -131,11 +133,34 @@ class Banner
         if (!empty($data['banner_button_label']) && empty($data['banner_button_label_en'])) {
             $errors['banner_button_label_en'] = 'Add the English button text so the banner is translated in both languages.';
         }
-        if (isset($data['banner_target_type']) && empty($data['banner_target_value'])) {
-            $errors['banner_target_value'] = 'Say what the banner opens (a category id, product id, collection or web address).';
-        }
-        if (($data['banner_target_type'] ?? null) === 'collection' && !in_array($data['banner_target_value'] ?? '', ['deals', 'new', 'best_sellers', 'offers'], true)) {
-            $errors['banner_target_value'] = 'Collection must be deals, new or best_sellers.';
+        $target_type  = $data['banner_target_type'] ?? null;
+        $target_value = $data['banner_target_value'] ?? null;
+        if ($target_type !== null) {
+            if (!is_string($target_value) || trim($target_value) === '') {
+                $errors['banner_target_value'] = 'Choose or enter where the banner should open.';
+            } elseif ($target_type === 'collection' && !in_array($target_value, self::COLLECTIONS, true)) {
+                $errors['banner_target_value'] = 'Choose deals, new products, best sellers or offers.';
+            } elseif (in_array($target_type, ['category', 'product'], true)) {
+                if (!ctype_digit($target_value) || (int) $target_value < 1) {
+                    $errors['banner_target_value'] = 'Choose a valid category or product.';
+                } else {
+                    $table          = $target_type === 'category' ? 'categories' : 'products';
+                    $column         = $target_type === 'category' ? 'category_id' : 'product_id';
+                    $deleted_filter = $target_type === 'product' ? ' AND deleted_at IS NULL' : '';
+                    $exists         = $this->db->fetchValue(
+                        "SELECT {$column} FROM {$table} WHERE {$column} = :target_id{$deleted_filter}",
+                        ['target_id' => (int) $target_value]
+                    );
+                    if ($exists === null) {
+                        $errors['banner_target_value'] = 'That category or product no longer exists.';
+                    }
+                }
+            } elseif ($target_type === 'url') {
+                $scheme = strtolower((string) parse_url($target_value, PHP_URL_SCHEME));
+                if (filter_var($target_value, FILTER_VALIDATE_URL) === false || !in_array($scheme, ['http', 'https'], true)) {
+                    $errors['banner_target_value'] = 'Enter a complete web address starting with https:// or http://.';
+                }
+            }
         }
         if (isset($data['banner_starts_at'], $data['banner_ends_at']) && $data['banner_ends_at'] <= $data['banner_starts_at']) {
             $errors['banner_ends_at'] = 'The end must be after the start.';
@@ -151,8 +176,8 @@ class Banner
             'banner_subtitle_en'  => $data['banner_subtitle_en'] ?? null,
             'banner_button_label'    => $data['banner_button_label'] ?? null,
             'banner_button_label_en' => $data['banner_button_label_en'] ?? null,
-            'banner_target_type'  => $data['banner_target_type'] ?? null,
-            'banner_target_value' => isset($data['banner_target_type']) ? $data['banner_target_value'] : null,
+            'banner_target_type'  => $target_type,
+            'banner_target_value' => $target_type === null ? null : $target_value,
             'banner_sort_order'   => $data['banner_sort_order'] ?? 0,
             'banner_is_active'    => (int) ($data['banner_is_active'] ?? false),
             'banner_starts_at'    => localTimeToUtc($data['banner_starts_at'] ?? null),

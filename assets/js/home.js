@@ -23,7 +23,7 @@
                 className: 'product-card-add recent-product-rail-add recent-product-rail-cart-count',
                 attrs: {
                     type: 'button',
-                    'aria-label': `Kikapu: ${product.product_name}, idadi ${CHIMBO.formatPieces(cartQuantity)}. Fungua kikapu kubadilisha idadi.`,
+                    'aria-label': `Kikapu: ${product.product_name}, idadi ${CHIMBO.formatProductQuantity(cartQuantity, product.product_unit_label)}. Fungua kikapu kubadilisha idadi.`,
                 },
             }, [String(cartQuantity > 99 ? '99+' : cartQuantity)]);
             quantityBadge.addEventListener('click', () => CHIMBO.cart.open());
@@ -40,7 +40,7 @@
             className: 'product-card-add recent-product-rail-add',
             attrs: {
                 type: 'button',
-                'aria-label': `Ongeza ${product.product_name} kikapuni (pcs ${product.product_moq})`,
+                'aria-label': `Ongeza ${product.product_name} kikapuni (${CHIMBO.formatProductQuantity(product.product_moq, product.product_unit_label)})`,
             },
         }, [CHIMBO.icon('plus-lg')]);
 

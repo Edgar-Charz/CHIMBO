@@ -53,6 +53,9 @@ require __DIR__ . '/includes/header.php';
                 <p class="account-profile-eyebrow">KARIBU CHIMBO</p>
                 <h2 id="profile-name"><?= e($customer['user_full_name'] ?? 'Mteja wa CHIMBO') ?></h2>
                 <p class="account-profile-phone"><i class="bi bi-telephone" aria-hidden="true"></i> <?= e($customer['user_phone']) ?></p>
+                <?php if (!empty($customer['user_email'])) : ?>
+                    <p class="account-profile-phone"><i class="bi bi-envelope" aria-hidden="true"></i> <?= e($customer['user_email']) ?></p>
+                <?php endif; ?>
                 <span class="account-profile-badge <?= $business_is_verified ? 'is-verified' : '' ?>">
                     <i class="bi <?= $business_is_verified ? 'bi-patch-check-fill' : 'bi-shop' ?>" aria-hidden="true"></i>
                     <?= $business_is_verified ? 'Biashara imethibitishwa' : 'Akaunti ya biashara' ?>

@@ -39,15 +39,42 @@ foreach (['banner_starts_at', 'banner_ends_at'] as $time_field) {
 $errors = $form_error?->fields() ?? [];
 $form   = adminFormValues($form_error, $saved_values);
 
+$category_options = (new Category(Database::instance()))->getAllCategoriesForAdmin();
+$target_type = (string) ($form['banner_target_type'] ?? '');
+$target_value = (string) ($form['banner_target_value'] ?? '');
+$category_target_label = '';
+$product_target_label = '';
+
+foreach ($category_options as $category_option) {
+    if ((string) $category_option['category_id'] === $target_value) {
+        $category_path = $category_option['parent_category_name']
+            ? $category_option['parent_category_name'] . ' / '
+            : '';
+        $category_target_label = $category_path . $category_option['category_name'] . ' (#' . $category_option['category_id'] . ')';
+        break;
+    }
+}
+
+if ($target_type === 'product' && ctype_digit($target_value) && (int) $target_value > 0) {
+    try {
+        $target_product = (new ProductEditor(Database::instance()))->getProductForAdmin((int) $target_value);
+        $product_target_label = $target_product['product_name'] . ' (#' . $target_product['product_id'] . ')';
+    } catch (ApiException) {
+        $product_target_label = 'Unavailable product (#' . $target_value . ')';
+    }
+}
+
+
 $target_types = [
-    'category'   => 'A category â€” enter its id',
-    'product'    => 'A product â€” enter its id',
-    'collection' => 'A collection â€” deals, new, best_sellers or offers',
+    'category'   => 'A category',
+    'product'    => 'A product',
+    'collection' => 'A collection',
     'url'        => 'A web address',
 ];
 
 $page_title  = $is_new ? 'Add banner' : $banner['banner_title'];
 $active_menu = 'banners';
+$page_scripts = ['banner_edit.js'];
 require __DIR__ . '/includes/header.php';
 ?>
 
@@ -103,22 +130,71 @@ require __DIR__ . '/includes/header.php';
                         <?= adminFieldError($errors, 'banner_button_label_en') ?>
                     </div>
                 </div>
+                <div class="form-text mb-3">The banner button text is shown only when a destination is selected.</div>
 
-                <div class="row g-3 mb-3">
+                <div class="row g-3 mb-3" data-banner-target-form>
                     <div class="col-sm-6">
                         <label class="form-label" for="banner_target_type">When tapped, open</label>
-                        <select class="form-select<?= adminInvalidClass($errors, 'banner_target_type') ?>" id="banner_target_type" name="banner_target_type">
-                            <option value="">Nothing</option>
-                            <?php foreach ($target_types as $target_type => $target_label): ?>
-                                <option value="<?= e($target_type) ?>" <?= adminSelected($form, 'banner_target_type', $target_type) ?>><?= e($target_label) ?></option>
+                        <select class="form-select<?= adminInvalidClass($errors, 'banner_target_type') ?>" id="banner_target_type" name="banner_target_type" data-banner-target-type>
+                            <option value="" <?= adminSelected($form, 'banner_target_type', '') ?>>No action</option>
+                            <?php foreach ($target_types as $target_type_option => $target_label): ?>
+                                <option value="<?= e($target_type_option) ?>" <?= adminSelected($form, 'banner_target_type', $target_type_option) ?>><?= e($target_label) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <div class="form-text">This applies to the whole banner.</div>
                         <?= adminFieldError($errors, 'banner_target_type') ?>
                     </div>
-                    <div class="col-sm-6">
-                        <label class="form-label" for="banner_target_value">Target</label>
-                        <input class="form-control<?= adminInvalidClass($errors, 'banner_target_value') ?>" id="banner_target_value" name="banner_target_value"
-                               value="<?= e($form['banner_target_value'] ?? '') ?>" maxlength="255" placeholder="e.g. 3, deals or https://â€¦">
+                    <div class="col-sm-6" data-banner-target-panel="category" <?= $target_type === 'category' ? '' : 'hidden' ?>>
+                        <label class="form-label" for="banner-category-search">Search for a category</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_target_value') ?>" id="banner-category-search"
+                               list="banner-category-options" autocomplete="off"
+                               value="<?= e($category_target_label !== '' ? $category_target_label : ($target_type === 'category' ? $target_value : '')) ?>"
+                               placeholder="Type a category name" data-banner-category-search>
+                        <datalist id="banner-category-options">
+                            <?php foreach ($category_options as $category_option): ?>
+                                <?php
+                                $category_path = $category_option['parent_category_name']
+                                    ? $category_option['parent_category_name'] . ' / '
+                                    : '';
+                                $category_label = $category_path . $category_option['category_name'] . ' (#' . $category_option['category_id'] . ')';
+                                ?>
+                                <option value="<?= e($category_label) ?>" data-id="<?= e($category_option['category_id']) ?>"></option>
+                            <?php endforeach; ?>
+                        </datalist>
+                        <input type="hidden" value="<?= e($target_type === 'category' ? $target_value : '') ?>"
+                               data-banner-target-value <?= $target_type === 'category' ? 'name="banner_target_value"' : 'disabled' ?>>
+                    </div>
+                    <div class="col-sm-6" data-banner-target-panel="product" <?= $target_type === 'product' ? '' : 'hidden' ?>>
+                        <label class="form-label" for="banner-product-search">Search for a product</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_target_value') ?>" id="banner-product-search"
+                               type="search" autocomplete="off"
+                               value="<?= e($product_target_label !== '' ? $product_target_label : ($target_type === 'product' ? $target_value : '')) ?>"
+                               placeholder="Type at least 2 characters" aria-controls="banner-product-results" aria-expanded="false"
+                               data-banner-product-search data-search-url="<?= e(url('admin/ajax/global_search.php')) ?>">
+                        <input type="hidden" value="<?= e($target_type === 'product' ? $target_value : '') ?>"
+                               data-banner-target-value <?= $target_type === 'product' ? 'name="banner_target_value"' : 'disabled' ?>>
+                        <div class="list-group mt-2" id="banner-product-results" role="listbox" data-banner-product-results hidden></div>
+                        <div class="form-text" data-banner-product-status aria-live="polite">Search by product name or SKU.</div>
+                    </div>
+                    <div class="col-sm-6" data-banner-target-panel="collection" <?= $target_type === 'collection' ? '' : 'hidden' ?>>
+                        <label class="form-label" for="banner-collection-target">Choose a collection</label>
+                        <select class="form-select<?= adminInvalidClass($errors, 'banner_target_value') ?>" id="banner-collection-target"
+                                data-banner-target-value <?= $target_type === 'collection' ? 'name="banner_target_value"' : 'disabled' ?>>
+                            <option value="">Choose a collection</option>
+                            <option value="deals" <?= adminSelected($form, 'banner_target_value', 'deals') ?>>Deals</option>
+                            <option value="new" <?= adminSelected($form, 'banner_target_value', 'new') ?>>New arrivals</option>
+                            <option value="best_sellers" <?= adminSelected($form, 'banner_target_value', 'best_sellers') ?>>Best sellers</option>
+                            <option value="offers" <?= adminSelected($form, 'banner_target_value', 'offers') ?>>Offers</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6" data-banner-target-panel="url" <?= $target_type === 'url' ? '' : 'hidden' ?>>
+                        <label class="form-label" for="banner-url-target">Web address</label>
+                        <input class="form-control<?= adminInvalidClass($errors, 'banner_target_value') ?>" type="url" id="banner-url-target"
+                               <?= $target_type === 'url' ? 'name="banner_target_value"' : 'disabled' ?>
+                               value="<?= e($target_type === 'url' ? $target_value : '') ?>" maxlength="255"
+                               placeholder="https://example.com" data-banner-target-value>
+                    </div>
+                    <div class="col-12">
                         <?= adminFieldError($errors, 'banner_target_value') ?>
                     </div>
                 </div>
@@ -163,8 +239,39 @@ require __DIR__ . '/includes/header.php';
         </form>
     </div>
 
-    <?php if (!$is_new): ?>
-        <div class="col-lg-4">
+    <div class="col-lg-4">
+        <section class="admin-panel mb-3" aria-labelledby="banner-live-preview-title">
+            <div class="admin-panel-header d-flex align-items-center justify-content-between gap-2">
+                <h2 class="admin-panel-title" id="banner-live-preview-title">Live preview</h2>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Preview size">
+                    <button class="btn btn-outline-secondary active" type="button" data-banner-preview-size="desktop" aria-pressed="true">Desktop</button>
+                    <button class="btn btn-outline-secondary" type="button" data-banner-preview-size="mobile" aria-pressed="false">Mobile</button>
+                </div>
+            </div>
+            <div class="admin-panel-body">
+                <div class="banner-preview-stage">
+                    <div class="banner-live-preview banner-live-preview-desktop" data-banner-preview>
+                        <img class="banner-live-preview-image" data-banner-preview-image
+                             <?= !$is_new && $banner['banner_image_path'] ? 'src="' . e(url($banner['banner_image_path'])) . '"' : 'hidden' ?> alt="">
+                        <div class="banner-live-preview-placeholder" data-banner-preview-placeholder <?= !$is_new && $banner['banner_image_path'] ? 'hidden' : '' ?>>
+                            <i class="bi bi-image" aria-hidden="true"></i>
+                            <span>Banner picture preview</span>
+                        </div>
+                        <div class="banner-live-preview-copy">
+                            <p class="banner-live-preview-eyebrow">CHIMBO Jumla</p>
+                            <h3 data-banner-preview-title><?= e($form['banner_title'] ?? '') ?></h3>
+                            <p class="banner-live-preview-subtitle" data-banner-preview-subtitle><?= e($form['banner_subtitle'] ?? '') ?></p>
+                            <span class="banner-live-preview-button" data-banner-preview-button hidden></span>
+                        </div>
+                    </div>
+                </div>
+                <p class="small text-muted mt-3 mb-1" data-banner-preview-action>No banner action selected.</p>
+                <p class="form-text mb-0">Preview uses Kiswahili text. The storefront layout changes between desktop and mobile.</p>
+            </div>
+        </section>
+
+        <?php if (!$is_new): ?>
+        <div>
             <form class="admin-panel mb-3" method="post" enctype="multipart/form-data">
                 <?= Csrf::field() ?>
                 <div class="admin-panel-header"><h2 class="admin-panel-title">Picture</h2></div>
@@ -174,7 +281,7 @@ require __DIR__ . '/includes/header.php';
                     <?php else: ?>
                         <p class="text-muted small">No picture yet. A wide picture works best (about 2:1).</p>
                     <?php endif; ?>
-                    <input class="form-control mb-2" type="file" name="banner_image" accept="image/jpeg,image/png,image/webp" required>
+                    <input class="form-control mb-2" type="file" name="banner_image" accept="image/jpeg,image/png,image/webp" required data-banner-preview-file>
                     <div class="form-text mb-3">JPG, PNG or WEBP, up to 8 MB.</div>
                     <button class="btn btn-outline-secondary w-100" type="submit" name="form_action" value="upload_image">
                         <i class="bi bi-upload"></i> <?= $banner['banner_image_path'] ? 'Replace picture' : 'Upload picture' ?>
@@ -191,7 +298,8 @@ require __DIR__ . '/includes/header.php';
                 </div>
             </form>
         </div>
-    <?php endif; ?>
+        <?php endif; ?>
+    </div>
 </div>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

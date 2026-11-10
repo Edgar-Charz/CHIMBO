@@ -66,6 +66,7 @@ if (Admin::can($current_admin, 'customers.view')) {
 if (Admin::can($current_admin, 'products.manage')) {
     $products = (new ProductEditor($database))->getProductsForAdmin(['q' => $search, 'page' => 1, 'per_page' => 10]);
     $items = array_map(static fn (array $product): array => [
+        'id' => (int) $product['product_id'],
         'title' => $product['product_name'],
         'detail' => trim(implode(' · ', array_filter([
             $product['product_sku'],

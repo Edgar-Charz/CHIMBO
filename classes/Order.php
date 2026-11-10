@@ -280,7 +280,7 @@ class Order
         }
 
         $this->recordStatus((int) $order['order_id'], $new_status, $actor_type, $actor_id, $note);
-        $this->notifyCustomer($order, $new_status);
+        $this->notifyCustomer($order, $new_status, $note);
     }
 
     /** Locks the order row until the transaction ends (so two status changes can't overlap). */
@@ -288,7 +288,7 @@ class Order
     {
         $order = $this->db->fetchOne(
             'SELECT order_id, order_number, user_id, order_status, order_payment_method, order_payment_status, order_total, order_is_pickup,
-                    order_delivery_paid_to_rider, order_delivery_fee_estimate
+                    order_estimated_delivery_date, order_delivery_paid_to_rider, order_delivery_fee_estimate
              FROM orders WHERE order_id = :order_id FOR UPDATE',
             ['order_id' => $order_id]
         );
@@ -546,7 +546,7 @@ class Order
     }
 
     /** Tells the customer about the order's new status (the bell). */
-    public function notifyCustomer(array $order, string $status): void
+    public function notifyCustomer(array $order, string $status, ?string $note = null): void
     {
         $is_pickup = !empty($order['order_is_pickup']);
         $messages = $is_pickup && isset(self::PICKUP_STATUS_MESSAGES[$status])
@@ -561,6 +561,40 @@ class Order
         $sw_body = strtr($messages['sw'][1], $replacements);
         $en_title = $messages['en'][0];
         $en_body = strtr($messages['en'][1], $replacements);
+        if (!$is_pickup && in_array($status, ['dispatched', 'in_transit'], true)) {
+            $estimated_delivery_date = $order['order_estimated_delivery_date'] ?? null;
+            if ($estimated_delivery_date !== null) {
+                $formatted_date = (new DateTimeImmutable((string) $estimated_delivery_date))->format('d/m/Y');
+                $sw_body .= " Makadirio ya kufika: {$formatted_date}.";
+                $en_body .= " Estimated delivery: {$formatted_date}.";
+            }
+        }
+        if ($note !== null && trim($note) !== '') {
+            $sw_body .= "\n\n" . trim($note);
+            $en_body .= "\n\n" . trim($note);
+        }
+
+        (new Notification($this->db))->notifyUser(
+            (int) $order['user_id'],
+            'order_status',
+            $sw_title,
+            $sw_body,
+            ['order_id' => (int) $order['order_id']],
+            [
+                'sw' => ['title' => $sw_title, 'body' => $sw_body],
+                'en' => ['title' => $en_title, 'body' => $en_body],
+            ]
+        );
+    }
+
+    /** Tells the customer when staff change the delivery estimate while the order is moving. */
+    public function notifyDeliveryEstimateChanged(array $order, string $reason): void
+    {
+        $formatted_date = (new DateTimeImmutable((string) $order['order_estimated_delivery_date']))->format('d/m/Y');
+        $sw_title = 'Makadirio ya kufika yamebadilika';
+        $sw_body = "Makadirio ya kufika kwa oda #{$order['order_number']} ni {$formatted_date}. Sababu: {$reason}";
+        $en_title = 'Delivery estimate updated';
+        $en_body = "The estimated delivery date for order #{$order['order_number']} is {$formatted_date}. Reason: {$reason}";
 
         (new Notification($this->db))->notifyUser(
             (int) $order['user_id'],

@@ -32,7 +32,7 @@ $extra_item_count = max(0, count($order['items']) - ORDER_CARD_PHOTOS);
 
     <footer class="order-card-footer">
         <p class="order-card-summary">
-            <?= e($order['item_count']) ?> bidhaa · <?= e(formatPieces($order['piece_count'])) ?>
+            <?= e($order['item_count']) ?> bidhaa
             <strong><?= e(formatTzs($order['order_total'])) ?></strong>
             <?php if ($order['payment']['is_balance_payment']) : ?>
                 <span class="order-card-balance">Salio la kulipa: <?= e(formatTzs($order['payment']['payment_amount'])) ?></span>

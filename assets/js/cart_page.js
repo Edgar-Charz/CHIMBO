@@ -14,7 +14,7 @@
 
     function showLines(currentCart) {
         const isEmpty = currentCart.summary.line_count === 0;
-        linesBox.replaceChildren(...(isEmpty ? [cart.renderEmptyState()] : cart.renderGroups(currentCart)));
+        cart.renderLines(linesBox, isEmpty ? [cart.renderEmptyState()] : cart.renderGroups(currentCart));
     }
 
     function showLoading() {

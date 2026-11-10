@@ -86,21 +86,24 @@ require __DIR__ . '/includes/header.php';
         <div class="carousel slide home-hero-carousel" id="home-hero-carousel" data-bs-ride="carousel" data-bs-interval="6000">
             <div class="carousel-inner">
                 <?php foreach ($home['banners'] as $index => $banner) : ?>
+                    <?php $banner_url = bannerUrl($banner); ?>
                     <div class="carousel-item<?= $index === 0 ? ' active' : '' ?>">
-                        <a class="hero-banner" href="<?= e(bannerUrl($banner)) ?>" <?= $banner['banner_target_type'] === 'url' ? ' rel="noopener"' : '' ?>>
+                        <<?= $banner_url === null ? 'div' : 'a' ?> class="hero-banner"<?= $banner_url === null ? '' : ' href="' . e($banner_url) . '"' ?>>
                             <div class="hero-banner-copy">
                                 <p class="hero-banner-eyebrow">CHIMBO Jumla</p>
                                 <h2 class="hero-banner-title"><?= e($banner['banner_title']) ?></h2>
                                 <?php if ($banner['banner_subtitle']) : ?>
                                     <p class="hero-banner-text"><?= e($banner['banner_subtitle']) ?></p>
                                 <?php endif; ?>
-                                <span class="btn btn-buy btn-lg"><?= e($banner['banner_button_label'] ?: 'Nunua sasa') ?></span>
+                                <?php if ($banner_url !== null) : ?>
+                                    <span class="btn btn-buy btn-lg"><?= e($banner['banner_button_label'] ?: 'Nunua sasa') ?></span>
+                                <?php endif; ?>
                             </div>
                             <?php if ($banner['banner_image_url']) : ?>
                                 <img class="hero-banner-image" src="<?= e($banner['banner_image_url']) ?>" alt=""
                                     <?= $index === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?> decoding="async">
                             <?php endif; ?>
-                        </a>
+                        </<?= $banner_url === null ? 'div' : 'a' ?>>
                     </div>
                 <?php endforeach; ?>
             </div>

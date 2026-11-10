@@ -15,7 +15,7 @@
 (() => {
     'use strict';
 
-    const { config, api, el, icon, formatTzs, formatPieces, productUrl, productImage, quantityStepper, stateBlock, errorState, skeleton, toast } = CHIMBO;
+    const { config, api, el, icon, formatTzs, formatNumber, formatProductQuantity, productUrl, productImage, quantityStepper, stateBlock, errorState, skeleton, toast } = CHIMBO;
 
     const GUEST_CART_KEY = 'chimbo_guest_cart';
     const CART_CHANGED_EVENT = 'chimbo:cart-changed';
@@ -198,9 +198,9 @@
     function renderLineProblem(item) {
         const { product, line_problem: problem, available_quantity: available } = item;
         const fixes = {
-            not_enough_stock: { text: `Zimebaki ${formatPieces(available)} tu.`, label: `Punguza hadi ${available}`, fix: () => setQuantity(product.product_id, available) },
+            not_enough_stock: { text: `Zimebaki ${formatProductQuantity(available, product.product_unit_label)} tu.`, label: `Punguza hadi ${available}`, fix: () => setQuantity(product.product_id, available) },
             out_of_stock: { text: 'Bidhaa hii imeisha.', label: 'Ondoa', fix: () => remove(product.product_id) },
-            below_moq: { text: `Kiwango cha chini ni ${formatPieces(product.product_moq)}.`, label: `Ongeza hadi ${product.product_moq}`, fix: () => setQuantity(product.product_id, product.product_moq) },
+            below_moq: { text: `Kiwango cha chini ni ${formatProductQuantity(product.product_moq, product.product_unit_label)}.`, label: `Ongeza hadi ${product.product_moq}`, fix: () => setQuantity(product.product_id, product.product_moq) },
         };
         const { text, label, fix } = fixes[problem];
 
@@ -213,10 +213,18 @@
     function renderLine(item) {
         const { product } = item;
         const line = el('article', { className: `cart-line${item.line_problem ? ' has-problem' : ''}` });
+        line.dataset.productId = product.product_id;
+        const updateStatus = el('span', { className: 'cart-line-update-status', text: 'Inasasisha kiasi…', attrs: { 'aria-live': 'polite', hidden: true } });
 
         const updateLine = (quantity) => {
             line.classList.add('is-updating');
-            setQuantity(product.product_id, quantity).catch(() => line.classList.remove('is-updating'));
+            line.setAttribute('aria-busy', 'true');
+            updateStatus.hidden = false;
+            setQuantity(product.product_id, quantity).catch(() => {
+                line.classList.remove('is-updating');
+                line.removeAttribute('aria-busy');
+                updateStatus.hidden = true;
+            });
         };
 
         const hint = item.next_tier_hint;
@@ -230,10 +238,10 @@
                     el('span', { className: 'cart-line-total', text: formatTzs(item.line_total) }),
                 ]),
                 el('p', { className: 'cart-line-price' }, [
-                    `${formatTzs(item.unit_price)} kila moja · bei ya ${item.tier_min_quantity}+ pcs `,
+                    `${formatTzs(item.unit_price)} kila moja · bei ya ${formatProductQuantity(item.tier_min_quantity, product.product_unit_label)} `,
                     CHIMBO.offerTag(item.offer_percent),
                 ]),
-                hint ? el('span', { className: 'cart-line-hint', text: `Ongeza ${formatPieces(hint.extra_quantity)} upate ${formatTzs(hint.unit_price)} kila moja` }) : null,
+                hint ? el('span', { className: 'cart-line-hint', text: `Ongeza ${formatProductQuantity(hint.extra_quantity, product.product_unit_label)} upate ${formatTzs(hint.unit_price)} kila moja` }) : null,
                 item.line_problem ? renderLineProblem(item) : null,
                 el('div', { className: 'cart-line-actions' }, [
                     quantityStepper({
@@ -243,6 +251,7 @@
                         label: `Idadi ya ${product.product_name}`,
                         onChange: updateLine,
                     }),
+                    updateStatus,
                     el('button', {
                         className: 'icon-button cart-line-remove',
                         attrs: { type: 'button', 'aria-label': `Ondoa ${product.product_name}` },
@@ -264,6 +273,36 @@
         el('h3', { className: 'cart-group-title', text: group.category_name }),
         ...group.items.map(renderLine),
     ]);
+
+    function renderLines(container, children) {
+        const focusedElement = document.activeElement;
+        const focusedLine = container.contains(focusedElement) ? focusedElement.closest('.cart-line[data-product-id]') : null;
+        const focusTarget = focusedLine ? {
+            productId: focusedLine.dataset.productId,
+            tagName: focusedElement.tagName,
+            ariaLabel: focusedElement.getAttribute('aria-label'),
+            href: focusedElement.getAttribute('href'),
+        } : null;
+
+        container.replaceChildren(...children);
+        if (!focusTarget) return;
+
+        requestAnimationFrame(() => {
+            const line = [...container.querySelectorAll('.cart-line[data-product-id]')]
+                .find((candidate) => candidate.dataset.productId === focusTarget.productId);
+            const candidates = line ? [...line.querySelectorAll('button, input, a')] : [];
+            const target = candidates.find((candidate) => candidate.tagName === focusTarget.tagName
+                && candidate.getAttribute('aria-label') === focusTarget.ariaLabel
+                && candidate.getAttribute('href') === focusTarget.href);
+            const fallback = container.querySelector('.cart-line .quantity-stepper-button, .cart-line a, a, button');
+            if (target ?? fallback) {
+                (target ?? fallback).focus({ preventScroll: true });
+            } else {
+                container.tabIndex = -1;
+                container.focus({ preventScroll: true });
+            }
+        });
+    }
 
     const renderLineSkeletons = (count) => Array.from({ length: count }, () => el('div', { className: 'cart-line', attrs: { 'aria-hidden': 'true' } }, [
         skeleton('cart-line-image'),
@@ -291,7 +330,7 @@
             box.querySelectorAll('[data-cart-savings-row]').forEach((row) => { row.hidden = summary.savings === 0; });
             setText(box, '[data-cart-savings]', formatTzs(summary.savings));
             setText(box, '[data-cart-subtotal]', formatTzs(summary.subtotal));
-            setText(box, '[data-cart-pieces]', formatPieces(summary.piece_count));
+            setText(box, '[data-cart-line-count]', formatNumber(summary.line_count));
             setText(box, '[data-cart-note]', summary.can_checkout
                 ? 'Gharama ya usafirishaji itaonyeshwa kwenye malipo.'
                 : 'Rekebisha bidhaa zenye tatizo kabla ya kuendelea.');
@@ -319,7 +358,7 @@
     function renderDrawer(cart) {
         const { line_count: lineCount } = cart.summary;
         drawerElement.querySelector('[data-cart-count-label]').textContent = lineCount === 0 ? '' : `(${lineCount})`;
-        drawerLines.replaceChildren(...(lineCount === 0 ? [renderEmptyState()] : renderGroups(cart)));
+        renderLines(drawerLines, lineCount === 0 ? [renderEmptyState()] : renderGroups(cart));
     }
 
     // ------------------------------------------------------------------ Start
@@ -348,6 +387,7 @@
         quantityOf,
         open,
         renderGroups,
+        renderLines,
         renderLineSkeletons,
         renderEmptyState,
         changedEvent: CART_CHANGED_EVENT,

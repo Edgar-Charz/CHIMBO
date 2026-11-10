@@ -146,6 +146,10 @@ require __DIR__ . '/includes/header.php';
                         value="<?= e($customer['user_full_name'] ?? '') ?>">
                 </div>
                 <div class="auth-step-field" data-field>
+                    <label class="form-label" for="user_email">Barua pepe <span class="text-secondary">(hiari)</span></label>
+                    <input class="form-control" id="user_email" name="user_email" type="email" autocomplete="email">
+                </div>
+                <div class="auth-step-field" data-field>
                     <label class="form-label" for="business_name">Jina la duka <span class="text-secondary">(hiari)</span></label>
                     <input class="form-control" id="business_name" name="business_name" autocomplete="organization">
                 </div>

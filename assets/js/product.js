@@ -6,11 +6,12 @@
 (() => {
     'use strict';
 
-    const { formatTzs, formatPieces, quantityStepper, setLoading, toast, productCard } = CHIMBO;
+    const { formatTzs, formatProductQuantity, quantityStepper, setLoading, toast, productCard } = CHIMBO;
 
     const { product, suggested_products: suggestedProducts } = JSON.parse(document.getElementById('product-data').textContent);
     const { tiers } = product;
     const normalUnitPrice = tiers[0].tier_unit_price;
+    const productUnitLabel = product.product_unit_label ?? 'pc';
 
     let quantity = product.product_moq;
 
@@ -28,7 +29,7 @@
 
         document.querySelector('[data-unit-price]').textContent = formatTzs(tier.tier_unit_price);
         document.querySelector('[data-line-total]').textContent = formatTzs(total);
-        document.querySelector('[data-buy-bar-quantity]').textContent = formatPieces(quantity);
+        document.querySelector('[data-buy-bar-quantity]').textContent = formatProductQuantity(quantity, productUnitLabel);
         document.querySelector('[data-buy-bar-total]').textContent = formatTzs(total);
 
         const savings = document.querySelector('[data-savings]');
@@ -38,7 +39,7 @@
         const hint = document.querySelector('[data-next-tier-hint]');
         hint.hidden = nextTier === null;
         if (nextTier) {
-            hint.textContent = `Ongeza ${formatPieces(nextTier.tier_min_quantity - quantity)} upate ${formatTzs(nextTier.tier_unit_price)} kila moja`;
+            hint.textContent = `Ongeza ${formatProductQuantity(nextTier.tier_min_quantity - quantity, productUnitLabel)} upate ${formatTzs(nextTier.tier_unit_price)} kila moja`;
         }
 
         document.querySelectorAll('[data-tier-min]').forEach((row) => {
@@ -52,7 +53,7 @@
         const inCart = CHIMBO.cart.quantityOf(product.product_id);
         const note = document.querySelector('[data-in-cart-note]');
         note.hidden = inCart === 0;
-        note.textContent = `Tayari una ${formatPieces(inCart)} kikapuni.`;
+        note.textContent = `Tayari una ${formatProductQuantity(inCart, productUnitLabel)} kikapuni.`;
     }
 
     function setUpAddToCart() {
@@ -90,33 +91,87 @@
 
     // ------------------------------------------------------------------ Gallery, wishlist, share
 
-    /**
-     * Thumbnails: hovering (or tabbing to) one shows it in the big picture; moving away shows the chosen one
-     * again; clicking chooses it.
-     */
     function setUpGallery() {
-        const mainImage = document.querySelector('[data-gallery-main] img');
+        const swipeThreshold = 45;
+        const gallery = document.querySelector('[data-gallery-main]');
+        const mainImage = gallery.querySelector('[data-gallery-image]');
+        if (!mainImage) return;
         const thumbs = [...document.querySelectorAll('[data-gallery-thumb]')];
-        let chosenThumb = thumbs[0];
+        const images = thumbs.length
+            ? thumbs.map((thumb) => thumb.dataset.largeUrl)
+            : [mainImage.src];
+        const count = document.querySelector('[data-gallery-count]');
+        const dialog = document.querySelector('[data-gallery-dialog]');
+        const dialogImage = dialog?.querySelector('[data-gallery-dialog-image]');
+        const dialogCount = dialog?.querySelector('[data-gallery-dialog-count]');
+        let currentIndex = 0;
 
-        const showInMain = (thumb) => { mainImage.src = thumb.dataset.largeUrl; };
+        function displayImage(index) {
+            const displayIndex = (index + images.length) % images.length;
+            mainImage.src = images[displayIndex];
+            if (count) count.textContent = String(displayIndex + 1);
+        }
 
-        function choose(thumb) {
-            chosenThumb = thumb;
-            showInMain(thumb);
+        function showImage(index) {
+            currentIndex = (index + images.length) % images.length;
+            displayImage(currentIndex);
+            if (dialogImage) dialogImage.src = images[currentIndex];
+            if (dialogCount) dialogCount.textContent = String(currentIndex + 1);
             thumbs.forEach((other) => {
-                other.classList.toggle('is-active', other === thumb);
-                other.setAttribute('aria-pressed', String(other === thumb));
+                const isActive = Number(other.dataset.galleryIndex) === currentIndex;
+                other.classList.toggle('is-active', isActive);
+                other.setAttribute('aria-pressed', String(isActive));
             });
         }
 
-        thumbs.forEach((thumb) => {
-            thumb.addEventListener('mouseenter', () => showInMain(thumb));
-            thumb.addEventListener('focus', () => showInMain(thumb));
-            thumb.addEventListener('mouseleave', () => showInMain(chosenThumb));
-            thumb.addEventListener('blur', () => showInMain(chosenThumb));
-            thumb.addEventListener('click', () => choose(thumb));
+        thumbs.forEach((thumb, index) => {
+            thumb.dataset.galleryIndex = String(index);
+            thumb.addEventListener('click', () => showImage(index));
+            thumb.addEventListener('focus', () => displayImage(index));
+            thumb.addEventListener('blur', () => displayImage(currentIndex));
+            if (window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+                thumb.addEventListener('mouseenter', () => displayImage(index));
+                thumb.addEventListener('mouseleave', () => displayImage(currentIndex));
+            }
         });
+
+        document.querySelector('[data-gallery-open]')?.addEventListener('click', () => dialog?.showModal());
+        document.querySelector('[data-gallery-previous]')?.addEventListener('click', () => showImage(currentIndex - 1));
+        document.querySelector('[data-gallery-next]')?.addEventListener('click', () => showImage(currentIndex + 1));
+        dialog?.querySelector('[data-gallery-close]')?.addEventListener('click', () => dialog.close());
+        dialog?.querySelector('[data-gallery-dialog-previous]')?.addEventListener('click', () => showImage(currentIndex - 1));
+        dialog?.querySelector('[data-gallery-dialog-next]')?.addEventListener('click', () => showImage(currentIndex + 1));
+        dialog?.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close();
+        });
+        dialog?.addEventListener('keydown', (event) => {
+            if (event.key === 'ArrowLeft') showImage(currentIndex - 1);
+            if (event.key === 'ArrowRight') showImage(currentIndex + 1);
+        });
+
+        for (const swipeSurface of [gallery, dialogImage].filter(Boolean)) {
+            let pointerStartX = null;
+            let pointerStartY = null;
+            swipeSurface.addEventListener('pointerdown', (event) => {
+                if (event.pointerType !== 'touch' || !event.isPrimary) return;
+                pointerStartX = event.clientX;
+                pointerStartY = event.clientY;
+            }, { passive: true });
+            swipeSurface.addEventListener('pointerup', (event) => {
+                if (pointerStartX === null || pointerStartY === null) return;
+                const horizontalDistance = event.clientX - pointerStartX;
+                const verticalDistance = event.clientY - pointerStartY;
+                if (Math.abs(horizontalDistance) > swipeThreshold && Math.abs(horizontalDistance) > Math.abs(verticalDistance)) {
+                    showImage(currentIndex + (horizontalDistance < 0 ? 1 : -1));
+                }
+                pointerStartX = null;
+                pointerStartY = null;
+            }, { passive: true });
+            swipeSurface.addEventListener('pointercancel', () => {
+                pointerStartX = null;
+                pointerStartY = null;
+            }, { passive: true });
+        }
     }
 
     function setUpShare() {

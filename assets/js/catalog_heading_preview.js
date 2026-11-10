@@ -95,7 +95,7 @@
         const isAvailable = currentProduct?.product_in_stock === true;
         addButton.disabled = isAddingToCart || !isAvailable;
         addLabel.textContent = isAvailable
-            ? `Ongeza kikapuni · ${window.CHIMBO.formatPieces(currentProduct.product_moq)}`
+            ? `Ongeza kikapuni · ${window.CHIMBO.formatProductQuantity(currentProduct.product_moq, currentProduct.product_unit_label)}`
             : 'Imeisha';
     }
 
@@ -108,7 +108,7 @@
         title.textContent = product.product_name;
         price.textContent = window.CHIMBO.formatTzs(product.product_price_from);
         unit.textContent = ` / ${product.product_unit_label}`;
-        moq.textContent = window.CHIMBO.formatPieces(product.product_moq);
+        moq.textContent = window.CHIMBO.formatProductQuantity(product.product_moq, product.product_unit_label);
         link.href = product.product_url;
         updateAddButton();
         favorite.replaceChildren(window.CHIMBO.wishlist.heartButton(product));

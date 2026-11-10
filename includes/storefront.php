@@ -115,17 +115,20 @@ function collectionUrl(string $collection): string
     return url('search.php?collection=' . rawurlencode($collection));
 }
 
-/** Where a Home banner leads. Outside links are allowed only over http(s), never "javascript:" and the like. */
-function bannerUrl(array $banner): string
+/** Where a Home banner leads, or null when it has no valid destination. */
+function bannerUrl(array $banner): ?string
 {
     $target_value = (string) $banner['banner_target_value'];
 
     return match ($banner['banner_target_type']) {
-        'category'   => categoryUrl((int) $target_value),
-        'product'    => productUrl((int) $target_value),
-        'collection' => collectionUrl($target_value),
-        'url'        => in_array(parse_url($target_value, PHP_URL_SCHEME), ['http', 'https'], true) ? $target_value : url(''),
-        default      => collectionUrl('deals'),
+        'category'   => ctype_digit($target_value) && (int) $target_value > 0 ? categoryUrl((int) $target_value) : null,
+        'product'    => ctype_digit($target_value) && (int) $target_value > 0 ? productUrl((int) $target_value) : null,
+        'collection' => in_array($target_value, ['deals', 'new', 'best_sellers', 'offers'], true) ? collectionUrl($target_value) : null,
+        'url'        => filter_var($target_value, FILTER_VALIDATE_URL) !== false
+            && in_array(strtolower((string) parse_url($target_value, PHP_URL_SCHEME)), ['http', 'https'], true)
+                ? $target_value
+                : null,
+        default      => null,
     };
 }
 
@@ -141,17 +144,18 @@ function formatTzs(int $amount): string
  * 'savings_percent' => 9, 'is_best' => false], …]
  * (savings compared with the first tier's price).
  */
-function tierRows(array $tiers): array
+function tierRows(array $tiers, string $unit_label = 'pc'): array
 {
     $normal_price = $tiers[0]['tier_unit_price'];
+    $quantity_unit_label = pluralProductUnitLabel($unit_label);
     $rows = [];
     foreach ($tiers as $index => $tier) {
         $next_tier = $tiers[$index + 1] ?? null;
         $rows[] = [
             'min_quantity'       => $tier['tier_min_quantity'],
             'label'              => $next_tier === null
-                ? "{$tier['tier_min_quantity']}+ pcs"
-                : "{$tier['tier_min_quantity']}–" . ($next_tier['tier_min_quantity'] - 1) . ' pcs',
+                ? "{$tier['tier_min_quantity']}+ {$quantity_unit_label}"
+                : "{$tier['tier_min_quantity']}–" . ($next_tier['tier_min_quantity'] - 1) . " {$quantity_unit_label}",
             'unit_price'         => $tier['tier_unit_price'],
             'price_before_offer' => $tier['tier_price_before_offer'] ?? null, // set only while a time-limited offer runs
             'savings_percent'    => (int) round((1 - $tier['tier_unit_price'] / $normal_price) * 100),
@@ -166,6 +170,25 @@ function tierRows(array $tiers): array
 function formatPieces(int $count): string
 {
     return number_format($count) . ($count === 1 ? ' pc' : ' pcs');
+}
+
+function formatProductQuantity(int $count, string $unit_label): string
+{
+    $display_unit = $count === 1 ? $unit_label : pluralProductUnitLabel($unit_label);
+    return number_format($count) . ' ' . $display_unit;
+}
+
+function pluralProductUnitLabel(string $unit_label): string
+{
+    return match ($unit_label) {
+        'pc' => 'pcs',
+        'pack' => 'packs',
+        'set' => 'sets',
+        'box' => 'boxes',
+        'dozen' => 'dozens',
+        'carton' => 'cartons',
+        default => $unit_label,
+    };
 }
 
 /**

@@ -31,6 +31,85 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-11-09 - Let admins update delivery estimates
+- Added a validated date and reason to dispatch / transit updates, plus a standalone ETA edit for dispatched and in-transit orders. Changes are audited and customers are notified; pickup and completed orders are excluded.
+
+### 2026-11-09 - Clarify expired order delivery status
+- Show only reached order milestones followed by a clear expired endpoint, and hide estimated delivery dates once payment has expired.
+
+### 2026-11-09 - Set product cart action text to white
+- Applied white text and icon colors to the orange add-to-cart button on product details.
+
+### 2026-11-09 - Fit product detail footer labels
+- Kept the two sticky footer buttons equal in size, reduced label size, and tightened horizontal content padding so both actions fit on phones.
+
+### 2026-11-09 - Give the product cart action more room
+- Increased the sticky cart button share on product pages to keep its Kiswahili label readable on phones.
+
+### 2026-11-09 - Improve visual search loading feedback
+- Made the visual-search label immediate, larger, and higher contrast while keeping the shared loader defaults unchanged.
+
+### 2026-11-09 - Add same-category product suggestions
+- Added a swipeable related-products rail below the product description, using the catalog related endpoint and existing product cards.
+
+### 2026-11-09 - Improve the change PIN screen layout
+- Kept the change PIN action in a safe-area aware sticky footer, increased the lock illustration, and added more vertical spacing to its keypad rows.
+
+
+### 2026-11-09 - Enlarge and soften PIN keypad controls
+- Increased PIN keys and entry dots, and changed the number buttons to softly rounded squares for a clearer, more comfortable tap target.
+
+
+### 2026-11-06 - Surface pending work on the admin dashboard
+- Added a role-filtered “Needs attention” panel with direct links to payments, orders, delivery confirmations, refunds, business verification, and low-stock tasks.
+- Reused the existing attention counts for both the dashboard panel and notification bell.
+
+### 2026-11-06 - Compact the selected collection chip
+- Reduced the selected collection chip's visual weight by removing its redundant filter icon and tightening its label and spacing.
+
+
+### 2026-11-06 - Keep checkout action visible while reviewing options
+- Anchored the Continue to review button below the scrollable checkout choices, with a safe-area aware footer and divider so customers can proceed without scrolling back to the end.
+
+
+### 2026-11-06 - Blend desktop banner photos into the copy panel
+- Added a short gradient mask to the left edge of desktop banner photos so they feather into the CHIMBO green panel instead of meeting it at a hard seam.
+
+### 2026-11-06 - Show saved product units throughout the app
+- Product cards, quick-add sheets, cart tier labels, tier savings hints, and cart nudges now display each product's saved selling unit (pc, pack, set, box, dozen, or carton).
+- Cart summaries count distinct product lines instead of presenting mixed units as pieces. `dart format` and `flutter analyze` passed; Flutter tests were not run.
+
+### 2026-11-06 - Preview product photos on desktop thumbnail hover
+- Product gallery thumbnails now preview their photo on hover and keyboard focus; leaving restores the selected photo, while click still selects it. Touch remains tap-to-select.
+
+### 2026-11-06 - Improve cart quantity feedback and mixed-unit counts
+- Cart quantity updates now show a brief status, mark the row busy for assistive technology, and restore focus after the cart redraws.
+- Product cards, cart lines, checkout rows, and recently viewed actions use the product's saved unit; cart, checkout, and order summaries count distinct product lines instead of presenting mixed units as pieces.
+- Reused `product_unit_label` already present in the cart product response; no backend changes were needed.
+- PHP lint and `git diff --check` passed. JavaScript syntax checking was unavailable because Node.js is not installed in this environment.
+
+### 2026-11-06 - Clarify product units and improve web photo navigation
+- Product detail pricing, MOQ, stock, and tier ranges now use the saved selling unit (pc, pack, set, box, dozen, or carton) on the website and app.
+- The website product gallery now supports swipe, previous/next controls, a photo count, and an enlarged dialog view; the app already has swipe, thumbnails, and zoom.
+- Removed the cart-line fade and dimming during quantity updates so the whole product card no longer flashes.
+- PHP syntax checks, Flutter analyze for the changed app files, and `git diff --check` passed. Browser visual verification was not performed.
+
+### 2026-11-06 - Add a live banner preview to the admin editor
+- Added a live preview that updates as the Kiswahili title, subtitle, button label, destination, or selected image changes.
+- Added desktop and mobile preview modes to show how the storefront banner layout adapts.
+- PHP syntax and `git diff --check` passed; the admin page was not opened in a browser for visual verification.
+
+### 2026-10-27 - Make banner destinations explicit and verifiable
+- Replaced the generic banner target field with searchable category and product choices, a collection selector, and a validated HTTP(S) address field.
+- Banner destinations are now checked before saving; choosing "No action" stores no target and renders a non-clickable banner without a misleading button.
+- Corrected the banner editor's garbled target option labels.
+- PHP lint and `git diff --check` passed. Browser verification could not be completed because the local computer-use helper failed to initialize.
+
+### 2026-10-27 - Add optional email to customer registration and profiles
+- Added an optional email field to website and app registration and app profile editing, using the existing `PATCH /me` endpoint for storage and validation.
+- Show the saved email on the customer's private profile card in the website and app; the website account editor already supported changing it.
+- Flutter localization generation and analysis passed; PHP syntax and diff checks passed.
+
 ### 2026-10-27 - Convert remaining admin and receipt CSS classes
 - Replaced double underscores in admin stylesheet selectors and their markup/script references, and in the receipt template's inline styles and markup.
 

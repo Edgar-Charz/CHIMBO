@@ -541,7 +541,7 @@ class OrderManager
     }
 
     /**
-     * Moves the order to the next status. Body: {"order_status", "status_note", "delivery_agent_id" (needed for dispatched)}.
+     * Moves the order to the next status. Dispatch / transit changes include the delivery estimate.
      * Cancelling returns the stock. The customer gets a notification for every change.
      */
     public function changeStatus(int $order_id, array $input, int $admin_id): void
@@ -550,6 +550,7 @@ class OrderManager
             'order_status'      => 'required|in:packed,dispatched,in_transit,delivered,cancelled',
             'status_note'       => 'nullable|string|max:255',
             'delivery_agent_id' => 'nullable|int|min:1',
+            'order_estimated_delivery_date' => 'nullable|date',
         ]);
 
         $this->db->transaction(function () use ($order_id, $data, $admin_id) {
@@ -561,6 +562,23 @@ class OrderManager
             }
             if (!in_array($data['order_status'], self::allowedNextStatuses($current_status, (bool) $order['order_is_pickup']), true)) {
                 throw ApiException::conflict('STATUS_CHANGE_NOT_ALLOWED', "An order that is \"{$current_status}\" can't become \"{$data['order_status']}\".");
+            }
+
+            $previous_estimate = $order['order_estimated_delivery_date'] ?? null;
+            if (!$order['order_is_pickup'] && in_array($data['order_status'], ['dispatched', 'in_transit'], true)) {
+                $estimated_delivery_date = $data['order_estimated_delivery_date'] ?? null;
+                if ($estimated_delivery_date === null) {
+                    throw ApiException::validation(['order_estimated_delivery_date' => 'Set the estimated delivery date.']);
+                }
+                $this->validateEstimatedDeliveryDate($estimated_delivery_date);
+                if ($estimated_delivery_date !== $previous_estimate) {
+                    $status_note = trim((string) ($data['status_note'] ?? ''));
+                    if (mb_strlen($status_note) < 3) {
+                        throw ApiException::validation(['status_note' => 'Explain why the estimated delivery date changed.']);
+                    }
+                    $this->saveEstimatedDeliveryDate($order_id, $estimated_delivery_date);
+                    $order['order_estimated_delivery_date'] = $estimated_delivery_date;
+                }
             }
 
             if ($data['order_status'] === 'dispatched') {
@@ -577,8 +595,66 @@ class OrderManager
             $this->order_model->moveToStatus($order, $data['order_status'], 'admin', $admin_id, $data['status_note'] ?? null);
 
             (new AuditLog($this->db))->record('admin', $admin_id, 'order.status_changed', 'order', $order_id,
-                ['order_status' => $current_status], ['order_status' => $data['order_status'], 'status_note' => $data['status_note'] ?? null]);
+                ['order_status' => $current_status, 'order_estimated_delivery_date' => $previous_estimate],
+                ['order_status' => $data['order_status'], 'order_estimated_delivery_date' => $order['order_estimated_delivery_date'] ?? null,
+                    'status_note' => $data['status_note'] ?? null]);
         });
+    }
+
+    /** Updates an ETA after dispatch without requiring another order-status transition. */
+    public function updateDeliveryEstimate(int $order_id, array $input, int $admin_id): void
+    {
+        $data = Validator::validate($input, [
+            'order_estimated_delivery_date' => 'required|date',
+            'status_note' => 'required|string|min:3|max:255',
+        ]);
+
+        $this->db->transaction(function () use ($order_id, $data, $admin_id) {
+            $order = $this->order_model->lockOrder($order_id);
+            if ($order['order_is_pickup'] || !in_array($order['order_status'], ['dispatched', 'in_transit'], true)) {
+                throw ApiException::conflict('DELIVERY_ESTIMATE_NOT_EDITABLE', 'The delivery estimate can only be updated while an order is dispatched or in transit.');
+            }
+
+            $this->validateEstimatedDeliveryDate($data['order_estimated_delivery_date']);
+            $previous_estimate = $order['order_estimated_delivery_date'] ?? null;
+            if ($data['order_estimated_delivery_date'] === $previous_estimate) {
+                throw ApiException::validation(['order_estimated_delivery_date' => 'Choose a different estimated delivery date.']);
+            }
+
+            $this->saveEstimatedDeliveryDate($order_id, $data['order_estimated_delivery_date']);
+            $order['order_estimated_delivery_date'] = $data['order_estimated_delivery_date'];
+            $this->order_model->notifyDeliveryEstimateChanged($order, $data['status_note']);
+
+            (new AuditLog($this->db))->record(
+                'admin',
+                $admin_id,
+                'order.delivery_estimate_changed',
+                'order',
+                $order_id,
+                ['order_estimated_delivery_date' => $previous_estimate],
+                [
+                    'order_estimated_delivery_date' => $data['order_estimated_delivery_date'],
+                    'status_note' => $data['status_note'],
+                ]
+            );
+        });
+    }
+
+    private function validateEstimatedDeliveryDate(string $date): void
+    {
+        $timezone = new DateTimeZone((string) Env::get('APP_TIMEZONE', 'Africa/Dar_es_Salaam'));
+        $today = (new DateTimeImmutable('today', $timezone))->format('Y-m-d');
+        if ($date < $today) {
+            throw ApiException::validation(['order_estimated_delivery_date' => 'The estimated delivery date cannot be in the past.']);
+        }
+    }
+
+    private function saveEstimatedDeliveryDate(int $order_id, string $date): void
+    {
+        $this->db->execute(
+            'UPDATE orders SET order_estimated_delivery_date = :estimated_delivery_date WHERE order_id = :order_id',
+            ['estimated_delivery_date' => $date, 'order_id' => $order_id]
+        );
     }
 
     /**
