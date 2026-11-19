@@ -273,6 +273,12 @@ class ProductEditor
         );
         $this->notifyWhenStockRunsLow((int) $product_id, (string) ($product['product_name'] ?? ''), $current_stock, $new_stock);
 
+        // Fire "Nijulishe ikipatikana" push notifications when a product comes back in stock.
+        if ($current_stock === 0 && $new_stock > 0) {
+            (new StockNotification($this->db))->notifySubscribers($product_id, (string) ($product['product_name'] ?? ''));
+            (new ProductRequest($this->db))->notifyMatchingRequests($product_id);
+        }
+
         return $new_stock;
     }
 

@@ -18,8 +18,9 @@ class VisualSearch
 {
     private const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8 MB
     private const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-    private const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=%s';
-    private const GEMINI_TIMEOUT_SECONDS = 16;
+    private const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s';
+    private const GEMINI_MODELS = ['gemini-flash-lite-latest', 'gemini-3.5-flash-lite'];
+    private const GEMINI_TIMEOUT_SECONDS = 8;
 
     private ?Product $product_model = null;
 
@@ -217,52 +218,61 @@ Respond with JSON only: {"brand": string|null, "product_name": string, "visible_
     }
 
     /**
-     * HTTP call to Gemini Flash API.
+     * HTTP call to Gemini Flash API with fallback model support.
      */
     private function callGeminiApi(array $payload): string
     {
-        $url = sprintf(self::GEMINI_API_URL, rawurlencode($this->api_key));
-        $handle = curl_init($url);
-        curl_setopt_array($handle, [
-            CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_TIMEOUT        => self::GEMINI_TIMEOUT_SECONDS,
-        ]);
+        $last_exception = null;
 
-        $raw_response = curl_exec($handle);
-        $http_status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
-        if ($raw_response === false) {
-            $error_number = curl_errno($handle);
-            $elapsed_seconds = (int) round(curl_getinfo($handle, CURLINFO_TOTAL_TIME));
-            curl_close($handle);
-            $reason = $error_number === CURLE_OPERATION_TIMEDOUT
-                ? "operation timed out after {$elapsed_seconds} seconds"
-                : "cURL error {$error_number}";
-            throw new RuntimeException('Gemini network request failed: ' . $reason . '.');
-        }
-        curl_close($handle);
+        foreach (self::GEMINI_MODELS as $model) {
+            $url = sprintf(self::GEMINI_API_URL, $model, rawurlencode($this->api_key));
+            $handle = curl_init($url);
+            curl_setopt_array($handle, [
+                CURLOPT_POST           => true,
+                CURLOPT_POSTFIELDS     => json_encode($payload),
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/json'],
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT        => self::GEMINI_TIMEOUT_SECONDS,
+            ]);
 
-        if ($http_status < 200 || $http_status >= 300) {
-            $error_response = json_decode($raw_response, true);
-            $api_error = is_array($error_response) ? ($error_response['error'] ?? null) : null;
-            $api_error_status = is_array($api_error) ? ($api_error['status'] ?? '') : '';
-            if (!is_string($api_error_status) || !preg_match('/^[A-Z_]+$/', $api_error_status)) {
-                $api_error_status = '';
+            $raw_response = curl_exec($handle);
+            $http_status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
+            if ($raw_response === false) {
+                $error_number = curl_errno($handle);
+                $elapsed_seconds = (int) round(curl_getinfo($handle, CURLINFO_TOTAL_TIME));
+                curl_close($handle);
+                $reason = $error_number === CURLE_OPERATION_TIMEDOUT
+                    ? "operation timed out after {$elapsed_seconds} seconds"
+                    : "cURL error {$error_number}";
+                $last_exception = new RuntimeException("Gemini network request for {$model} failed: {$reason}.");
+                continue;
             }
-            $status_detail = $api_error_status !== '' ? " ({$api_error_status})" : '';
-            throw new RuntimeException("Gemini API request failed with HTTP {$http_status}{$status_detail}.");
+            curl_close($handle);
+
+            if ($http_status < 200 || $http_status >= 300) {
+                $error_response = json_decode($raw_response, true);
+                $api_error = is_array($error_response) ? ($error_response['error'] ?? null) : null;
+                $api_error_status = is_array($api_error) ? ($api_error['status'] ?? '') : '';
+                if (!is_string($api_error_status) || !preg_match('/^[A-Z_]+$/', $api_error_status)) {
+                    $api_error_status = '';
+                }
+                $status_detail = $api_error_status !== '' ? " ({$api_error_status})" : '';
+                $last_exception = new RuntimeException("Gemini API request for {$model} failed with HTTP {$http_status}{$status_detail}.");
+                continue;
+            }
+
+            $decoded = json_decode($raw_response, true);
+            $text = $decoded['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            if ($text === '') {
+                $last_exception = new RuntimeException("Gemini {$model} returned an empty response.");
+                continue;
+            }
+
+            return $text;
         }
 
-        $decoded = json_decode($raw_response, true);
-        $text = $decoded['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        if ($text === '') {
-            throw new RuntimeException('Gemini returned an empty response.');
-        }
-
-        return $text;
+        throw $last_exception ?? new RuntimeException('Gemini API request failed.');
     }
 
     /**

@@ -8,8 +8,8 @@
 interface SmsGateway
 {
     /**
-     * Sends one SMS. Returns the provider's message id (or null if it gives none).
+     * Sends one SMS. Returns `sent` or `queued` plus a provider message id when available.
      * Throws an exception if the provider refuses or cannot be reached.
      */
-    public function send(string $phone, string $message): ?string;
+    public function send(string $phone, string $message): array;
 }

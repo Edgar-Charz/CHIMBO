@@ -12,6 +12,8 @@
  */
 class RateLimiter
 {
+    private const RATE_LIMIT_KEY_HASH_LENGTH = 64;
+
     public function __construct(private Database $db)
     {
     }
@@ -26,23 +28,48 @@ class RateLimiter
         // Start of the current window, e.g. every hour: 10:00:00, 11:00:00 …
         $window_start = gmdate('Y-m-d H:i:s', intdiv(time(), $window_seconds) * $window_seconds);
 
+        // Keep the readable scope for operations, but never store phone numbers or IP addresses.
+        $scope = strstr($key, ':', true) ?: 'general';
+        $identity_hash = hash_hmac('sha256', "{$key}|window:{$window_seconds}", Env::required('APP_KEY'));
+        $storage_key = $scope . ':' . substr($identity_hash, 0, self::RATE_LIMIT_KEY_HASH_LENGTH);
+
         // Add 1 to this window's counter (creates the row the first time)
         $this->db->execute(
             'INSERT INTO rate_limits (rate_limit_key, rate_limit_window_start, rate_limit_hits)
              VALUES (:rate_limit_key, :window_start, 1)
              ON DUPLICATE KEY UPDATE rate_limit_hits = rate_limit_hits + 1',
-            ['rate_limit_key' => $key, 'window_start' => $window_start]
+            ['rate_limit_key' => $storage_key, 'window_start' => $window_start]
         );
 
         $hits = (int) $this->db->fetchValue(
             'SELECT rate_limit_hits FROM rate_limits
              WHERE rate_limit_key = :rate_limit_key AND rate_limit_window_start = :window_start',
-            ['rate_limit_key' => $key, 'window_start' => $window_start]
+            ['rate_limit_key' => $storage_key, 'window_start' => $window_start]
         );
 
         $this->deleteOldWindowsSometimes();
 
+        if ($hits === $max_attempts) {
+            Logger::info('Security rate limit reached', [
+                'event'         => 'security.rate_limit.near_limit',
+                'scope'         => $scope,
+                'identity_hash' => $identity_hash,
+                'hits'          => $hits,
+                'limit'         => $max_attempts,
+                'window_seconds' => $window_seconds,
+            ]);
+        }
         if ($hits > $max_attempts) {
+            if ($hits === $max_attempts + 1) {
+                Logger::warning('Security rate limit exceeded', [
+                    'event'         => 'security.rate_limit.exceeded',
+                    'scope'         => $scope,
+                    'identity_hash' => $identity_hash,
+                    'hits'          => $hits,
+                    'limit'         => $max_attempts,
+                    'window_seconds' => $window_seconds,
+                ]);
+            }
             throw ApiException::tooManyRequests($message);
         }
     }

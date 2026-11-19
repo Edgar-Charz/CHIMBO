@@ -9,9 +9,7 @@
  */
 class SmsSender
 {
-    public function __construct(private Database $db)
-    {
-    }
+    public function __construct(private Database $db) {}
 
     /**
      * Sends the SMS now. Throws a 503 error if it cannot be sent.
@@ -26,14 +24,14 @@ class SmsSender
         );
 
         try {
-            $provider_message_id = $this->gateway()->send($phone, $message);
+            $result = $this->gateway()->send($phone, $message);
         } catch (Throwable $e) {
             Logger::exception($e, ['sms_id' => $sms_id]);
             $this->markSms($sms_id, 'failed');
             throw new ApiException(503, 'SMS_FAILED', 'Imeshindikana kutuma SMS. Tafadhali jaribu tena baada ya muda mfupi.');
         }
 
-        $this->markSms($sms_id, 'sent', $provider_message_id);
+        $this->markSms($sms_id, $result['status'], $result['message_id']);
     }
 
     /** The provider class for SMS_DRIVER. Add one line here for each real provider. */
@@ -42,7 +40,8 @@ class SmsSender
         $driver = Env::get('SMS_DRIVER', 'log');
 
         return match ($driver) {
-            'log'   => new LogSmsGateway(),
+            'log' => new LogSmsGateway(),
+            'darsms' => new DarsmsSmsGateway(),
             default => throw new LogicException("Unknown SMS_DRIVER in .env: {$driver}"),
         };
     }
