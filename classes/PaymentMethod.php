@@ -64,6 +64,12 @@ class PaymentMethod
     public function getActiveMethods(): array
     {
         $active = array_filter($this->allMethods(), fn (array $method) => (bool) $method['payment_method_is_active']);
+        if (PaymentFlow::current() === 'selcom') {
+            $all_methods = $this->allMethods();
+            $selcom_methods = array_filter($all_methods, fn (array $method) => $method['payment_method_type'] === 'mobile_money'
+                || ($method['payment_method_type'] === 'cash' && (bool) $method['payment_method_is_active']));
+            $active = $selcom_methods;
+        }
         return array_values(array_map(fn (array $method) => $this->formatMethod($method), $active));
     }
 

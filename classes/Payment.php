@@ -33,6 +33,8 @@ class Payment
      */
     public function submitPayment(int $user_id, int $order_id, array $input): array
     {
+        PaymentFlow::assertManualEnabled();
+
         $this->db->transaction(function () use ($user_id, $order_id, $input) {
             $order = $this->lockOrderForPayment($order_id, $user_id);
             $method = (new PaymentMethod($this->db))->getDetailsByCode($order['order_payment_method']);
