@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9039302c8c70c485c1e2c8d2fd96db75",
+    "content-hash": "689ebbc7ba14d5d54780f44943f03074",
     "packages": [
         {
             "name": "chillerlan/php-qrcode",
@@ -468,6 +468,41 @@
                 "source": "https://github.com/MyIntervals/PHP-CSS-Parser/tree/v9.5.0"
             },
             "time": "2026-09-20T15:02:00+00:00"
+        },
+        {
+            "name": "selcom/selcom-apigw-client",
+            "version": "v1.0.5",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/selcompaytechltd/selcom-apigw-client-php.git",
+                "reference": "3192f3691c388034b91873867266f7adfcb98dc0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/selcompaytechltd/selcom-apigw-client-php/zipball/3192f3691c388034b91873867266f7adfcb98dc0",
+                "reference": "3192f3691c388034b91873867266f7adfcb98dc0",
+                "shasum": ""
+            },
+            "type": "library",
+            "autoload": {
+                "files": [
+                    "src/apigwClient.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "authors": [
+                {
+                    "name": "dev",
+                    "email": "dev@selcom.net"
+                }
+            ],
+            "description": "Client library to help access selcom apis",
+            "support": {
+                "issues": "https://github.com/selcompaytechltd/selcom-apigw-client-php/issues",
+                "source": "https://github.com/selcompaytechltd/selcom-apigw-client-php/tree/v1.0.5"
+            },
+            "time": "2023-02-27T06:25:09+00:00",
+            "published-time": "2023-02-27T06:29:11+00:00"
         }
     ],
     "packages-dev": [

@@ -8,9 +8,12 @@
 /media/*
 !/media/.gitkeep
 !/media/.htaccess
+!/media/product-requests/
+/media/product-requests/*
+!/media/product-requests/.htaccess
 
 # Logs and runtime files
-/storage/logs/*
+/storage/logs/* 
 !/storage/logs/.gitkeep
 /storage/keys/
 /storage/.dart-tool/
