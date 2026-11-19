@@ -19,6 +19,7 @@
         <env name="DB_DATABASE" value="chimbo_test" force="true"/>
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="SMS_DRIVER" value="log" force="true"/>
+        <env name="PAYMENT_FLOW" value="manual" force="true"/>
     </php>
     <source>
         <include>

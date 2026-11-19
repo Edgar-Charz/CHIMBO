@@ -164,6 +164,11 @@ require __DIR__ . '/includes/header.php';
                             <button class="btn btn-buy w-100" type="button" data-reorder="<?= e($order['order_id']) ?>"><i class="bi bi-arrow-repeat" aria-hidden="true"></i> Agiza Tena</button>
                         <?php endif; ?>
                         <a class="btn btn-outline-primary w-100" href="<?= e(receiptUrl($order['order_id'])) ?>" target="_blank" rel="noopener"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i> Pakua Risiti</a>
+                        <button class="btn btn-outline-primary w-100" type="button"
+                                data-share-receipt="<?= e(receiptUrl($order['order_id'])) ?>"
+                                data-share-title="<?= e('Risiti ' . $order['order_number']) ?>">
+                            <i class="bi bi-share" aria-hidden="true"></i> Shiriki Risiti
+                        </button>
                         <?php if ($order['can_cancel']) : ?>
                             <button class="btn btn-link order-actions-cancel" type="button" data-bs-toggle="modal" data-bs-target="#cancel-order-dialog">Ghairi oda</button>
                         <?php endif; ?>

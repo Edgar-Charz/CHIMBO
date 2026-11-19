@@ -16,6 +16,18 @@ const ACCOUNT_LINKS = [
 ];
 
 $customer = requireCustomer();
+$account_links = ACCOUNT_LINKS;
+$product_requests = (new ProductRequest(Database::instance()))->getRequestsForUser(
+    (int) CustomerSession::currentUserId()
+);
+if ($product_requests !== []) {
+    $wishlist_link_index = array_search('wishlist.php', array_column(ACCOUNT_LINKS, 'href'), true);
+    array_splice($account_links, $wishlist_link_index === false ? count($account_links) : $wishlist_link_index + 1, 0, [[
+        'href' => 'product_requests.php',
+        'icon' => 'chat-square-text',
+        'label' => 'Maombi ya bidhaa',
+    ]]);
+}
 $business = $customer['business'] ?? [];
 $avatar_url = $customer['user_avatar_url'] ?? null;
 $name_parts = preg_split('/\s+/u', trim((string) ($customer['user_full_name'] ?? '')), -1, PREG_SPLIT_NO_EMPTY);
@@ -81,7 +93,7 @@ require __DIR__ . '/includes/header.php';
     </section>
 
     <nav class="account-links" aria-label="Akaunti yako">
-        <?php foreach (ACCOUNT_LINKS as $account_link) : ?>
+        <?php foreach ($account_links as $account_link) : ?>
             <a class="account-link" href="<?= e(url($account_link['href'])) ?>">
                 <span class="account-link-icon"><i class="bi bi-<?= e($account_link['icon']) ?>" aria-hidden="true"></i></span>
                 <span class="account-link-label"><?= e($account_link['label']) ?></span>

@@ -34,6 +34,14 @@ if ($product === null) {
     $suggested_products = productSuggestions($product, $product_model->getRelatedProducts($product_id), $parent_category);
 }
 
+// Notify-me subscription status (web)
+$notify_subscribed = false;
+$web_customer = currentCustomer();
+if ($web_customer !== null && $product !== null && !$product['product_in_stock']) {
+    $sn = new StockNotification(Database::instance());
+    $notify_subscribed = $sn->isSubscribed((int)$web_customer['user_id'], $product_id);
+}
+
 $page = [
     'title'       => $product['product_name'] ?? 'Bidhaa haipatikani',
     'description' => ($product['product_description'] ?? null) ?: 'Bei za jumla, MOQ na upatikanaji wa bidhaa hii kwenye CHIMBO. ' . paymentOptions()['short'] . '.',
@@ -189,6 +197,22 @@ require __DIR__ . '/includes/header.php';
                     <button class="btn btn-buy btn-lg w-100" type="button" data-add-to-cart <?= $product['product_in_stock'] ? '' : 'disabled' ?>>
                         <i class="bi bi-bag-plus" aria-hidden="true"></i> Ongeza kikapuni
                     </button>
+                    <?php if (!$product['product_in_stock']) : ?>
+                        <?php if ($web_customer !== null) : ?>
+                            <button class="btn <?= $notify_subscribed ? 'btn-outline-primary' : 'btn-buy' ?> btn-lg w-100 mt-2"
+                                    type="button"
+                                    data-notify-me="<?= e($product_id) ?>"
+                                    data-subscribed="<?= $notify_subscribed ? '1' : '0' ?>">
+                                <i class="bi <?= $notify_subscribed ? 'bi-bell-slash' : 'bi-bell' ?>" aria-hidden="true"></i>
+                                <?= $notify_subscribed ? 'Ondoa arifa' : 'Nijulishe ikipatikana' ?>
+                            </button>
+                        <?php else : ?>
+                            <a class="btn btn-buy btn-lg w-100 mt-2"
+                               href="<?= e(url('login.php?next=' . urlencode($_SERVER['REQUEST_URI']))) ?>">
+                                <i class="bi bi-bell" aria-hidden="true"></i> Nijulishe ikipatikana
+                            </a>
+                        <?php endif; ?>
+                    <?php endif; ?>
                     <p class="product-buy-in-cart" hidden data-in-cart-note></p>
 
                     <ul class="product-promises">
@@ -246,6 +270,22 @@ require __DIR__ . '/includes/header.php';
             <strong data-buy-bar-total><?= e(formatTzs($moq_total)) ?></strong>
         </div>
         <button class="btn btn-buy" type="button" tabindex="-1" data-add-to-cart <?= $product['product_in_stock'] ? '' : 'disabled' ?>>Ongeza kikapuni</button>
+        <?php if (!$product['product_in_stock']) : ?>
+            <?php if ($web_customer !== null) : ?>
+                <button class="btn <?= $notify_subscribed ? 'btn-outline-primary' : 'btn-buy' ?> ms-2"
+                        type="button" tabindex="-1"
+                        data-notify-me="<?= e($product_id) ?>"
+                        data-subscribed="<?= $notify_subscribed ? '1' : '0' ?>">
+                    <i class="bi <?= $notify_subscribed ? 'bi-bell-slash' : 'bi-bell' ?>" aria-hidden="true"></i>
+                    <span class="d-none d-sm-inline"><?= $notify_subscribed ? 'Ondoa arifa' : 'Nijulishe' ?></span>
+                </button>
+            <?php else : ?>
+                <a class="btn btn-buy ms-2" tabindex="-1"
+                   href="<?= e(url('login.php?next=' . urlencode($_SERVER['REQUEST_URI']))) ?>">
+                    <i class="bi bi-bell" aria-hidden="true"></i>
+                </a>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 
     <script type="application/json" id="product-data"><?= json_encode(['product' => $product, 'suggested_products' => $suggested_products], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>

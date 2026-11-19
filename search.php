@@ -25,6 +25,7 @@ if ($search_text !== '') {
         'text'         => 'Jaribu jina fupi zaidi, jina la chapa, au angalia aina za bidhaa.',
         'action_label' => 'Angalia aina zote',
         'action_href'  => url('explore.php'),
+        'request_action_label' => 'Omba bidhaa hii WhatsApp',
     ];
 } else {
     $heading = COLLECTION_PAGES[$collection] ?? [
