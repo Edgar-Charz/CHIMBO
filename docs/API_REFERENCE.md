@@ -75,7 +75,7 @@ Body: `{"user_phone": "0712 345 678"}` (any Tanzanian format)
 {"user_phone": "+255712345678", "otp_expires_in_seconds": 300, "otp_resend_after_seconds": 60,
  "debug_otp_code": "849144"}
 ```
-`debug_otp_code` exists only in **"show code" mode** (`OTP_SHOW_CODE=true`) on a local or staging server â€” the app should auto-fill/show it when present. It is **never** sent when `APP_ENV=production`.
+`debug_otp_code` exists only when `SMS_DRIVER=log` and **"show code" mode** (`OTP_SHOW_CODE=true`) is enabled on a local or staging server â€” the app should auto-fill/show it when present. It is never returned with DARSMS or when `APP_ENV=production`.
 Errors: `VALIDATION_ERROR` (bad phone) Â· `OTP_RESEND_TOO_SOON` (429, message says how many seconds) Â· `RATE_LIMITED` (429) Â· `SMS_FAILED` (503).
 
 ### `POST /auth/otp/verify` â€” check the SMS code, log in
@@ -171,6 +171,14 @@ Everything on the card, plus:
 
 ### `GET /products/{id}/related` â€” up to 10 product cards from the same chip ("You may also like")
 
+
+### `GET|POST|DELETE /products/{id}/notify-me` — Back-in-stock push subscriptions 🔒 auth
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/products/{id}/notify-me` | — | `{"is_subscribed": true\|false}` |
+| POST | `/products/{id}/notify-me` | — | `null` · 404 if product not found · 422 if already in stock |
+| DELETE | `/products/{id}/notify-me` | — | `null` |
+
 ## Wishlist (heart button) Â· ðŸ”’ all
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -218,6 +226,7 @@ Everything on the card, plus:
 Address: `{address_id, address_recipient_name, address_phone, region_id, region_name, district_id, district_name, address_street, address_landmark, address_is_default}`.
 
 ## Checkout Â· ðŸ”’ all
+- `GET /checkout/options` includes `payment_flow` (`manual` by default; set by `PAYMENT_FLOW=manual|selcom`). In Selcom mode, cash on delivery remains available and bank methods are omitted. Payment initiation is only available in Selcom mode.
 - `GET /checkout/options?address_id=3` â†’ `{"delivery_methods": [{delivery_method_id, delivery_method_code, delivery_method_name, delivery_method_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, delivery_days_min, delivery_days_max, delivery_method_area, region_id}], "pickup_point": {"pickup_address", "pickup_hours"}, "payment_methods": ["mpesa", "cod"], "payment_method_details": [ â€¦payment method objectsâ€¦ ]}` â€” with `address_id`, only methods that reach that region ("Haraka" = Dar es Salaam only). `payment_methods` = the active codes staff configured.
 - **Payment method object** (also `GET /payment-methods`, public): `{payment_method_code, payment_method_name, payment_method_type (mobile_money | bank | cash), payment_method_account_name, payment_method_account_number (Lipa Namba / phone / bank account), payment_method_bank_name, payment_method_instructions, payment_method_icon_url}`. The icon URL is `null` when no logo is uploaded; customer clients show their built-in icon for the method type. An order saved with a removed method returns a safe placeholder with `payment_method_is_available: false`; customers cannot submit payment through that method.
 - `GET /products/{id}` also returns `delivery_options` (every delivery option switched on, the same shape as above, without a region) â€” show them on the product page ("Bolt (Dar es Salaam): leo au kesho Â· Usafiri wa mikoani: siku 2â€“5 Â· Nitachukua mwenyewe dukani: bure"). Days read 0â€“0 "leo", 0â€“1 "leo au kesho", 1â€“1 "kesho", else "siku minâ€“max".
@@ -226,6 +235,7 @@ Address: `{address_id, address_recipient_name, address_phone, region_id, region_
 - `POST /checkout/preview` `{"delivery_method_id": 1, "address_id": 3}` â†’ `{line_count, piece_count, subtotal, savings, delivery_method_id, delivery_fee, delivery_fee_needs_confirmation, delivery_fee_paid_to_rider, delivery_method_is_pickup, discount_total, grand_total, delivery_days_min, delivery_days_max}` (with `delivery_fee_needs_confirmation` true, label the totals "Usafiri (makadirio)" / "Jumla (makadirio)"). Errors: `CART_EMPTY` (409), `CART_HAS_PROBLEMS` (409), `VALIDATION_ERROR` on `delivery_method_id`.
 
 ## Orders â€” Oda Â· ðŸ”’ all
+- The nested order `payment` object includes `payment_flow`, `can_submit_payment` (manual proof form) and `can_initiate_payment` (eligible Selcom mobile-money initiation).
 New order numbers are sequential within each shop prefix and Tanzania calendar month: for example, `CHS2610-0001` for Shamba la Vipodozi, `CHM2610-0001` for Mrembo Muuza Urembo, and `CHB2610-0001` for an order containing both shops. The four-digit counter resets each month; existing order numbers remain valid.
 | Method | Path | Body / returns |
 |---|---|---|
@@ -320,3 +330,22 @@ Every order status change creates a notification with Kiswahili and English copi
 | DELETE | `/devices` | `{"device_token": "FCM token"}` | `null`; removes this installation on logout |
 
 The device token and selected language are saved against the current auth session. Revoked or expired sessions are excluded from push delivery. When `FCM_SERVICE_ACCOUNT_FILE` points to a readable Firebase service-account JSON file, individual in-app notifications are queued and attempted through FCM immediately after their database transaction commits. Each device receives the matching translated system alert when a copy exists; older or untranslated notifications use their stored fallback text. Bulk notifications are saved and queued in one transaction, then the scheduled CLI worker processes recipients in batches of 50 so a broadcast does not hold the admin request open. Failed pushes are marked failed for staff to retry in Push Queue; unregistered tokens are removed. The worker also recovers pending work interrupted before an immediate attempt. Push data includes string `notification_id`, `notification_type`, scalar `notification_data` fields, and flattened `notification_title_en` / `notification_body_en` and `notification_title_sw` / `notification_body_sw` for foreground localization.
+
+## Selcom payment foundation
+
+Customer-authenticated endpoints:
+- `POST /payments/initiate` requires `Idempotency-Key` (8–100 URL-safe characters) and body `{"order_id": 12, "payment_method": "mpesa", "phone_number": "0712345678"}`. The method must be active, mobile money, and match the order. The server calculates the remaining balance; callers cannot submit an amount.
+- `GET /payments/{id}/status` returns the owner's payment ID, order ID, method, amount, payment status, order payment status and creation time. Other customers receive 404.
+- `POST /api/webhooks/selcom.php` accepts JSON only. Until Selcom's official callback authentication and payload rules are implemented, it rejects notifications without changing payment or order state.
+
+The initiation endpoint also returns an integration-pending error until official Selcom documentation is implemented. Existing manual payment history and review endpoints are unchanged.
+
+### Product requests (authenticated)
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/product-requests` | — | The signed-in customer's requests with status, optional private reference-photo URL, and matched product name/image |
+| GET | `/product-requests/{id}/image` | — | The signed-in owner's private reference photo (inline WebP; other customers receive 404) |
+| POST | `/product-requests` | JSON `{"product_request_description":"..."}` or multipart with that field and optional `image` | `{"product_request_id": 12}` |
+| DELETE | `/product-requests/{id}` | — | `null` · cancels a pending or matched request |
+
+Staff match requests in Admin → Catalog → Product requests. Matching an in-stock item sends an in-app and push alert immediately; matching an out-of-stock item sends both when stock is added. Reference photos are available to their owner and authorized staff only; the owner route checks the request's `user_id` and does not cache the image.
