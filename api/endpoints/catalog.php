@@ -47,3 +47,68 @@ $router->get('/products/{id}', function (Request $request) {
 $router->get('/products/{id}/related', function (Request $request) {
     return Response::success((new Product(Database::instance()))->getRelatedProducts((int) $request->param('id')));
 });
+
+
+// GET  /api/v1/products/{id}/notify-me — check subscription status
+// POST /api/v1/products/{id}/notify-me — subscribe to back-in-stock push
+// DELETE /api/v1/products/{id}/notify-me — unsubscribe
+$router->get('/products/{id}/notify-me', function (Request $request) {
+    $product_id    = (int) $request->param('id');
+    $user_id       = (int) $request->user()['user_id'];
+    $is_subscribed = (new StockNotification(Database::instance()))->isSubscribed($user_id, $product_id);
+    return Response::success(['is_subscribed' => $is_subscribed]);
+}, [AuthMiddleware::class]);
+
+$router->post('/products/{id}/notify-me', function (Request $request) {
+    $product_id = (int) $request->param('id');
+    $user_id    = (int) $request->user()['user_id'];
+    (new StockNotification(Database::instance()))->subscribe($user_id, $product_id);
+    return Response::success(null);
+}, [AuthMiddleware::class]);
+
+$router->delete('/products/{id}/notify-me', function (Request $request) {
+    $product_id = (int) $request->param('id');
+    $user_id    = (int) $request->user()['user_id'];
+    (new StockNotification(Database::instance()))->unsubscribe($user_id, $product_id);
+    return Response::success(null);
+}, [AuthMiddleware::class]);
+
+// Save each request before opening an external share app. This preserves the
+// notification link even if a customer cancels the share sheet.
+$router->get('/product-requests', function (Request $request) {
+    return Response::success((new ProductRequest(Database::instance()))->getRequestsForUser((int) $request->user()['user_id']));
+}, [AuthMiddleware::class]);
+
+$router->get('/product-requests/{id}/image', function (Request $request) {
+    $product_request = new ProductRequest(Database::instance());
+    $image_path = $product_request->getRequestImagePathForUser(
+        (int) $request->user()['user_id'],
+        (int) $request->param('id')
+    );
+    $image_content = file_get_contents($image_path);
+    if ($image_content === false) {
+        throw ApiException::notFound('Picha hii haipatikani.');
+    }
+
+    return Response::download($image_content, 'image/webp', basename($image_path))
+        ->withHeader('Content-Disposition', 'inline')
+        ->withHeader('Cache-Control', 'private, no-store')
+        ->withHeader('X-Content-Type-Options', 'nosniff');
+}, [AuthMiddleware::class]);
+
+$router->post('/product-requests', function (Request $request) {
+    $request_id = (new ProductRequest(Database::instance()))->createRequest(
+        (int) $request->user()['user_id'],
+        $request->all(),
+        $request->file('image')
+    );
+    return Response::success(['product_request_id' => $request_id], 201);
+}, [AuthMiddleware::class]);
+
+$router->delete('/product-requests/{id}', function (Request $request) {
+    (new ProductRequest(Database::instance()))->cancelRequest(
+        (int) $request->user()['user_id'],
+        (int) $request->param('id')
+    );
+    return Response::success(null);
+}, [AuthMiddleware::class]);
