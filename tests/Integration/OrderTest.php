@@ -140,8 +140,16 @@ final class OrderTest extends TestCase
 
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
         // (a Dar order goes by Bolt: the agent is optional — see BoltAndPickupTest; here one of ours takes it)
-        $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'dispatched', 'delivery_agent_id' => $agent_id], self::ADMIN_ID);
-        $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'in_transit'], self::ADMIN_ID);
+        $this->order_manager->changeStatus($order['order_id'], [
+            'order_status' => 'dispatched',
+            'delivery_agent_id' => $agent_id,
+            'order_estimated_delivery_date' => date('Y-m-d', strtotime('+2 days')),
+            'status_note' => 'Imekabidhiwa kwa msafirishaji.',
+        ], self::ADMIN_ID);
+        $this->order_manager->changeStatus($order['order_id'], [
+            'order_status' => 'in_transit',
+            'order_estimated_delivery_date' => date('Y-m-d', strtotime('+2 days')),
+        ], self::ADMIN_ID);
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'delivered'], self::ADMIN_ID);
 
         $tracked = $this->order_model->getOrder($this->user_id, $order['order_id']);

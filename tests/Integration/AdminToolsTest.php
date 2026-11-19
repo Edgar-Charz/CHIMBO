@@ -208,7 +208,12 @@ final class AdminToolsTest extends TestCase
         );
         $manager = new OrderManager($this->db);
         $manager->changeStatus($dispatched['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
-        $manager->changeStatus($dispatched['order_id'], ['order_status' => 'dispatched', 'delivery_agent_id' => $agent_id], self::ADMIN_ID);
+        $manager->changeStatus($dispatched['order_id'], [
+            'order_status' => 'dispatched',
+            'delivery_agent_id' => $agent_id,
+            'order_estimated_delivery_date' => date('Y-m-d', strtotime('+2 days')),
+            'status_note' => 'Imekabidhiwa kwa msafirishaji.',
+        ], self::ADMIN_ID);
         $dashboard = new Dashboard($this->db);
 
         $summary = $dashboard->getOrderPipeline();

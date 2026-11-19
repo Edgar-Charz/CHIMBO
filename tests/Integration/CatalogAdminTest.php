@@ -166,6 +166,7 @@ final class CatalogAdminTest extends TestCase
     {
         $banner_id = (new Banner($this->db))->createBanner([
             'banner_title'     => 'Test Banner',
+            'banner_title_en'  => 'Test Banner',
             'banner_is_active' => '1',
             'banner_starts_at' => '2026-10-01T08:00',   // Tanzania time (UTC+3)
         ], self::ADMIN_ID);

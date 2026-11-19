@@ -123,7 +123,11 @@ final class BoltAndPickupTest extends TestCase
         $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'packed'], self::ADMIN_ID);
         $this->assertFalse($this->order_manager->getOrderForAdmin($order['order_id'])['needs_delivery_agent']);
 
-        $this->order_manager->changeStatus($order['order_id'], ['order_status' => 'dispatched'], self::ADMIN_ID);   // no agent chosen
+        $this->order_manager->changeStatus($order['order_id'], [
+            'order_status' => 'dispatched',
+            'order_estimated_delivery_date' => date('Y-m-d', strtotime('+2 days')),
+            'status_note' => 'Oda imekabidhiwa kwa Bolt.',
+        ], self::ADMIN_ID);   // no agent chosen
 
         $sent = $this->order_model->getOrder($this->user_id, $order['order_id']);
         $this->assertSame('dispatched', $sent['order_status']);
