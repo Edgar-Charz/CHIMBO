@@ -14,6 +14,16 @@
  */
 class CustomerAuth
 {
+    private const OTP_REQUEST_IP_SHORT_LIMIT = 10;
+    private const OTP_REQUEST_IP_HOURLY_LIMIT = 20;
+    private const OTP_REQUEST_GLOBAL_HOURLY_LIMIT = 300;
+    private const OTP_VERIFY_IP_SHORT_LIMIT = 10;
+    private const OTP_VERIFY_IP_HOURLY_LIMIT = 30;
+    private const OTP_VERIFY_PHONE_HOURLY_LIMIT = 10;
+    private const OTP_VERIFY_PAIR_SHORT_LIMIT = 10;
+    private const SHORT_RATE_LIMIT_WINDOW_SECONDS = 900;
+    private const HOURLY_RATE_LIMIT_WINDOW_SECONDS = 3600;
+
     // What the apps send with every login
     private const CLIENT_RULES = [
         'client'                 => 'required|in:app,web',
@@ -125,17 +135,39 @@ class CustomerAuth
     {
         $data = Validator::validate($input, ['user_phone' => 'required|phone_tz']);
 
-        (new RateLimiter($this->db))->hit("otp-request:ip:{$ip_address}", 20, 3600);
+        $rate_limiter = new RateLimiter($this->db);
+        $rate_limiter->hit(
+            "otp-request:ip:{$ip_address}",
+            self::OTP_REQUEST_IP_SHORT_LIMIT,
+            self::SHORT_RATE_LIMIT_WINDOW_SECONDS
+        );
+        $rate_limiter->hit(
+            "otp-request:ip:{$ip_address}",
+            self::OTP_REQUEST_IP_HOURLY_LIMIT,
+            self::HOURLY_RATE_LIMIT_WINDOW_SECONDS
+        );
+        $rate_limiter->hit(
+            'otp-request:global',
+            self::OTP_REQUEST_GLOBAL_HOURLY_LIMIT,
+            self::HOURLY_RATE_LIMIT_WINDOW_SECONDS,
+            'Maombi ya SMS yamefika kikomo cha muda. Tafadhali jaribu tena baadaye.'
+        );
 
         $code    = $this->otp->createLoginCode($data['user_phone'], $ip_address);
         $minutes = intdiv($this->otp->lifetimeSeconds(), 60);
 
-        (new SmsSender($this->db))->send(
-            $data['user_phone'],
-            "CHIMBO: Namba yako ya uthibitisho ni {$code}. Inaisha baada ya dakika {$minutes}. Usimpe mtu yeyote.",
-            'otp',
-            'CHIMBO: Namba yako ya uthibitisho ni ******.' // stored in sms_outbox without the code
-        );
+        try {
+            (new SmsSender($this->db))->send(
+                $data['user_phone'],
+                "CHIMBO: Namba yako ya uthibitisho ni {$code}. Inaisha baada ya dakika {$minutes}. Usimpe mtu yeyote.",
+                'otp',
+                'CHIMBO: Namba yako ya uthibitisho ni ******.' // stored in sms_outbox without the code
+            );
+        } catch (Throwable $exception) {
+            $this->logOtpSecurityEvent('otp.sms.failed', $data['user_phone'], $ip_address);
+            throw $exception;
+        }
+        $this->logOtpSecurityEvent('otp.sms.sent', $data['user_phone'], $ip_address);
 
         $result = [
             'user_phone'               => $data['user_phone'],
@@ -163,9 +195,42 @@ class CustomerAuth
             'otp_code'   => 'required|string|digits:6',
         ] + self::CLIENT_RULES);
 
-        (new RateLimiter($this->db))->hit("otp-verify:ip:{$ip_address}", 30, 3600);
+        $rate_limiter = new RateLimiter($this->db);
+        $rate_limiter->hit(
+            "otp-verify:ip:{$ip_address}",
+            self::OTP_VERIFY_IP_SHORT_LIMIT,
+            self::SHORT_RATE_LIMIT_WINDOW_SECONDS
+        );
+        $rate_limiter->hit(
+            "otp-verify:ip:{$ip_address}",
+            self::OTP_VERIFY_IP_HOURLY_LIMIT,
+            self::HOURLY_RATE_LIMIT_WINDOW_SECONDS
+        );
+        $rate_limiter->hit(
+            "otp-verify:phone:{$data['user_phone']}:{$ip_address}",
+            self::OTP_VERIFY_PAIR_SHORT_LIMIT,
+            self::SHORT_RATE_LIMIT_WINDOW_SECONDS
+        );
+        $rate_limiter->hit(
+            "otp-verify:phone:{$data['user_phone']}",
+            self::OTP_VERIFY_PHONE_HOURLY_LIMIT,
+            self::HOURLY_RATE_LIMIT_WINDOW_SECONDS
+        );
 
-        $this->otp->verifyLoginCode($data['user_phone'], $data['otp_code']);
+        try {
+            $this->otp->verifyLoginCode($data['user_phone'], $data['otp_code']);
+        } catch (ApiException $exception) {
+            if (in_array($exception->errorCode(), ['OTP_INVALID', 'OTP_EXPIRED', 'OTP_TOO_MANY_ATTEMPTS'], true)) {
+                $this->logOtpSecurityEvent(
+                    'otp.verify.failed',
+                    $data['user_phone'],
+                    $ip_address,
+                    $exception->errorCode()
+                );
+            }
+            throw $exception;
+        }
+        $this->logOtpSecurityEvent('otp.verify.succeeded', $data['user_phone'], $ip_address);
         $user_id = $this->user_model->findOrCreateUserIdByPhone($data['user_phone']);
 
         return $this->logIn($user_id, $data, true);
@@ -203,6 +268,29 @@ class CustomerAuth
         return $result;
     }
 
+    /** Logs authentication activity without putting raw phone numbers or addresses in application logs. */
+    private function logOtpSecurityEvent(
+        string $event,
+        string $phone,
+        string $ip_address,
+        ?string $failure_code = null
+    ): void {
+        $context = [
+            'event'      => $event,
+            'phone_hash' => hash_hmac('sha256', $phone, Env::required('APP_KEY')),
+            'ip_hash'    => $ip_address === '' ? null : hash_hmac('sha256', $ip_address, Env::required('APP_KEY')),
+        ];
+        if ($failure_code !== null) {
+            $context['failure_code'] = $failure_code;
+        }
+
+        if (str_ends_with($event, '.failed')) {
+            Logger::warning('Customer OTP security event', $context);
+            return;
+        }
+        Logger::info('Customer OTP security event', $context);
+    }
+
     /**
      * "Show code" mode for development and beta testing (OTP_SHOW_CODE=true in .env):
      * the login code is returned to the app instead of arriving by SMS.
@@ -214,6 +302,8 @@ class CustomerAuth
     public static function shouldShowCodeInResponse(): bool
     {
         $is_production = Env::get('APP_ENV', 'production') === 'production';
-        return !$is_production && Env::get('OTP_SHOW_CODE', false) === true;
+        return !$is_production
+            && Env::get('SMS_DRIVER', 'log') === 'log'
+            && Env::get('OTP_SHOW_CODE', false) === true;
     }
 }

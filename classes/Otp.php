@@ -12,6 +12,10 @@
  */
 class Otp
 {
+    private const PHONE_REQUEST_LIMIT_SHORT_WINDOW = 3;
+    private const PHONE_REQUEST_SHORT_WINDOW_SECONDS = 900;
+    private const PHONE_IP_REQUEST_LIMIT_SHORT_WINDOW = 3;
+
     private Settings $settings;
     private RateLimiter $rate_limiter;
 
@@ -24,7 +28,19 @@ class Otp
     /** Creates a new code for this phone and returns it (the caller sends it by SMS). */
     public function createLoginCode(string $phone, string $ip_address): string
     {
-        $this->checkResendWait($phone);
+        $this->rate_limiter->hit(
+            "otp-request:phone:{$phone}",
+            self::PHONE_REQUEST_LIMIT_SHORT_WINDOW,
+            self::PHONE_REQUEST_SHORT_WINDOW_SECONDS,
+            'Umeomba namba nyingi mno. Tafadhali subiri kidogo kisha ujaribu tena.'
+        );
+
+        $this->rate_limiter->hit(
+            "otp-request:pair:{$phone}:{$ip_address}",
+            self::PHONE_IP_REQUEST_LIMIT_SHORT_WINDOW,
+            self::PHONE_REQUEST_SHORT_WINDOW_SECONDS,
+            'Umeomba namba nyingi mno. Tafadhali subiri kidogo kisha ujaribu tena.'
+        );
 
         $this->rate_limiter->hit(
             "otp-request:phone:{$phone}",
@@ -32,6 +48,8 @@ class Otp
             3600,
             'Umeomba namba nyingi mno. Tafadhali jaribu tena baada ya saa moja.'
         );
+
+        $this->checkResendWait($phone);
 
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
