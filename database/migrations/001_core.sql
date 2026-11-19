@@ -146,7 +146,7 @@ CREATE TABLE settings (
     PRIMARY KEY (setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- SMS waiting to be sent (OTP codes, order updates); a cron job sends and retries them
+-- SMS send attempts and provider delivery receipts (OTP codes, order updates)
 CREATE TABLE sms_outbox (
     sms_id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     sms_phone                VARCHAR(16)   NOT NULL,
