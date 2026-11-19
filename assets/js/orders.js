@@ -14,7 +14,7 @@
             result.skipped_items.forEach((skipped) => toast(skipped.message, 'info'));
             await cart.refresh();
             cart.open();
-            toast('Bidhaa zimerudishwa kikapuni kwa bei za leo.', 'success');
+            toast('Bidhaa zimerudishwa kikapuni kwa bei za leo.', 'success', { animateIcon: true });
         } catch {
             // the error toast was already shown
         } finally {
@@ -24,6 +24,25 @@
 
     document.querySelectorAll('[data-reorder]').forEach((button) => {
         button.addEventListener('click', () => reorder(button));
+    });
+
+    // ------------------------------------------------------------------ Share receipt
+
+    document.querySelectorAll('[data-share-receipt]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            const url = button.dataset.shareReceipt;
+            const title = button.dataset.shareTitle ?? 'Risiti';
+            try {
+                if (navigator.share) {
+                    await navigator.share({ title, url });
+                } else {
+                    await navigator.clipboard.writeText(url);
+                    toast('Kiungo cha risiti kimenakiliwa.', 'success');
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') toast('Imeshindikana kushiriki risiti.', 'error');
+            }
+        });
     });
 
     const cancelForm = document.getElementById('cancel-order-form');

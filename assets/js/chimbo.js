@@ -94,7 +94,7 @@
     const skeleton = (className = '') => el('span', { className: `skeleton ${className}`.trim(), attrs: { 'aria-hidden': 'true' } });
 
     /** Friendly empty/error block: icon, title, one sentence and one action (link or button). */
-    function stateBlock({ iconName, title, text, actionLabel, actionHref, onAction, isError = false }) {
+    function stateBlock({ iconName, title, text, actionLabel, actionHref, onAction, secondaryActionLabel, onSecondaryAction, isError = false }) {
         let action = null;
         if (actionLabel && actionHref) {
             action = el('a', { className: 'btn btn-primary', text: actionLabel, attrs: { href: actionHref } });
@@ -107,6 +107,9 @@
             el('h3', { className: 'state-block-title', text: title }),
             text ? el('p', { className: 'state-block-text', text }) : null,
             action,
+            secondaryActionLabel && onSecondaryAction
+                ? el('button', { className: 'btn btn-outline-primary', text: secondaryActionLabel, attrs: { type: 'button' }, on: { click: onSecondaryAction } })
+                : null,
         ]);
     }
 
@@ -298,13 +301,13 @@
     // ------------------------------------------------------------------ Toasts
 
     /** A small message in the corner for 4 seconds. An error becomes a popup instead (errorPopup). */
-    function toast(message, type = 'info') {
+    function toast(message, type = 'info', { animateIcon = false } = {}) {
         if (type === 'error') {
             errorPopup(message);
             return;
         }
         const region = document.querySelector('[data-toast-region]');
-        const toastElement = el('div', { className: `chimbo-toast chimbo-toast--${type}`, attrs: { role: type === 'error' ? 'alert' : 'status' } }, [
+        const toastElement = el('div', { className: `chimbo-toast chimbo-toast--${type}${animateIcon ? ' chimbo-toast--animate-icon' : ''}`, attrs: { role: type === 'error' ? 'alert' : 'status' } }, [
             icon(TOAST_ICONS[type], 'chimbo-toast-icon'),
             el('p', { className: 'chimbo-toast-message', text: message }),
         ]);

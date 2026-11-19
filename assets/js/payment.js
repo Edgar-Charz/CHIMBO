@@ -7,7 +7,7 @@
 (() => {
     'use strict';
 
-    const { api, phone, submitForm, toast, paymentChoiceCard } = CHIMBO;
+    const { api, phone, submitForm, toast, setLoading } = CHIMBO;
 
     // These mean the order's payment state changed elsewhere (already sent, locked, or the time to pay is over):
     // show the message, then reload so the page shows the current state.
@@ -59,14 +59,44 @@
         });
     }
 
+    function setUpSelcomPaymentForm(form) {
+        const phoneInput = form.elements.phone_number;
+        const errorMessage = form.querySelector('[data-selcom-payment-error]');
+        const submitButton = form.querySelector('[type="submit"]');
+        const idempotencyKey = CHIMBO.newIdempotencyKey();
+
+        phone.formatInput(phoneInput);
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            errorMessage.hidden = true;
+            if (!phone.check(form, 'phone_number')) return;
+
+            CHIMBO.setLoading(submitButton, true);
+            try {
+                const result = await api.post('/payments/initiate', {
+                    order_id: Number(form.dataset.selcomPaymentForm),
+                    payment_method: form.dataset.paymentMethod,
+                    phone_number: phone.toInternational(phoneInput.value),
+                }, { headers: { 'Idempotency-Key': idempotencyKey }, silent: true });
+                toast('Tumetuma ombi la malipo. Fuata maelekezo kwenye simu yako.', 'success');
+                if (result.payment_status === 'pending' || result.payment_status === 'initiated') window.location.reload();
+            } catch (error) {
+                errorMessage.textContent = error.displayMessage ?? error.message;
+                errorMessage.hidden = false;
+            } finally {
+                CHIMBO.setLoading(submitButton, false);
+            }
+        });
+    }
+
     // ------------------------------------------------------------------ "Badilisha njia ya malipo"
 
     function setUpMethodChange(box) {
         const toggle = box.querySelector('[data-payment-change-toggle]');
         const panel = box.querySelector('[data-payment-change-panel]');
-        const list = box.querySelector('[data-payment-change-list]');
         const errorMessage = box.querySelector('[data-payment-change-error]');
         const saveButton = box.querySelector('[data-payment-change-save]');
+        const methodChoices = [...box.querySelectorAll('[data-payment-method-choice]')];
         const currentMethod = box.dataset.currentMethod;
         let chosenMethod = currentMethod;
 
@@ -81,43 +111,48 @@
             toggle.setAttribute('aria-expanded', String(isShown));
         }
 
-        async function openPanel() {
+        function openPanel() {
             showPanel(true);
-            showError('');
-            setLoading(toggle, true);
-            try {
-                const methods = await api.get('/payment-methods', { silent: true });
-                list.replaceChildren(...methods.map((method) => paymentChoiceCard(method, {
-                    isChecked: method.payment_method_code === chosenMethod,
-                    tag: method.payment_method_code === currentMethod ? 'Sasa hivi' : null,
-                    onSelect: (code) => {
-                        chosenMethod = code;
-                        saveButton.disabled = code === currentMethod;
-                        showError('');
-                    },
-                })));
-            } catch (error) {
-                showError(error.displayMessage);
-            } finally {
-                setLoading(toggle, false);
-            }
+            showError(methodChoices.length === 0 ? 'Hakuna mitandao mingine inayopatikana kwa sasa.' : '');
+        }
+
+        function resetSelection() {
+            chosenMethod = currentMethod;
+            methodChoices.forEach((choice) => {
+                choice.checked = choice.value === currentMethod;
+            });
+            saveButton.disabled = true;
         }
 
         async function saveMethod() {
+            if (chosenMethod === currentMethod || !methodChoices.some((choice) => choice.value === chosenMethod)) return;
+
             setLoading(saveButton, true);
             try {
                 await api.post(`/orders/${box.dataset.paymentChange}/payment-method`, { payment_method: chosenMethod }, { silent: true });
                 toast(chosenMethod === 'cod' ? 'Sawa — utalipa ukipokea. Oda yako imethibitishwa.' : 'Njia ya malipo imebadilishwa.', 'success');
-                window.location.reload();
+                window.setTimeout(() => window.location.reload(), 800);
             } catch (error) {
                 setLoading(saveButton, false);
-                showError(error.displayMessage); // e.g. "Lipa ukipokea" is only for orders up to the cash limit
+                saveButton.disabled = chosenMethod === currentMethod;
+                showError(error.displayMessage ?? 'Imeshindikana kubadilisha njia ya malipo. Jaribu tena.');
                 if (STATE_CHANGED_CODES.includes(error.code)) reloadSoon();
             }
         }
 
+        methodChoices.forEach((choice) => {
+            choice.addEventListener('change', () => {
+                chosenMethod = choice.value;
+                saveButton.disabled = chosenMethod === currentMethod;
+                showError('');
+            });
+        });
+
         toggle.addEventListener('click', openPanel);
-        box.querySelector('[data-payment-change-cancel]').addEventListener('click', () => showPanel(false));
+        box.querySelector('[data-payment-change-cancel]').addEventListener('click', () => {
+            resetSelection();
+            showPanel(false);
+        });
         saveButton.addEventListener('click', saveMethod);
     }
 
@@ -126,6 +161,8 @@
     setUpCopyButtons();
     const form = document.querySelector('[data-payment-form]');
     if (form) setUpPaymentForm(form);
+    const selcomForm = document.querySelector('[data-selcom-payment-form]');
+    if (selcomForm) setUpSelcomPaymentForm(selcomForm);
     const changeBox = document.querySelector('[data-payment-change]');
     if (changeBox) setUpMethodChange(changeBox);
 })();

@@ -6,7 +6,7 @@
 (() => {
     'use strict';
 
-    const { api, stateBlock, errorState, setLoading, productCard } = CHIMBO;
+    const { api, stateBlock, errorState, setLoading, productCard, toast } = CHIMBO;
 
     const FILTER_NAMES = ['min_price', 'max_price', 'max_moq'];
     const SKELETON_CARDS = 10;
@@ -62,7 +62,28 @@
                 text: catalog.empty.text,
                 actionLabel: catalog.empty.action_label,
                 actionHref: catalog.empty.action_href,
+                secondaryActionLabel: catalog.empty.request_action_label,
+                onSecondaryAction: catalog.empty.request_action_label ? requestProductOnWhatsApp : undefined,
             }));
+    }
+
+    async function requestProductOnWhatsApp(event) {
+        const button = event.currentTarget;
+        setLoading(button, true);
+        try {
+            const description = String(catalog.base_query.q ?? '').trim();
+            const form = new FormData();
+            form.set('product_request_description', description);
+            const saved = await api.postForm('/product-requests', form);
+            const support = await api.get('/support');
+            const message = `Ombi la bidhaa #${saved.product_request_id}: ${description}`;
+            const target = new URL(support.support_whatsapp_url);
+            target.searchParams.set('text', message);
+            window.location.assign(target);
+        } catch (error) {
+            toast(error.displayMessage ?? error.message, 'error');
+            setLoading(button, false);
+        }
     }
 
     /** "Umeona bidhaa 20 kati ya 45" + "Onyesha zaidi" — only when the list is longer than one page. */

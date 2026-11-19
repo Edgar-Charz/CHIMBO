@@ -214,10 +214,44 @@
         if (detail.productId === product.product_id) window.location.reload();
     });
 
+    // ------------------------------------------------------------------ Notify me when back in stock
+
+    function setUpNotifyMe() {
+        document.querySelectorAll('[data-notify-me]').forEach((button) => {
+            button.addEventListener('click', async () => {
+                const productId = button.dataset.notifyMe;
+                const subscribed = button.dataset.subscribed === '1';
+                setLoading(button, true);
+                try {
+                    if (subscribed) {
+                        await CHIMBO.api.delete(`/products/${productId}/notify-me`);
+                        button.dataset.subscribed = '0';
+                        button.classList.replace('btn-outline-primary', 'btn-buy');
+                        button.querySelector('i').className = 'bi bi-bell';
+                        button.lastChild.textContent = ' Nijulishe ikipatikana';
+                        toast('Umeondoa arifa ya upatikanaji.', 'info');
+                    } else {
+                        await CHIMBO.api.post(`/products/${productId}/notify-me`);
+                        button.dataset.subscribed = '1';
+                        button.classList.replace('btn-buy', 'btn-outline-primary');
+                        button.querySelector('i').className = 'bi bi-bell-slash';
+                        button.lastChild.textContent = ' Ondoa arifa';
+                        toast('Utajulishwa bidhaa hii ikipatikana.', 'success');
+                    }
+                } catch {
+                    // the error toast was already shown by the api helper
+                } finally {
+                    setLoading(button, false);
+                }
+            });
+        });
+    }
+
     showPricePreview();
     setUpAddToCart();
     setUpBuyBar();
     setUpGallery();
     CHIMBO.wishlist.bindButton(document.querySelector('[data-product-wishlist]'), product.product_id);
     setUpShare();
+    setUpNotifyMe();
 })();
