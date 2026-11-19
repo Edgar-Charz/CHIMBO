@@ -10,6 +10,7 @@
 $payment = $order['payment'];
 $method = $payment['payment_method'];
 $latest_payment = $payment['latest_payment'];
+$payment_flow = $payment['payment_flow'] ?? 'manual';
 $is_mobile_money = $method['payment_method_type'] === 'mobile_money';
 $is_retired_payment_method = !($method['payment_method_is_available'] ?? true);
 $payment_state = match (true) {
@@ -18,6 +19,8 @@ $payment_state = match (true) {
         && $order['delivery_method']['delivery_fee_status'] === 'awaiting_confirmation' => 'transport_pending',
     $payment['payment_deadline_passed'] ?? false             => 'time_over',
     $is_retired_payment_method                                => 'method_disabled',
+    $payment_flow === 'selcom' && in_array(($latest_payment['payment_status'] ?? ''), ['initiated', 'pending'], true) => 'selcom_checking',
+    $payment['can_initiate_payment'] ?? false                => 'selcom_pay',
     $payment['can_submit_payment']                            => 'pay',
     ($latest_payment['payment_status'] ?? null) === 'submitted' => 'checking',
     $order['order_payment_status'] === 'paid'                  => 'paid',
@@ -90,10 +93,52 @@ $payment_state = match (true) {
         <?php if ($payment['can_change_payment_method']) : ?>
             <div class="payment-change" data-payment-change="<?= e($order['order_id']) ?>" data-current-method="<?= e($method['payment_method_code']) ?>">
                 <button class="btn btn-link payment-change-toggle" type="button" aria-expanded="false" aria-controls="payment-change-panel" data-payment-change-toggle>
+                    <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Badilisha mtandao
+                </button>
+                <div class="payment-change-panel" id="payment-change-panel" hidden data-payment-change-panel>
+                    <?php require __DIR__ . '/payment_method_choices.php'; ?>
+                    <p class="payment-change-error" role="alert" hidden data-payment-change-error></p>
+                    <div class="address-form-actions">
+                        <button class="btn btn-primary" type="button" disabled data-payment-change-save>Tumia mtandao huu</button>
+                        <button class="btn btn-link" type="button" data-payment-change-cancel>Ghairi</button>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+    </section>
+<?php elseif ($payment_state === 'selcom_pay') : ?>
+    <section class="payment-box" id="payment-box" aria-labelledby="payment-box-title">
+        <h2 class="payment-box-title" id="payment-box-title"><i class="bi bi-wallet2" aria-hidden="true"></i>
+            <?= $payment['is_balance_payment'] ? 'Lipa salio ili tuendelee kuandaa oda yako' : 'Lipa ili tuanze kuandaa oda yako' ?></h2>
+        <p class="payment-box-amount">Lipa <?= $payment['is_balance_payment'] ? 'salio la ' : '' ?><strong><?= e(formatTzs($payment['payment_amount'])) ?></strong> kwa
+            <?php require __DIR__ . '/payment_method_icon.php'; ?> <strong><?= e($method['payment_method_name']) ?></strong>
+        </p>
+        <p class="payment-box-hint">Muunganisho wa Selcom bado unasubiri usanidi. Kitufe hiki kwa sasa kinajaribu hatua ya malipo pekee; hakitumi pesa.</p>
+        <p class="payment-box-hint">Weka namba ya simu utakayotumia. Muunganisho ukiwezeshwa, utapokea ombi la malipo la kuthibitisha.</p>
+        <form class="payment-form" novalidate data-selcom-payment-form="<?= e($order['order_id']) ?>" data-payment-method="<?= e($method['payment_method_code']) ?>">
+            <div class="row g-3">
+                <div class="col-12" data-field>
+                    <label class="form-label" for="selcom_phone_number">Namba ya simu ya kulipia</label>
+                    <div class="phone-input">
+                        <span class="phone-input-prefix">+255</span>
+                        <input class="form-control" id="selcom_phone_number" name="phone_number" type="tel" inputmode="numeric"
+                            autocomplete="tel-national" placeholder="712 345 678" maxlength="16" required>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-buy btn-lg w-100 mt-3" type="submit"><i class="bi bi-phone" aria-hidden="true"></i> Lipa sasa</button>
+            <p class="payment-form-error mt-2" role="alert" hidden data-selcom-payment-error></p>
+        </form>
+        <?php if ($order['order_expires_at'] !== null) : ?>
+            <p class="payment-box-deadline"><i class="bi bi-clock" aria-hidden="true"></i> Lipa kabla ya <?= e(localDateTime($order['order_expires_at'], 'd/m/Y, H:i')) ?> — baada ya hapo oda inaghairiwa.</p>
+        <?php endif; ?>
+        <?php if ($payment['can_change_payment_method']) : ?>
+            <div class="payment-change" data-payment-change="<?= e($order['order_id']) ?>" data-current-method="<?= e($method['payment_method_code']) ?>">
+                <button class="btn btn-link payment-change-toggle" type="button" aria-expanded="false" aria-controls="payment-change-panel" data-payment-change-toggle>
                     <i class="bi bi-arrow-left-right" aria-hidden="true"></i> Badilisha njia ya malipo
                 </button>
                 <div class="payment-change-panel" id="payment-change-panel" hidden data-payment-change-panel>
-                    <div class="choice-list" role="radiogroup" aria-label="Njia za malipo" data-payment-change-list></div>
+                    <?php require __DIR__ . '/payment_method_choices.php'; ?>
                     <p class="payment-change-error" role="alert" hidden data-payment-change-error></p>
                     <div class="address-form-actions">
                         <button class="btn btn-primary" type="button" disabled data-payment-change-save>Tumia njia hii</button>
@@ -102,6 +147,11 @@ $payment_state = match (true) {
                 </div>
             </div>
         <?php endif; ?>
+    </section>
+<?php elseif ($payment_state === 'selcom_checking') : ?>
+    <section class="payment-box payment-box--checking" aria-live="polite">
+        <h2 class="payment-box-title"><i class="bi bi-hourglass-split" aria-hidden="true"></i> Ombi la malipo linaendelea</h2>
+        <p class="mb-0">Fuata ombi lililotumwa kwenye simu yako. Usitume ombi lingine wakati hili linaendelea.</p>
     </section>
 <?php elseif ($payment_state === 'transport_pending') : ?>
     <section class="payment-box payment-box--checking" aria-live="polite">
