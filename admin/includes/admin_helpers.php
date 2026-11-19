@@ -663,6 +663,7 @@ const ADMIN_MENU = [
     ],
     'Catalog' => [
         'products'        => ['Products', 'bi-box-seam', 'products.php', 'products.manage'],
+        'product_requests' => ['Product requests', 'bi-chat-square-text', 'product_requests.php', 'products.manage'],
         'offers'          => ['Offers', 'bi-percent', 'offers.php', 'products.manage'],
         'categories'      => ['Categories', 'bi-diagram-3', 'categories.php', 'categories.manage'],
         'sellers'         => ['Sellers', 'bi-shop', 'sellers.php', 'sellers.manage'],
