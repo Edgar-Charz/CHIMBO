@@ -904,18 +904,37 @@ class Order
         // Staff added to a paid order (R-29): the customer pays only the difference ("Salio la kulipa")
         $is_balance  = self::isBalanceDue($row);
         $amount_paid = (int) ($row['order_amount_paid'] ?? 0);
+        $payment_flow = PaymentFlow::current();
+        $can_pay = $is_first_payment || $is_balance;
+        $payment_methods = new PaymentMethod($this->db);
+        $payment_method = $payment_methods->getDetailsByCode($row['order_payment_method']);
+        $can_initiate_payment = $can_pay && $payment_flow === 'selcom'
+            && ($payment_method['payment_method_type'] ?? null) === 'mobile_money';
+        $change_options = $payment_methods->getActiveMethods();
+        if ($payment_flow === 'selcom') {
+            $change_options = array_filter($change_options, fn (array $method) => $method['payment_method_type'] === 'mobile_money');
+        }
+        $available_payment_methods = array_values(array_map(static fn (array $method): array => [
+            'payment_method_code' => $method['payment_method_code'],
+            'payment_method_name' => $method['payment_method_name'],
+            'payment_method_type' => $method['payment_method_type'],
+            'payment_method_icon_url' => $method['payment_method_icon_url'],
+        ], $change_options));
 
         return [
-            'payment_method'     => (new PaymentMethod($this->db))->getDetailsByCode($row['order_payment_method']),
+            'payment_flow' => $payment_flow,
+            'payment_method'     => $payment_method,
             'payment_amount'     => $is_balance ? (int) $row['order_total'] - $amount_paid : (int) $row['order_total'],   // what to pay now
             'payment_note_hint'  => $row['order_number'],   // ask the customer to write this as the payment's reference/description
-            'can_submit_payment' => $is_first_payment || $is_balance,
+            'can_submit_payment' => $can_pay && $payment_flow === 'manual',
+            'can_initiate_payment' => $can_initiate_payment,
+            'available_payment_methods' => $available_payment_methods,
             'payment_deadline_passed' => $payment_deadline_passed,
             'is_balance_payment' => $is_balance,            // true: "Salio la kulipa" — the rest is already paid
             'amount_paid'        => $amount_paid,
             'refund_due'         => (int) $row['order_refund_due'],   // money CHIMBO will give back after a change
             // "Badilisha njia ya malipo": before the first payment, when there is another method to switch to
-            'can_change_payment_method' => $is_first_payment && count((new PaymentMethod($this->db))->getActiveCodes()) > 1,
+            'can_change_payment_method' => $is_first_payment && count($change_options) > 1,
             'latest_payment'     => $latest_payment === null ? null : [
                 'payment_id'            => (int) $latest_payment['payment_id'],
                 'payment_payer_account' => $latest_payment['payment_payer_account'],

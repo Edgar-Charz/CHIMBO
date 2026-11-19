@@ -24,6 +24,7 @@ class Checkout
             : null;
 
         return [
+            'payment_flow' => PaymentFlow::current(),
             'delivery_methods' => $this->getDeliveryMethods($region_id),
             'payment_methods'        => $this->getEnabledPaymentMethods(),
             'payment_method_details' => (new PaymentMethod($this->db))->getActiveMethods(),
