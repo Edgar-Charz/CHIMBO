@@ -504,13 +504,14 @@ function adminTimeLeft(?string $utc_deadline): string
 
 /**
  * A row of dashboard number cards, all the same: an icon box, the number, the label under it, and optionally the
- * page the card opens. $per_row: 6 (tabs) or 4 (the top strip); fewer on smaller screens (admin.css).
+ * page the card opens. $per_row supports 4, 5 or 6 columns; fewer are used on smaller screens (admin.css).
  * $cards: [[label, value, icon, link or null], …] — value is formatted text ("1,240"), or adminCardMoney($amount)
  * for shillings ("524,100 TZS" with a small TZS; from a million up "260.5M TZS", the exact amount on hover).
  */
 function adminStatCards(array $cards, int $per_row = 6): string
 {
-    $html = '<div class="stat-grid stat-grid--' . ($per_row === 4 ? 4 : 6) . '">';
+    $per_row = in_array($per_row, [4, 5, 6], true) ? $per_row : 6;
+    $html = '<div class="stat-grid stat-grid--' . $per_row . '">';
     foreach ($cards as [$label, $value, $icon, $link]) {
         $value_html = is_array($value)
             ? '<span class="stat-number">' . e(adminShortAmount($value['money'])) . '</span> <span class="stat-currency">TZS</span>'
@@ -530,9 +531,8 @@ function adminStatCards(array $cards, int $per_row = 6): string
 
 /**
  * A dashboard chart: the canvas and its numbers, drawn by assets/dashboard.js.
- * $type 'daily' (a column per day) or 'bars' (a horizontal bar per item). $data: labels, values, format ('money' |
- * 'count'), optional titles and tooltip lines. $description is read by screen readers; the tab also has a table view.
- * Horizontal bars get a height that fits their number of items.
+ * $type 'daily', 'bars' or 'doughnut'. $data: labels, values, format ('money' | 'count'), optional titles, tooltip
+ * lines and doughnut color tokens. $description is read by screen readers. Horizontal bars size to their items.
  */
 function adminChart(string $id, string $type, array $data, string $description): string
 {

@@ -68,8 +68,8 @@ $flash_messages = array_values(array_filter([
 
         <div class="admin-main">
             <!-- Top bar -->
-            <header class="admin-topbar">
-                <button class="btn btn-link d-lg-none text-dark" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar" aria-label="Open menu">
+            <header class="admin-topbar<?= $can_global_search ? '' : ' admin-topbar-no-search' ?>">
+                <button class="btn btn-link d-lg-none text-dark admin-menu-toggle" type="button" data-bs-toggle="offcanvas" data-bs-target="#adminSidebar" aria-label="Open menu">
                     <i class="bi bi-list fs-4"></i>
                 </button>
                 <h1 class="admin-page-title"><?= e($page_title) ?></h1>
@@ -91,38 +91,42 @@ $flash_messages = array_values(array_filter([
                     </div>
                 <?php endif; ?>
 
-                <button class="btn btn-light" type="button" data-admin-push-enable
-                        data-csrf="<?= e(Csrf::token()) ?>"
-                        aria-label="Enable browser notifications" title="Enable browser notifications">
-                    <i class="bi bi-bell-fill"></i>
-                </button>
-                <!-- The bell: "Waiting for you" + the latest notifications in a dialog (admin.js loads it when opened) -->
-                <button class="btn btn-light notification-bell" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
-                        aria-label="Notifications" title="Notifications" data-notification-bell
-                        data-panel-url="<?= e(url('admin/ajax/notifications.php?part=panel')) ?>"
-                        data-count-url="<?= e(url('admin/ajax/notifications.php?part=count')) ?>">
-                    <i class="bi bi-bell"></i>
-                    <span class="notification-bell-badge" data-notification-count <?= $unread_notifications > 0 ? '' : 'hidden' ?>><?= e($unread_notifications > 99 ? '99+' : $unread_notifications) ?></span>
-                    <span class="notification-bell-dot" data-notification-dot title="Work is waiting for you" <?= $unread_notifications === 0 && $has_waiting_work ? '' : 'hidden' ?>></span>
-                </button>
-
-                <div class="dropdown">
-                    <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-person-circle"></i> <?= e($current_admin['admin_full_name']) ?>
+                <div class="admin-topbar-actions">
+                    <button class="btn btn-light" type="button" data-admin-push-enable
+                            data-csrf="<?= e(Csrf::token()) ?>"
+                            aria-label="Enable browser notifications" title="Enable browser notifications">
+                        <i class="bi bi-bell-fill"></i>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><span class="dropdown-item-text small text-muted"><?= e(Admin::ROLE_NAMES[$current_admin['admin_role']] ?? '') ?></span></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li>
-                            <!-- Logout is a POST form with a CSRF token, so other sites cannot log the admin out -->
-                            <form method="post" action="<?= e(url('admin/logout.php')) ?>">
-                                <?= Csrf::field() ?>
-                                <button class="dropdown-item text-danger" type="submit"><i class="bi bi-box-arrow-right"></i> Log out</button>
-                            </form>
-                        </li>
-                    </ul>
+                    <!-- The bell: "Waiting for you" + the latest notifications in a dialog (admin.js loads it when opened) -->
+                    <button class="btn btn-light notification-bell" type="button" data-bs-toggle="modal" data-bs-target="#notifications-modal"
+                            aria-label="Notifications" title="Notifications" data-notification-bell
+                            data-panel-url="<?= e(url('admin/ajax/notifications.php?part=panel')) ?>"
+                            data-count-url="<?= e(url('admin/ajax/notifications.php?part=count')) ?>">
+                        <i class="bi bi-bell"></i>
+                        <span class="notification-bell-badge" data-notification-count <?= $unread_notifications > 0 ? '' : 'hidden' ?>><?= e($unread_notifications > 99 ? '99+' : $unread_notifications) ?></span>
+                        <span class="notification-bell-dot" data-notification-dot title="Work is waiting for you" <?= $unread_notifications === 0 && $has_waiting_work ? '' : 'hidden' ?>></span>
+                    </button>
+
+                    <div class="dropdown">
+                        <button class="btn btn-light dropdown-toggle admin-account-button" type="button" data-bs-toggle="dropdown"
+                                aria-label="Admin account: <?= e($current_admin['admin_full_name']) ?>" title="<?= e($current_admin['admin_full_name']) ?>">
+                            <i class="bi bi-person-circle" aria-hidden="true"></i>
+                            <span class="admin-account-name"><?= e($current_admin['admin_full_name']) ?></span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><span class="dropdown-item-text small text-muted"><?= e(Admin::ROLE_NAMES[$current_admin['admin_role']] ?? '') ?></span></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <!-- Logout is a POST form with a CSRF token, so other sites cannot log the admin out -->
+                                <form method="post" action="<?= e(url('admin/logout.php')) ?>">
+                                    <?= Csrf::field() ?>
+                                    <button class="dropdown-item text-danger" type="submit"><i class="bi bi-box-arrow-right"></i> Log out</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
                 </div>
             </header>
 

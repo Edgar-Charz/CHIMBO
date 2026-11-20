@@ -3,10 +3,10 @@
 /**
  * Dashboard → Sales (permission reports.view): the period's totals, sales by category and by payment method
  * (bar charts with table views), top products and top regions. The same numbers as the Reports page.
- * Uses $dashboard, $tab and $chart_days from index.php.
+ * Uses $dashboard and $dashboard_range from index.php.
  */
 
-$sales_breakdown = $dashboard->getSalesBreakdown($chart_days);
+$sales_breakdown = $dashboard->getSalesBreakdown($dashboard_range);
 $summary         = $sales_breakdown['summary'];
 
 $summary_cards = [
@@ -37,13 +37,20 @@ $payment_chart = [
     ], $payment_methods),
 ];
 
-$reports_link = url('admin/reports.php?' . http_build_query(['date_from' => $sales_breakdown['date_from'], 'date_to' => $sales_breakdown['date_to']]));
+$report_range_days = (new DateTimeImmutable($sales_breakdown['date_from']))
+    ->diff(new DateTimeImmutable($sales_breakdown['date_to']))->days;
+$reports_filter = $dashboard_range['period'] === 'all_time' || $report_range_days >= 366
+    ? ''
+    : '?' . http_build_query([
+        'date_from' => $sales_breakdown['date_from'],
+        'date_to' => $sales_breakdown['date_to'],
+    ]);
+$reports_link = url('admin/reports.php' . $reports_filter);
 ?>
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <p class="text-muted mb-0">Last <?= e($chart_days) ?> days, Tanzania time, without cancelled or expired orders.</p>
+    <p class="text-muted mb-0"><?= e(ucfirst($dashboard_range['label'])) ?>, Tanzania time, without cancelled or expired orders.</p>
     <div class="d-flex flex-wrap align-items-center gap-2">
-        <?php require __DIR__ . '/day_switch.php'; ?>
         <a class="btn btn-sm btn-outline-secondary" href="<?= e($reports_link) ?>"><i class="bi bi-file-earmark-bar-graph"></i> Full report</a>
     </div>
 </div>

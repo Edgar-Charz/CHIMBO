@@ -1,12 +1,11 @@
-<?php
+﻿<?php
 
 /**
- * Dashboard → Stock (permission products.manage): product totals, best sellers of the last 30 days (a chart with a
- * table view), low stock, slow movers (in stock but not sold in 30 days) and offers ending soonest.
- * Uses $dashboard and $current_admin from index.php.
+ * Dashboard â†’ Stock (permission products.manage): current product totals, period best sellers, low stock, slow movers and offers ending soonest.
+ * Uses $dashboard, $dashboard_range and $current_admin from index.php.
  */
 
-$stock_stats = $dashboard->getStockStats();
+$stock_stats = $dashboard->getStockStats($dashboard_range);
 $low_stock   = $dashboard->getLowStock();
 $counts      = $stock_stats['counts'];
 $can_adjust  = Admin::can($current_admin, 'inventory.manage');
@@ -28,28 +27,17 @@ $best_sellers_chart = [
 ];
 ?>
 
-<div class="mb-3"><?= adminStatCards($count_cards) ?></div>
+<div class="mb-3"><?= adminStatCards($count_cards, 5) ?></div>
 
 <div class="row g-3 mb-3">
     <div class="col-xl-6">
         <div class="admin-panel h-100">
-            <div class="admin-panel-header"><h3 class="admin-panel-title">Best sellers <span class="fw-normal text-muted small">· pieces sold, last 30 days</span></h3></div>
+            <div class="admin-panel-header"><h3 class="admin-panel-title">Best sellers <span class="fw-normal text-muted small">&middot; <?= e($dashboard_range['label']) ?></span></h3></div>
             <div class="admin-panel-body">
                 <?php if ($best_sellers === []): ?>
-                    <p class="text-muted mb-0">Nothing sold in the last 30 days.</p>
+                    <p class="text-muted mb-0">Nothing sold during this period.</p>
                 <?php else: ?>
-                    <?= adminChart('best-sellers-data', 'bars', $best_sellers_chart, 'Best sellers of the last 30 days by pieces sold. The numbers are in the table below.') ?>
-                    <details class="mt-3">
-                        <summary class="small">Show as a table</summary>
-                        <table class="table table-sm admin-table mt-2 mb-0">
-                            <thead><tr><th>Product</th><th class="text-end">Pieces sold</th></tr></thead>
-                            <tbody>
-                                <?php foreach ($best_sellers as $row): ?>
-                                    <tr><td><?= e($row['product_name']) ?></td><td class="text-end"><?= e(number_format($row['pieces_sold'])) ?></td></tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </details>
+                    <?= adminChart('best-sellers-data', 'bars', $best_sellers_chart, 'Best sellers during ' . $dashboard_range['label'] . ', by pieces sold.') ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -58,7 +46,7 @@ $best_sellers_chart = [
     <div class="col-xl-6">
         <div class="admin-panel h-100">
             <div class="admin-panel-header">
-                <h3 class="admin-panel-title">Low stock <span class="fw-normal text-muted small">· <?= e(ProductEditor::LOW_STOCK_THRESHOLD) ?> pieces or fewer</span></h3>
+                <h3 class="admin-panel-title">Low stock <span class="fw-normal text-muted small">&middot; <?= e(ProductEditor::LOW_STOCK_THRESHOLD) ?> pieces or fewer</span></h3>
                 <?php if ($can_adjust): ?><a class="small" href="<?= e(url('admin/stock.php')) ?>">Stock page</a><?php endif; ?>
             </div>
             <?php if ($low_stock['items'] === []): ?>
@@ -91,11 +79,11 @@ $best_sellers_chart = [
 </div>
 
 <div class="row g-3">
-    <div class="col-xl-7">
+    <div class="col-xl-6">
         <div class="admin-panel h-100">
-            <div class="admin-panel-header"><h3 class="admin-panel-title">Slow movers <span class="fw-normal text-muted small">· in stock, not sold in 30 days</span></h3></div>
+            <div class="admin-panel-header"><h3 class="admin-panel-title">Slow movers <span class="fw-normal text-muted small">&middot; in stock, not sold during <?= e($dashboard_range['label']) ?></span></h3></div>
             <?php if ($stock_stats['slow_movers'] === []): ?>
-                <div class="admin-panel-body text-muted">Every product in stock sold in the last 30 days.</div>
+                <div class="admin-panel-body text-muted">Every product in stock sold during this period.</div>
             <?php else: ?>
                 <div class="table-responsive">
                     <table class="table admin-table mb-0">
@@ -116,7 +104,7 @@ $best_sellers_chart = [
         </div>
     </div>
 
-    <div class="col-xl-5">
+    <div class="col-xl-6">
         <div class="admin-panel h-100">
             <div class="admin-panel-header">
                 <h3 class="admin-panel-title">Offers ending soonest</h3>
@@ -133,7 +121,7 @@ $best_sellers_chart = [
                                 <?php $offer_link = url('admin/offer_edit.php?id=' . $offer['product_offer_id']); ?>
                                 <tr class="row-link" data-href="<?= e($offer_link) ?>">
                                     <td><a class="fw-semibold" href="<?= e($offer_link) ?>"><?= e($offer['product_name']) ?></a></td>
-                                    <td class="text-end">−<?= e($offer['product_offer_percent']) ?>%</td>
+                                    <td class="text-end">&minus;<?= e($offer['product_offer_percent']) ?>%</td>
                                     <td class="text-nowrap"><?= adminTimeLeft($offer['product_offer_ends_at']) ?></td>
                                 </tr>
                             <?php endforeach; ?>

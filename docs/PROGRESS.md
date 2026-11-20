@@ -73,6 +73,163 @@ Update this file at the end of every work session. Newest entry on top.
 
 ## Session log
 
+### 2026-11-20 - Balance the Stock dashboard layout
+- Gave the five stock summary cards an even five-column desktop layout, balanced the lower panels to equal widths, and removed the Best sellers table disclosure.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Add customer buyer-mix chart
+- Added a buyer-mix doughnut beside the new-customer trend and removed the trend chart's table disclosure. The period view distinguishes first-time from returning buyers; all-time distinguishes one-time from repeat buyers.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Simplify dashboard views and refine Customers tab
+- Removed the standalone Sales option from the dashboard selector while keeping `sales.php`. Replaced garbled separators in the Customers tab with safe display separators and set its four summary cards to four columns on desktop.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Apply glass styling across Overview and lift hovered chart sections
+- Applied the Overview glass finish to all Overview metric and content cards, not just chart panels. Doughnut slices, funnel bands and horizontal bars now lift or expand on hover.
+- PHP lint, dashboard JavaScript syntax, and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Add glass finish and chart depth to dashboard
+- Added a translucent glass finish to dashboard panels containing charts and gave chart marks subtle gradients and shadows for dimensional depth without altering their values or geometry.
+- `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Sort order status chart by volume
+- Sorted the separate order statuses from highest to lowest count. The doughnut slices and legend now use the same order, with ties retaining their existing status order.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Show category revenue as a doughnut
+- Replaced the sparse category revenue bars with a doughnut, a total product-revenue figure in the center, and a category legend with revenue and share.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Restyle payment methods as a revenue funnel
+- Replaced the Overview payment-method bar chart with a tapered, brand-colored revenue-share funnel. Each payment method retains its actual revenue and order count; the percentages show each method's share of the visible payment-method total.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Fix Stock dashboard rendering
+- Fixed the slow movers query to pass only its declared named parameters. Passing the full period parameter set caused PDO to throw `HY093` and prevented the Stock tab from rendering.
+- Corrected the garbled separators and minus sign in the Stock tab labels.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Fix garbled dashboard separators
+- Replaced the incorrectly encoded date-range separator with a plain hyphen and used the existing HTML middle-dot entity for the Overview chart subtitle.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Fix blank admin dashboard Overview
+- Corrected the delivered-order metric key mismatch between all-time totals and period totals that was throwing an exception before the Overview could render.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. Tests were not run.
+
+### 2026-11-20 - Keep dashboard custom date ranges unlimited
+- Removed the one-year ceiling from custom dashboard ranges. Longer ranges automatically use monthly chart buckets; shorter ranges remain daily so the charts stay readable.
+- Consolidated the Overview-specific order and sales insight code into `admin/includes/dashboard/overview.php`. Restored the standalone `orders.php` partial and kept `sales.php` intact for their existing page code.
+- PHP lint and `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Add shared date range to admin dashboard
+- Replaced the per-tab 7 / 14 / 30 / 90-day switches with one shared selector for All time, Today and custom dates; switching dashboard tabs keeps the selected range.
+- Date-based cards, charts, order status counts and table previews now follow that range. All-time trends group by month; custom date ranges are limited to one year. Current inventory counts remain explicitly labeled as current stock.
+- PHP lint for changed dashboard files: clean. `git diff --check`: clean. Tests were not run.
+
+### 2026-11-20 - Scope Overview day filter to daily trend
+- Fixed Overview's category, payment-method, product and region sales insights to the last 30 days. The 7 / 14 / 30 / 90-day selector now controls only the Revenue per day chart.
+- Kept Revenue per day as the primary trend for report-authorized admins; order volume remains visible in the separate Orders Overview chart.
+- PHP lint for `admin/index.php` and `admin/includes/dashboard/overview_insights.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Replace Overview stock snapshots with sales insights
+- Removed the Low stock, Best sellers, Slow movers and Offers snapshots from Overview. Added Revenue by category beside Orders Overview, then Revenue by payment method, Top products and Top regions in the next row.
+- Reused `Dashboard::getSalesBreakdown()` so sales figures match the dedicated Sales and Reports views. Kept the first Overview row and the dedicated Stock tab unchanged.
+- PHP lint for the Overview partials: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Add stock insights to Overview
+- Replaced the redundant Orders in progress bars with a Low stock table beside the order-status doughnut. Added a third row for Best sellers, Slow movers and Offers ending soon; each preview is limited to five items.
+- Kept the dedicated Stock tab available and applied the same snapshots only to admins with `products.manage`; order summaries still require `orders.view`.
+- PHP lint for the Overview partials: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Show every order status in the Overview chart
+- Split the Orders Overview doughnut into all eight individual statuses instead of grouping active and closed states. The legend includes zero-count statuses with their own theme-token colors.
+- Tightened legend spacing so all eight entries fit the existing chart card.
+- PHP lint and `git diff --check`: clean. Node.js is not installed, so the JavaScript syntax check could not be run.
+
+### 2026-11-20 - Replace packing list with order status chart
+- Replaced the Overview's Waiting to pack table with an Orders Overview doughnut showing Delivered, Processing, Pending and Cancelled / expired totals, percentages and a center total. Colors read the shared status tokens.
+- Removed the separate Order totals and Out for delivery table row to keep the Overview focused on the two chart rows.
+- PHP lint and `git diff --check`: clean. Node.js is not installed, so the JavaScript syntax check could not be run.
+
+### 2026-11-20 - Align four Overview metrics per row
+- Left the first Overview metric row unchanged. Replaced Verified businesses and Sellers in the second row with Active orders and Average order, and fixed the row to a four-column grid matching the first.
+- Reused the order summary already loaded for the Overview panels to avoid an extra pipeline query.
+- PHP lint for `admin/includes/dashboard/overview.php` and `admin/includes/dashboard/orders.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Balance Overview metric rows
+- Kept the first four all-time cards unchanged and reduced the second row to four useful indicators: verified businesses, delivered orders, pieces sold, and sellers. Removed Average order because Revenue is already shown in the first row.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Fit Overview tables to their cards
+- Made dashboard table wrappers fill the available card body and disabled vertical inner scrolling. Tables stretch to use their panel height, keeping up to five rows visible in each preview.
+- PHP lint for the Overview partials: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Merge order dashboard into Overview
+- Removed the separate Orders dashboard tab and placed the order pipeline chart and five oldest waiting-to-pack orders in an equal-width second row on Overview. Preserved the out-for-delivery summary below it, capped at five agents.
+- Preserved the order totals and paired that table with the five-agent out-for-delivery table in a third equal-width row. Latest orders and waiting-to-pack each show no more than five rows.
+- The dashboard panels use matching fixed heights and row spacing, with the order pipeline chart and waiting list in the requested second row.
+- PHP lint for `admin/index.php`, `admin/includes/dashboard/overview.php`, and `admin/includes/dashboard/orders.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Match Overview panel height to reference
+- Capped desktop graph and orders panels at 434 px to match the reference cards and free space for the next dashboard row. Narrow-phone panels remain 400 px; the graph plot fills the compact panel.
+- Reshaped the latest-orders table to the compact reference columns (#, order, customer, date, status), with fixed column widths so it fits its card on phones without horizontal scrolling.
+- Corrected the chart column wrapper so the graph and latest-orders card render as two equal columns in one row, with the existing row gap beneath them.
+- Removed the artificial inner scroll limit from the five-row latest-orders table so its visible rows use the available panel space without a scrollbar.
+- Set the pair to use the reference's large-screen grid breakpoint so both cards sit side by side from laptop widths and stack on smaller screens.
+- `git diff --check`: clean.
+
+### 2026-11-20 - Keep Overview panels compact
+- Set the chart and latest-orders panels to a matching compact height so another dashboard row can fit beneath them. The graph uses a fixed plot height; the five-order list scrolls inside its panel when needed.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Match Overview chart and orders panel heights
+- Made the daily chart fill the shared row height to remove empty space below it. Capped recent orders at five and constrained their table to the matching panel height with internal scrolling.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Keep the Overview chart graph-only
+- Removed the table view and its switch controls from the Overview chart panel; the graph remains the sole view.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Switch Overview chart and table views in place
+- Replaced the expanding “Show as a table” disclosure with Graph / Table view buttons. Selecting Table replaces the graph in its panel; selecting Graph restores it and resizes the chart.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean. JavaScript syntax could not be checked because Node.js is unavailable.
+
+### 2026-11-20 - Split Overview chart and order list
+- Placed the Overview trend chart and recent-orders table in equal desktop columns; they stack on smaller screens. Kept the order list compact by showing the five newest entries and moved the date beneath each order number.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Tighten Overview metric card corners
+- Reduced the Overview KPI card radius to 6 px to match the supplied reference.
+- `git diff --check`: clean.
+
+### 2026-11-20 - Remove extra all-time metrics heading
+- Kept the additional Overview metrics visible and removed their heading as requested.
+- PHP lint for `admin/includes/dashboard/overview.php`: clean.
+
+### 2026-11-20 - Show all Overview figures by default
+- Removed the Today and this week cards and made the additional all-time figures visible by default. Removed their unused dashboard calculations and styles.
+- PHP lint for `admin/index.php` and `admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean.
+
+### 2026-11-20 - Hide dashboard attention card
+- Removed the Needs attention card from the dashboard view. Its attention counts remain available to the shared notification bell and notification panel.
+- `C:\xampp\php\php.exe -l admin/index.php`: clean.
+
+### 2026-11-20 - Simplify and polish the admin dashboard
+- Limited the global Today / this week cards to Overview so other dashboard views start with their own relevant summaries. Kept four primary all-time figures visible and moved secondary totals into a compact disclosure. Replaced the wide tab strip with a responsive view dropdown showing the current view and icons for each permitted view.
+- Added a restrained green/cream glass treatment to dashboard-only panels, clearer summary grouping, and a green gradient for charts while keeping table content high contrast.
+- Standardized dashboard metric cards with matching minimum height and equal grid columns; the Today summary adapts to its available metrics and collapses responsively.
+- `C:\xampp\php\php.exe -l admin/index.php` and `C:\xampp\php\php.exe -l admin/includes/dashboard/overview.php`: clean. `git diff --check`: clean. Visual browser preview was unavailable, and Node.js was not installed for a JavaScript syntax check.
+
+### 2026-11-20 - Make admin top bar responsive
+- Grouped notification and account controls, then gave the mobile/tablet header a two-row layout with a dedicated full-width search row. Increased utility controls to 44 px tap targets and let long page titles truncate cleanly; all controls and actions remain available.
+- `C:\xampp\php\php.exe -l admin/includes/header.php`: clean.
+
+### 2026-11-19 - Refine mobile bottom navigation feedback
+- Replaced the orange active-tab underline with a brief, soft gold light that falls over the selected destination. Replaced the Wasifu person icon with the customer's account photo or initials and a green active outline.
+- Synced avatar uploads and removals into the shared login state so the tab updates immediately. `flutter analyze --no-pub`: clean. Profile flow tests: all 8 passed. `flutter run -d emulator-5554 --no-pub` built, installed, and launched successfully. Startup logged skipped-frame warnings on the emulator, but no Dart runtime errors.
+
 ### 2026-11-19 - Agiza Tena success feedback
 - Added a brief checkmark scale-in to the existing reorder success toast in the mobile app and website. It appears only after the reorder and cart refresh succeed; button placement, navigation, drawer behavior, and error handling stay unchanged.
 - `flutter analyze --no-pub`: clean. The Flutter widget test could not compile because the C: drive is out of free space.
